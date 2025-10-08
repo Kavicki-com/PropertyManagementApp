@@ -1,9 +1,10 @@
 // screens/PropertyDetailsScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { supabase } from '../lib/supabase';
 
-const PropertyDetailsScreen = ({ route, navigation }) => { // Add navigation prop
+const PropertyDetailsScreen = ({ route, navigation }) => {
+  // Get the property object passed from the navigation
   const { property } = route.params;
 
   const [tenant, setTenant] = useState(null);
@@ -13,13 +14,15 @@ const PropertyDetailsScreen = ({ route, navigation }) => { // Add navigation pro
     const fetchTenantForProperty = async () => {
       if (!property?.id) return;
 
+      setLoading(true);
+      // Find the tenant who is linked to this property's ID
       const { data, error } = await supabase
         .from('tenants')
         .select('full_name, phone')
         .eq('property_id', property.id)
-        .single(); 
+        .single(); // .single() gets one record instead of an array
 
-      if (error && error.code !== 'PGRST116') {
+      if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found, which is ok
         console.error('Error fetching tenant:', error);
       } else {
         setTenant(data);
@@ -30,41 +33,9 @@ const PropertyDetailsScreen = ({ route, navigation }) => { // Add navigation pro
     fetchTenantForProperty();
   }, [property?.id]);
 
-  const handleDeleteProperty = async () => {
-    Alert.alert(
-      "Confirmar Exclusão",
-      "Você tem certeza que quer deletar esta propriedade? Esta ação não pode ser desfeita.",
-      [
-        {
-          text: "Cancelar",
-          style: "cancel"
-        },
-        { 
-          text: "Deletar", 
-          onPress: async () => {
-            const { error } = await supabase
-              .from('properties')
-              .delete()
-              .eq('id', property.id);
-
-            if (error) {
-              Alert.alert('Erro', 'Não foi possível deletar a propriedade.');
-              console.error('Error deleting property:', error);
-            } else {
-              Alert.alert('Sucesso', 'Propriedade deletada.');
-              navigation.goBack(); // Go back to the properties list
-            }
-          },
-          style: 'destructive' 
-        }
-      ]
-    );
-  };
-
-
   if (!property) {
     return (
-      <View style={styles.container}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <Text>Property not found.</Text>
       </View>
     );
@@ -80,7 +51,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => { // Add navigation pro
         <Text style={styles.sectionTitle}>Detalhes da Propriedade</Text>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Tipo</Text>
-          <Text style={styles.infoValue}>{property.type}</Text>
+          <Text style={styles.infoValue}>{property.type || 'N/A'}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Quartos</Text>
@@ -129,96 +100,98 @@ const PropertyDetailsScreen = ({ route, navigation }) => { // Add navigation pro
             )
         )}
       </View>
-      
       <View style={styles.buttonContainer}>
-        {/* We will change this to an "Edit" button later */}
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteProperty}>
-          <Text style={styles.buttonText}>Deletar Propriedade</Text>
+        <TouchableOpacity 
+          style={styles.editButton} 
+          onPress={() => navigation.navigate('EditProperty', { property: property })}
+        >
+          <Text style={styles.buttonText}>Editar Propriedade</Text>
         </TouchableOpacity>
+        {/* ... delete button */}
       </View>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4a86e8',
-    padding: 20,
-    paddingTop: 40,
-    marginBottom: 15,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center'
-  },
-  section: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    container: {
+        flex: 1,
+        backgroundColor: '#f5f5f5',
+    },
+    header: {
+        backgroundColor: '#4a86e8',
+        paddingVertical: 20,
+        paddingHorizontal: 15,
+        paddingTop: 50, // For status bar height
+    },
+    title: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#fff',
+        textAlign: 'center',
+    },
+    section: {
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        padding: 15,
+        marginHorizontal: 15,
+        marginBottom: 15,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 10,
+    },
+    infoRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    infoLabel: {
+        color: '#666',
+        fontSize: 16,
+    },
+    infoValue: {
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    tenantCard: {
+        backgroundColor: '#f0f7ff',
+        borderRadius: 8,
+        padding: 15,
+    },
+    tenantName: {
+        fontWeight: 'bold',
+        fontSize: 16,
+        marginBottom: 5,
+    },
+    tenantPhone: {
+        color: '#666',
+    },
+    noTenantText: {
+        textAlign: 'center',
+        color: '#666',
+        paddingVertical: 10,
+        fontStyle: 'italic',
+    },
+
+    editButton: {
+    backgroundColor: '#FF9800', // Orange color for edit
     padding: 15,
-    marginBottom: 15,
-    marginHorizontal: 15,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 15,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  infoLabel: {
-    color: '#666',
-    fontSize: 16,
-  },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  tenantCard: {
-    backgroundColor: '#f0f7ff',
     borderRadius: 8,
-    padding: 15,
+    flex: 1,
+    marginRight: 10,
+    alignItems: 'center',
   },
-  tenantName: {
-    fontWeight: 'bold',
-    fontSize: 16,
-    marginBottom: 5,
-  },
-  tenantPhone: {
-    color: '#666',
-  },
-  noTenantText: {
-    textAlign: 'center',
-    color: '#666',
-    paddingVertical: 10,
-    fontStyle: 'italic',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around', // Changed to space-around
-    padding: 15,
-    marginBottom: 20,
-  },
-  deleteButton: { // Changed from editButton
+  deleteButton: {
     backgroundColor: '#F44336', // Red color for delete
     padding: 15,
     borderRadius: 8,
     flex: 1,
+    marginLeft: 10,
     alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
   },
 });
 

@@ -31,10 +31,11 @@ const EditPropertyScreen = ({ route, navigation }) => {
   const [showDataFimPicker, setShowDataFimPicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Pre-fill the form with the property's data when the screen loads
   useEffect(() => {
     if (property) {
-      setEndereco(property.address);
-      setTipoPropriedade(property.type);
+      setEndereco(property.address || '');
+      setTipoPropriedade(property.type || '');
       setQuartos(property.bedrooms?.toString() || '');
       setBanheiros(property.bathrooms?.toString() || '');
       setArea(property.sqft?.toString() || '');
@@ -73,45 +74,66 @@ const EditPropertyScreen = ({ route, navigation }) => {
     setLoading(false);
   };
   
-  // ... (DateTimePicker change handlers are the same)
+  const onDataInicioChange = (event, selectedDate) => {
+    setShowDataInicioPicker(false);
+    if (selectedDate) setDataInicio(selectedDate);
+  };
+
+  const onDataFimChange = (event, selectedDate) => {
+    setShowDataFimPicker(false);
+    if (selectedDate) setDataFim(selectedDate);
+  };
 
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.header}>Editar Propriedade</Text>
-      {/* Form fields are the same as AddPropertyScreen, just with pre-filled values */}
-      {/* ... (Your JSX form from AddPropertyScreen can be pasted here, but ensure the button calls handleUpdateProperty) */}
+      
+        <View style={styles.inputGroup}>
+            <Text style={styles.label}>Endereço</Text>
+            <TextInput style={styles.input} value={endereco} onChangeText={setEndereco} />
+        </View>
+
+        <View style={styles.inputGroup}>
+            <Text style={styles.label}>Tipo de Propriedade</Text>
+            <TextInput style={styles.input} value={tipoPropriedade} onChangeText={setTipoPropriedade} />
+        </View>
+
+        <View style={styles.inputRow}>
+            <View style={styles.inputGroupHalf}>
+                <Text style={styles.label}>Quartos</Text>
+                <TextInput style={styles.input} value={quartos} onChangeText={setQuartos} keyboardType="numeric" />
+            </View>
+            <View style={styles.inputGroupHalf}>
+                <Text style={styles.label}>Banheiros</Text>
+                <TextInput style={styles.input} value={banheiros} onChangeText={setBanheiros} keyboardType="numeric" />
+            </View>
+        </View>
+
+        {/* ... other fields ... */}
+
       <TouchableOpacity style={styles.updateButton} onPress={handleUpdateProperty} disabled={loading}>
         {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
       </TouchableOpacity>
+
+      {showDataInicioPicker && <DateTimePicker value={dataInicio} mode="date" display="default" onChange={onDataInicioChange} />}
+      {showDataFimPicker && <DateTimePicker value={dataFim} mode="date" display="default" onChange={onDataFimChange} />}
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 20,
-  },
-  header: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  updateButton: {
-    backgroundColor: '#4CAF50', // Green for update
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  // ... (Add all other styles from AddPropertyScreen.js here)
+    container: { flex: 1, backgroundColor: '#fff', padding: 20 },
+    header: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+    inputGroup: { marginBottom: 20 },
+    inputRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+    inputGroupHalf: { width: '48%' },
+    label: { marginBottom: 8, fontWeight: '500' },
+    input: { height: 50, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 15, fontSize: 16 },
+    dateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    dateInput: { flex: 1, height: 50, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 15, justifyContent: 'center' },
+    dateSeparator: { marginHorizontal: 10, color: '#666' },
+    updateButton: { backgroundColor: '#FF9800', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+    buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 });
 
 export default EditPropertyScreen;

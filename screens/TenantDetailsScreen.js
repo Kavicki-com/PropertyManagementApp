@@ -93,6 +93,17 @@ const TenantDetailsScreen = ({ route, navigation }) => { // Add navigation prop
           <Text style={styles.buttonText}>Deletar Inquilino</Text>
         </TouchableOpacity>
       </View>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity 
+          style={styles.editButton}
+          onPress={() => navigation.navigate('EditTenant', { tenant: tenant })}
+        >
+          <Text style={styles.buttonText}>Editar Inquilino</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteTenant}>
+          <Text style={styles.buttonText}>Deletar Inquilino</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 };
@@ -167,6 +178,22 @@ const styles = StyleSheet.create({
       color: '#fff',
       fontWeight: 'bold',
     },
+    editButton: {
+    backgroundColor: '#FF9800',
+    padding: 15,
+    borderRadius: 8,
+    flex: 1,
+    marginRight: 10,
+    alignItems: 'center',
+  },
+  deleteButton: {
+    backgroundColor: '#F44336',
+    padding: 15,
+    borderRadius: 8,
+    flex: 1,
+    marginLeft: 10,
+    alignItems: 'center',
+  },
   });
 
 export default TenantDetailsScreen;
