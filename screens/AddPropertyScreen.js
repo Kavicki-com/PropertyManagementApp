@@ -1,7 +1,18 @@
+// screens/AddPropertyScreen.js
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
+import { supabase } from '../lib/supabase'; // Make sure this path is correct
 
 const AddPropertyScreen = ({ navigation }) => {
   const [endereco, setEndereco] = useState('');
@@ -16,21 +27,41 @@ const AddPropertyScreen = ({ navigation }) => {
   const [dataFim, setDataFim] = useState(new Date());
   const [showDataInicioPicker, setShowDataInicioPicker] = useState(false);
   const [showDataFimPicker, setShowDataFimPicker] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleAddProperty = () => {
-    console.log('Propriedade adicionada:', {
-      endereco,
-      tipoPropriedade,
-      quartos,
-      banheiros,
-      area,
-      tamanhoLote,
-      aluguel,
-      prazoContrato,
-      dataInicio,
-      dataFim
+  const handleAddProperty = async () => {
+    setLoading(true);
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      Alert.alert('Error', 'You must be logged in to add a property.');
+      setLoading(false);
+      return;
+    }
+
+    const { error } = await supabase.from('properties').insert({
+      user_id: user.id,
+      address: endereco,
+      type: tipoPropriedade,
+      bedrooms: parseInt(quartos, 10) || null,
+      bathrooms: parseInt(banheiros, 10) || null,
+      sqft: parseInt(area, 10) || null,
+      lot_size: tamanhoLote,
+      rent: parseInt(aluguel, 10) || null,
+      lease_term: parseInt(prazoContrato, 10) || null,
+      start_date: dataInicio.toISOString(),
+      end_date: dataFim.toISOString(),
     });
-    navigation.goBack();
+
+    if (error) {
+      Alert.alert('Error adding property', error.message);
+    } else {
+      Alert.alert('Success', 'Property added successfully!');
+      navigation.goBack();
+    }
+
+    setLoading(false);
   };
 
   const onDataInicioChange = (event, selectedDate) => {
@@ -51,7 +82,8 @@ const AddPropertyScreen = ({ navigation }) => {
     <ScrollView style={styles.container}>
       <Text style={styles.header}>Adicionar Propriedade</Text>
 
-      <View style={styles.inputGroup}>
+      {/* --- Your TextInputs remain here --- */}
+        <View style={styles.inputGroup}>
         <Text style={styles.label}>Endereço</Text>
         <TextInput
           style={styles.input}
@@ -140,15 +172,15 @@ const AddPropertyScreen = ({ navigation }) => {
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Datas do Contrato</Text>
         <View style={styles.dateRow}>
-          <TouchableOpacity 
-            style={styles.dateInput} 
+          <TouchableOpacity
+            style={styles.dateInput}
             onPress={() => setShowDataInicioPicker(true)}
           >
             <Text>{format(dataInicio, 'dd/MM/yyyy')}</Text>
           </TouchableOpacity>
           <Text style={styles.dateSeparator}>até</Text>
-          <TouchableOpacity 
-            style={styles.dateInput} 
+          <TouchableOpacity
+            style={styles.dateInput}
             onPress={() => setShowDataFimPicker(true)}
           >
             <Text>{format(dataFim, 'dd/MM/yyyy')}</Text>
@@ -156,8 +188,12 @@ const AddPropertyScreen = ({ navigation }) => {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.addButton} onPress={handleAddProperty}>
-        <Text style={styles.addButtonText}>Adicionar Propriedade</Text>
+      <TouchableOpacity style={styles.addButton} onPress={handleAddProperty} disabled={loading}>
+        {loading ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <Text style={styles.addButtonText}>Adicionar Propriedade</Text>
+        )}
       </TouchableOpacity>
 
       {showDataInicioPicker && (
@@ -181,75 +217,77 @@ const AddPropertyScreen = ({ navigation }) => {
   );
 };
 
+// ... (styles remain the same)
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 20,
-  },
-  header: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#333',
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  inputGroupHalf: {
-    width: '48%',
-  },
-  label: {
-    marginBottom: 8,
-    fontWeight: '500',
-    color: '#333',
-  },
-  input: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    fontSize: 16,
-    backgroundColor: '#f9f9f9',
-  },
-  dateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dateInput: {
-    flex: 1,
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    justifyContent: 'center',
-    backgroundColor: '#f9f9f9',
-  },
-  dateSeparator: {
-    marginHorizontal: 10,
-    color: '#666',
-  },
-  addButton: {
-    backgroundColor: '#4a86e8',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  addButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-});
+    container: {
+      flex: 1,
+      backgroundColor: '#fff',
+      padding: 20,
+    },
+    header: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      marginBottom: 20,
+      textAlign: 'center',
+      color: '#333',
+    },
+    inputGroup: {
+      marginBottom: 20,
+    },
+    inputRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 20,
+    },
+    inputGroupHalf: {
+      width: '48%',
+    },
+    label: {
+      marginBottom: 8,
+      fontWeight: '500',
+      color: '#333',
+    },
+    input: {
+      height: 50,
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 8,
+      paddingHorizontal: 15,
+      fontSize: 16,
+      backgroundColor: '#f9f9f9',
+    },
+    dateRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    dateInput: {
+      flex: 1,
+      height: 50,
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 8,
+      paddingHorizontal: 15,
+      justifyContent: 'center',
+      backgroundColor: '#f9f9f9',
+    },
+    dateSeparator: {
+      marginHorizontal: 10,
+      color: '#666',
+    },
+    addButton: {
+      backgroundColor: '#4a86e8',
+      padding: 15,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginTop: 10,
+    },
+    addButtonText: {
+      color: 'white',
+      fontWeight: 'bold',
+      fontSize: 16,
+    },
+  });
+
 
 export default AddPropertyScreen;

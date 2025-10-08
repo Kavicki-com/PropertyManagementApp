@@ -1,24 +1,27 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
+// screens/TenantsScreen.js
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-
-const tenants = [
-  { id: '1', name: 'Ethan Harper', address: '123 Main St, Apt 1' },
-  { id: '2', name: 'Sophia Bennett', address: '456 Oak Ave, Unit 2' },
-  { id: '3', name: 'Liam Carter', address: '789 Pine Ln, House' },
-  { id: '4', name: 'Olivia Davis', address: '101 Elm Rd, Apt 3' },
-  { id: '5', name: 'Noah Evans', address: '222 Maple Dr, Unit 4' },
-];
+import { supabase } from '../lib/supabase';
+import { useIsFocused } from '@react-navigation/native';
 
 const TenantItem = ({ item, onPress }) => (
   <TouchableOpacity style={styles.tenantCard} onPress={() => onPress(item)}>
-    <Image 
-      source={require('../assets/avatar-placeholder.png')} 
-      style={styles.avatar} 
+    <Image
+      source={require('../assets/avatar-placeholder.png')}
+      style={styles.avatar}
     />
     <View style={styles.tenantInfo}>
-      <Text style={styles.tenantName}>{item.name}</Text>
-      <Text style={styles.tenantAddress}>{item.address}</Text>
+      <Text style={styles.tenantName}>{item.full_name}</Text>
+      {/* We will add property address later */}
     </View>
     <View style={styles.tenantStatus}>
       <Text style={styles.statusActive}>Ativo</Text>
@@ -27,25 +30,52 @@ const TenantItem = ({ item, onPress }) => (
 );
 
 const TenantsScreen = ({ navigation }) => {
+  const [tenants, setTenants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const isFocused = useIsFocused();
+
+  const fetchTenants = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from('tenants').select('*');
+
+    if (error) {
+      console.error('Error fetching tenants:', error);
+    } else {
+      setTenants(data);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (isFocused) {
+      fetchTenants();
+    }
+  }, [isFocused]);
+
   const handleTenantPress = (tenant) => {
     navigation.navigate('TenantDetails', { tenant });
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Inquilinos</Text>
       <FlatList
         data={tenants}
-        renderItem={({ item }) => (
-          <TenantItem item={item} onPress={handleTenantPress} />
-        )}
-        keyExtractor={item => item.id}
+        renderItem={({ item }) => <TenantItem item={item} onPress={handleTenantPress} />}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
       />
-      
-      {/* Botão flutuante - CORREÇÃO: estilo addButton definido abaixo */}
-      <TouchableOpacity 
-        style={styles.addButton} 
+
+      <TouchableOpacity
+        style={styles.addButton}
         onPress={() => navigation.navigate('AddTenant')}
       >
         <MaterialIcons name="add" size={30} color="white" />
@@ -54,12 +84,13 @@ const TenantsScreen = ({ navigation }) => {
   );
 };
 
+// ... (Your styles remain the same)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
     padding: 15,
-    position: 'relative', // Importante para posicionar o botão flutuante
+    position: 'relative',
   },
   header: {
     fontSize: 24,
@@ -68,7 +99,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   listContent: {
-    paddingBottom: 80, // Espaço extra para o botão flutuante
+    paddingBottom: 80,
   },
   tenantCard: {
     backgroundColor: '#fff',
@@ -112,7 +143,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontSize: 12,
   },
-  // ESTILO ADDBUTTON ADICIONADO AQUI
   addButton: {
     position: 'absolute',
     bottom: 30,
