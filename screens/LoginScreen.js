@@ -1,22 +1,47 @@
+// screens/LoginScreen.js
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ActivityIndicator, // Added for loading state
+} from 'react-native';
+import { supabase } from '../lib/supabase'; // Make sure you have created this file
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (email && password) navigation.navigate('Main');
+  const handleLogin = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      navigation.navigate('Main');
+    }
+    setLoading(false);
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
       <Image source={require('../assets/logo.png')} style={styles.logo} />
       <Text style={styles.title}>Entrar</Text>
-      
+
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Email</Text>
         <TextInput
@@ -25,9 +50,10 @@ const LoginScreen = ({ navigation }) => {
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
+          autoCapitalize="none"
         />
       </View>
-      
+
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Senha</Text>
         <TextInput
@@ -38,15 +64,19 @@ const LoginScreen = ({ navigation }) => {
           secureTextEntry
         />
       </View>
-      
+
       <TouchableOpacity>
         <Text style={styles.forgotPassword}>Esqueceu a senha?</Text>
       </TouchableOpacity>
-      
-      <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-        <Text style={styles.loginButtonText}>Entrar</Text>
+
+      <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
+        {loading ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <Text style={styles.loginButtonText}>Entrar</Text>
+        )}
       </TouchableOpacity>
-      
+
       <View style={styles.signUpContainer}>
         <Text style={styles.signUpText}>Não tem uma conta? </Text>
         <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
@@ -57,6 +87,7 @@ const LoginScreen = ({ navigation }) => {
   );
 };
 
+// ... (styles remain the same)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -120,5 +151,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
 
 export default LoginScreen;

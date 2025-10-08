@@ -1,56 +1,84 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
+// screens/PropertiesScreen.js
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-
-const properties = [
-  { id: '1', address: '123 Elm Street', type: 'Apartment', status: 'Ocupado' },
-  { id: '2', address: '456 Oak Avenue', type: 'House', status: 'Disponível' },
-  { id: '3', address: '789 Pine Lane', type: 'Apartment', status: 'Ocupado' },
-  { id: '4', address: '101 Maple Drive', type: 'House', status: 'Disponível' },
-  { id: '5', address: '222 Cedar Court', type: 'Apartment', status: 'Ocupado' },
-];
+import { supabase } from '../lib/supabase'; // Make sure you have created this file
+import { useIsFocused } from '@react-navigation/native';
 
 const PropertyItem = ({ item, onPress }) => (
   <TouchableOpacity style={styles.propertyCard} onPress={() => onPress(item)}>
-    <Image 
-      source={require('../assets/property-placeholder.jpg')} 
-      style={styles.propertyImage} 
+    <Image
+      source={require('../assets/property-placeholder.jpg')}
+      style={styles.propertyImage}
     />
     <View style={styles.propertyInfo}>
       <Text style={styles.propertyAddress}>{item.address}</Text>
       <View style={styles.propertyMeta}>
         <Text style={styles.propertyType}>{item.type}</Text>
-        <View style={[
-          styles.statusBadge, 
-          item.status === 'Ocupado' ? styles.occupied : styles.vacant
-        ]}>
+        {/* You can add a status field to your database later if you want */}
+        {/* <View style={[styles.statusBadge, item.status === 'Ocupado' ? styles.occupied : styles.vacant]}>
           <Text style={styles.statusText}>{item.status}</Text>
-        </View>
+        </View> */}
       </View>
     </View>
   </TouchableOpacity>
 );
 
 const PropertiesScreen = ({ navigation }) => {
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const isFocused = useIsFocused();
+
+  const fetchProperties = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from('properties').select('*');
+
+    if (error) {
+      console.error('Error fetching properties:', error);
+    } else {
+      setProperties(data);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (isFocused) {
+      fetchProperties();
+    }
+  }, [isFocused]);
+
   const handlePropertyPress = (property) => {
     navigation.navigate('PropertyDetails', { property });
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Propriedades</Text>
       <FlatList
         data={properties}
-        renderItem={({ item }) => (
-          <PropertyItem item={item} onPress={handlePropertyPress} />
-        )}
-        keyExtractor={item => item.id}
+        renderItem={({ item }) => <PropertyItem item={item} onPress={handlePropertyPress} />}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
       />
-      
-      {/* Botão flutuante - CORREÇÃO: estilo addButton definido abaixo */}
-      <TouchableOpacity 
-        style={styles.addButton} 
+
+      <TouchableOpacity
+        style={styles.addButton}
         onPress={() => navigation.navigate('AddProperty')}
       >
         <MaterialIcons name="add" size={30} color="white" />
@@ -59,6 +87,7 @@ const PropertiesScreen = ({ navigation }) => {
   );
 };
 
+// ... (styles remain the same)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -139,5 +168,6 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
 });
+
 
 export default PropertiesScreen;
