@@ -9,8 +9,9 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Picker, // Import Picker
+  Platform,
 } from 'react-native';
+import DropDownPicker from 'react-native-dropdown-picker'; // NEW IMPORT
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
@@ -28,24 +29,34 @@ const AddTenantScreen = ({ navigation }) => {
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // State for properties dropdown
-  const [properties, setProperties] = useState([]);
-  const [selectedProperty, setSelectedProperty] = useState(null);
+  // New state for the DropDownPicker
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(null); // This will hold the selected property ID
+  const [items, setItems] = useState([]);
 
-  // Fetch properties when the component mounts
+  // Fetch properties and format them for the DropDownPicker
   useEffect(() => {
     const fetchProperties = async () => {
       const { data, error } = await supabase.from('properties').select('id, address');
       if (error) {
-        console.error('Error fetching properties:', error);
+        Alert.alert('Error', 'Could not fetch properties.');
       } else {
-        setProperties(data);
+        const formattedProperties = data.map(prop => ({
+          label: prop.address,
+          value: prop.id,
+        }));
+        setItems(formattedProperties);
       }
     };
     fetchProperties();
   }, []);
 
   const handleAddTenant = async () => {
+    if (!value) {
+      Alert.alert('Erro', 'Por favor, selecione uma propriedade.');
+      return;
+    }
+    
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -55,15 +66,9 @@ const AddTenantScreen = ({ navigation }) => {
       return;
     }
 
-    if (!selectedProperty) {
-        Alert.alert('Erro', 'Por favor, selecione uma propriedade.');
-        setLoading(false);
-        return;
-    }
-
     const { error } = await supabase.from('tenants').insert({
       user_id: user.id,
-      property_id: selectedProperty,
+      property_id: value, // Use the 'value' from the dropdown state
       full_name: fullName,
       phone: phone,
       email: email,
@@ -94,10 +99,13 @@ const AddTenantScreen = ({ navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+        style={styles.container}
+        // Add this keyboardShouldPersistTaps prop for better UX with the dropdown
+        keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.header}>Adicionar Inquilino</Text>
 
-      {/* --- Form fields --- */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Nome Completo</Text>
         <TextInput
@@ -108,20 +116,20 @@ const AddTenantScreen = ({ navigation }) => {
         />
       </View>
 
-      <View style={styles.inputGroup}>
-          <Text style={styles.label}>Propriedade</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-                selectedValue={selectedProperty}
-                style={styles.picker}
-                onValueChange={(itemValue) => setSelectedProperty(itemValue)}
-            >
-                <Picker.Item label="Selecione uma propriedade..." value={null} />
-                {properties.map((prop) => (
-                <Picker.Item key={prop.id} label={prop.address} value={prop.id} />
-                ))}
-            </Picker>
-          </View>
+      {/* THIS IS THE NEW COMBO BOX FOR PROPERTIES */}
+      <View style={[styles.inputGroup, Platform.OS === 'android' && { zIndex: 1000 }]}>
+        <Text style={styles.label}>Propriedade</Text>
+        <DropDownPicker
+            open={open}
+            value={value}
+            items={items}
+            setOpen={setOpen}
+            setValue={setValue}
+            setItems={setItems}
+            searchable={true}
+            placeholder="Selecione uma propriedade"
+            listMode="MODAL" // Use 'MODAL' for a better experience on mobile
+        />
       </View>
 
       <View style={styles.inputGroup}>
@@ -135,6 +143,7 @@ const AddTenantScreen = ({ navigation }) => {
         />
       </View>
 
+      {/* ... other form fields ... */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Email</Text>
         <TextInput
@@ -226,7 +235,6 @@ const AddTenantScreen = ({ navigation }) => {
   );
 };
 
-// ... Your existing styles, plus a new style for the picker
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -278,22 +286,12 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         alignItems: 'center',
         marginTop: 10,
+        marginBottom: 50, // Add some margin at the bottom
       },
       addButtonText: {
         color: 'white',
         fontWeight: 'bold',
         fontSize: 16,
-      },
-      pickerContainer: {
-        height: 50,
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 8,
-        justifyContent: 'center',
-      },
-      picker: {
-        height: 50,
-        width: '100%',
       },
 });
 

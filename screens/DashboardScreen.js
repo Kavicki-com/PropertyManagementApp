@@ -1,19 +1,72 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+// screens/DashboardScreen.js
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { supabase } from '../lib/supabase';
+import { useIsFocused } from '@react-navigation/native';
+import { startOfMonth, endOfMonth, format } from 'date-fns';
 
 const DashboardScreen = ({ navigation }) => {
-  const stats = {
-    rentCollected: 2450,
-    activeTenants: 3,
-    upcomingRent: 1,
+  const [stats, setStats] = useState({
+    rentCollected: 0,
+    activeTenants: 0,
+    occupiedProperties: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const isFocused = useIsFocused();
+
+  const fetchDashboardData = async () => {
+    setLoading(true);
+
+    // Get the start and end of the current month
+    const today = new Date();
+    const startDate = format(startOfMonth(today), 'yyyy-MM-dd');
+    const endDate = format(endOfMonth(today), 'yyyy-MM-dd');
+
+    // Fetch total income for the current month
+    const { data: financeData, error: financeError } = await supabase
+      .from('finances')
+      .select('amount')
+      .eq('type', 'income')
+      .gte('date', startDate)
+      .lte('date', endDate);
+
+    // Fetch counts for tenants and properties
+    const { count: tenantCount, error: tenantError } = await supabase
+      .from('tenants')
+      .select('*', { count: 'exact', head: true });
+    
+    const { count: propertyCount, error: propertyError } = await supabase
+      .from('properties')
+      .select('*', { count: 'exact', head: true });
+
+    if (financeError || tenantError || propertyError) {
+      console.error('Error fetching dashboard data:', financeError || tenantError || propertyError);
+    } else {
+      const totalIncome = financeData.reduce((sum, transaction) => sum + transaction.amount, 0);
+      setStats({
+        rentCollected: totalIncome,
+        activeTenants: tenantCount,
+        propertyCount: propertyCount,
+      });
+    }
+
+    setLoading(false);
   };
 
-  const recentActivity = [
-    { id: 1, tenant: 'Inquilino A', amount: 800, type: 'Pagamento Recebido' },
-    { id: 2, tenant: 'Inquilino B', amount: 750, type: 'Pagamento Recebido' },
-    { id: 3, tenant: 'Inquilino C', amount: 900, type: 'Pagamento Recebido' },
-  ];
+  useEffect(() => {
+    if (isFocused) {
+      fetchDashboardData();
+    }
+  }, [isFocused]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -24,7 +77,7 @@ const DashboardScreen = ({ navigation }) => {
           <View style={styles.statIconContainer}>
             <MaterialIcons name="attach-money" size={24} color="#fff" />
           </View>
-          <Text style={styles.statAmount}>R${stats.rentCollected}</Text>
+          <Text style={styles.statAmount}>R${stats.rentCollected.toFixed(2)}</Text>
           <Text style={styles.statLabel}>Aluguel Coletado</Text>
           <Text style={styles.statSubLabel}>Este Mês</Text>
         </View>
@@ -35,38 +88,30 @@ const DashboardScreen = ({ navigation }) => {
           </View>
           <Text style={styles.statAmount}>{stats.activeTenants}</Text>
           <Text style={styles.statLabel}>Inquilinos Ativos</Text>
-          <Text style={styles.statSubLabel}>Em 2 Propriedades</Text>
+          <Text style={styles.statSubLabel}>Em {stats.propertyCount} Propriedades</Text>
         </View>
         
+        {/* This card can be implemented as a more advanced feature later */}
         <View style={styles.statCard}>
           <View style={[styles.statIconContainer, { backgroundColor: '#FF9800' }]}>
             <MaterialIcons name="event" size={24} color="#fff" />
           </View>
-          <Text style={styles.statAmount}>{stats.upcomingRent}</Text>
+          <Text style={styles.statAmount}>1</Text>
           <Text style={styles.statLabel}>Próximo Aluguel</Text>
           <Text style={styles.statSubLabel}>Vence em 5 Dias</Text>
         </View>
       </View>
       
+      {/* We can make "Recent Activity" dynamic in a future step */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Atividade Recente</Text>
-        {recentActivity.map(activity => (
-          <View key={activity.id} style={styles.activityCard}>
-            <View style={styles.activityIcon}>
-              <MaterialIcons name="account-circle" size={40} color="#4a86e8" />
-            </View>
-            <View style={styles.activityDetails}>
-              <Text style={styles.activityTenant}>{activity.tenant}</Text>
-              <Text style={styles.activityType}>{activity.type}</Text>
-            </View>
-            <Text style={styles.activityAmount}>R${activity.amount}</Text>
-          </View>
-        ))}
+        {/* Placeholder for recent activity */}
       </View>
     </ScrollView>
   );
 };
 
+// ... (Your styles remain the same)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -140,32 +185,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     color: '#333',
   },
-  activityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  activityIcon: {
-    marginRight: 15,
-  },
-  activityDetails: {
-    flex: 1,
-  },
-  activityTenant: {
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  activityType: {
-    color: '#666',
-    fontSize: 14,
-  },
-  activityAmount: {
-    fontWeight: 'bold',
-    fontSize: 16,
-    color: '#4CAF50',
-  },
 });
+
 
 export default DashboardScreen;

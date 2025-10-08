@@ -1,18 +1,23 @@
+// App.js
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialIcons } from '@expo/vector-icons';
+
+// Screens
 import LoginScreen from './screens/LoginScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import PropertiesScreen from './screens/PropertiesScreen';
 import PropertyDetailsScreen from './screens/PropertyDetailsScreen';
+import AddPropertyScreen from './screens/AddPropertyScreen';
+import EditPropertyScreen from './screens/EditPropertyScreen'; // <-- IMPORTED
 import TenantsScreen from './screens/TenantsScreen';
 import TenantDetailsScreen from './screens/TenantDetailsScreen';
 import AddTenantScreen from './screens/AddTenantScreen';
 import FinancesScreen from './screens/FinancesScreen';
-import AddPropertyScreen from './screens/AddPropertyScreen';
+import AddTransactionScreen from './screens/AddTransactionScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -29,17 +34,14 @@ function MainTabs() {
           else if (route.name === 'Finanças') iconName = 'attach-money';
           return <MaterialIcons name={iconName} size={size} color={color} />;
         },
+        tabBarActiveTintColor: '#4a86e8',
+        tabBarInactiveTintColor: 'gray',
       })}
-      tabBarOptions={{
-        activeTintColor: '#4a86e8',
-        inactiveTintColor: 'gray',
-        labelStyle: { marginBottom: 5 },
-      }}
     >
-      <Tab.Screen name="Início" component={DashboardScreen} />
-      <Tab.Screen name="Imóveis" component={PropertiesScreen} />
-      <Tab.Screen name="Inquilinos" component={TenantsScreen} />
-      <Tab.Screen name="Finanças" component={FinancesScreen} />
+      <Tab.Screen name="Início" component={DashboardScreen} options={{ headerShown: false }}/>
+      <Tab.Screen name="Imóveis" component={PropertiesScreen} options={{ headerShown: false }}/>
+      <Tab.Screen name="Inquilinos" component={TenantsScreen} options={{ headerShown: false }}/>
+      <Tab.Screen name="Finanças" component={FinancesScreen} options={{ headerShown: false }}/>
     </Tab.Navigator>
   );
 }
@@ -53,8 +55,10 @@ export default function App() {
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen name="PropertyDetails" component={PropertyDetailsScreen} />
         <Stack.Screen name="TenantDetails" component={TenantDetailsScreen} />
-        <Stack.Screen name="AddTenant" component={AddTenantScreen} />
         <Stack.Screen name="AddProperty" component={AddPropertyScreen} />
+        <Stack.Screen name="EditProperty" component={EditPropertyScreen} /> {/* <-- ADDED */}
+        <Stack.Screen name="AddTenant" component={AddTenantScreen} />
+        <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

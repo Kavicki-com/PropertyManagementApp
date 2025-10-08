@@ -1,125 +1,139 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+// screens/PropertyDetailsScreen.js
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { supabase } from '../lib/supabase';
 
-const PropertyDetailsScreen = ({ route }) => {
-  const property = route.params?.property || {
-    address: '123 Main St, Anytown, USA',
-    type: 'Single-Family Home',
-    bedrooms: 3,
-    bathrooms: 2,
-    sqft: 1500,
-    lotSize: '0.25 acres',
-    rent: 1800,
-    leaseTerm: 12,
-    startDate: '01/01/2023',
-    endDate: '12/31/2023',
-    tenant: 'Ethan Carter',
-    phone: '555-123-4567',
+const PropertyDetailsScreen = ({ route, navigation }) => { // Add navigation prop
+  const { property } = route.params;
+
+  const [tenant, setTenant] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTenantForProperty = async () => {
+      if (!property?.id) return;
+
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('full_name, phone')
+        .eq('property_id', property.id)
+        .single(); 
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching tenant:', error);
+      } else {
+        setTenant(data);
+      }
+      setLoading(false);
+    };
+
+    fetchTenantForProperty();
+  }, [property?.id]);
+
+  const handleDeleteProperty = async () => {
+    Alert.alert(
+      "Confirmar Exclusão",
+      "Você tem certeza que quer deletar esta propriedade? Esta ação não pode ser desfeita.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        { 
+          text: "Deletar", 
+          onPress: async () => {
+            const { error } = await supabase
+              .from('properties')
+              .delete()
+              .eq('id', property.id);
+
+            if (error) {
+              Alert.alert('Erro', 'Não foi possível deletar a propriedade.');
+              console.error('Error deleting property:', error);
+            } else {
+              Alert.alert('Sucesso', 'Propriedade deletada.');
+              navigation.goBack(); // Go back to the properties list
+            }
+          },
+          style: 'destructive' 
+        }
+      ]
+    );
   };
+
+
+  if (!property) {
+    return (
+      <View style={styles.container}>
+        <Text>Property not found.</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Detalhes da Propriedade</Text>
+        <Text style={styles.title}>{property.address}</Text>
       </View>
-      
+
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Endereço</Text>
-        <Text style={styles.infoText}>{property.address}</Text>
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Tipo de Propriedade</Text>
-        <Text style={styles.infoText}>{property.type}</Text>
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Características</Text>
-        <View style={styles.featuresRow}>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureLabel}>Quartos</Text>
-            <Text style={styles.featureValue}>{property.bedrooms}</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureLabel}>Banheiros</Text>
-            <Text style={styles.featureValue}>{property.bathrooms}</Text>
-          </View>
+        <Text style={styles.sectionTitle}>Detalhes da Propriedade</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Tipo</Text>
+          <Text style={styles.infoValue}>{property.type}</Text>
         </View>
-        <View style={styles.featureItem}>
-          <Text style={styles.featureLabel}>Área Construída</Text>
-          <Text style={styles.featureValue}>{property.sqft} sq ft</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Quartos</Text>
+          <Text style={styles.infoValue}>{property.bedrooms}</Text>
         </View>
-        <View style={styles.featureItem}>
-          <Text style={styles.featureLabel}>Tamanho do Lote</Text>
-          <Text style={styles.featureValue}>{property.lotSize}</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Banheiros</Text>
+          <Text style={styles.infoValue}>{property.bathrooms}</Text>
+        </View>
+         <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Área (m²)</Text>
+          <Text style={styles.infoValue}>{property.sqft}</Text>
         </View>
       </View>
       
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Aluguel & Contrato</Text>
-        <View style={styles.featuresRow}>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureLabel}>Aluguel</Text>
-            <Text style={styles.featureValue}>${property.rent}/month</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureLabel}>Prazo do Contrato</Text>
-            <Text style={styles.featureValue}>{property.leaseTerm} months</Text>
-          </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Aluguel Mensal</Text>
+          <Text style={styles.infoValue}>${property.rent}/mês</Text>
         </View>
-        <View style={styles.featureItem}>
-          <Text style={styles.featureLabel}>Início do Contrato</Text>
-          <Text style={styles.featureValue}>{property.startDate}</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Prazo do Contrato</Text>
+          <Text style={styles.infoValue}>{property.lease_term} meses</Text>
         </View>
-        <View style={styles.featureItem}>
-          <Text style={styles.featureLabel}>Término do Contrato</Text>
-          <Text style={styles.featureValue}>{property.endDate}</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Início do Contrato</Text>
+          <Text style={styles.infoValue}>{new Date(property.start_date).toLocaleDateString()}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Término do Contrato</Text>
+          <Text style={styles.infoValue}>{new Date(property.end_date).toLocaleDateString()}</Text>
         </View>
       </View>
       
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Inquilino(s)</Text>
-        <View style={styles.tenantCard}>
-          <Text style={styles.tenantName}>{property.tenant}</Text>
-          <Text style={styles.tenantPhone}>{property.phone}</Text>
-        </View>
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Histórico de Pagamentos</Text>
-        <View style={styles.paymentItem}>
-          <Text style={styles.paymentMonth}>Novembro 2023</Text>
-          <Text style={styles.paymentStatus}>Pago</Text>
-          <Text style={styles.paymentAmount}>${property.rent}</Text>
-        </View>
-        <View style={styles.paymentItem}>
-          <Text style={styles.paymentMonth}>Outubro 2023</Text>
-          <Text style={styles.paymentStatus}>Pago</Text>
-          <Text style={styles.paymentAmount}>${property.rent}</Text>
-        </View>
-        <View style={styles.paymentItem}>
-          <Text style={styles.paymentMonth}>Setembro 2023</Text>
-          <Text style={styles.paymentStatus}>Pago</Text>
-          <Text style={styles.paymentAmount}>${property.rent}</Text>
-        </View>
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Documentos & Notas</Text>
-        <View style={styles.documentItem}>
-          <Text style={styles.documentText}>[ ] Contrato de Aluguel</Text>
-        </View>
-        <View style={styles.documentItem}>
-          <Text style={styles.documentText}>[ ] Relatório de inspeção</Text>
-        </View>
+        {loading ? <ActivityIndicator /> : (
+            tenant ? (
+                <View style={styles.tenantCard}>
+                    <Text style={styles.tenantName}>{tenant.full_name}</Text>
+                    <Text style={styles.tenantPhone}>{tenant.phone}</Text>
+                </View>
+            ) : (
+                <Text style={styles.noTenantText}>Nenhum inquilino associado.</Text>
+            )
+        )}
       </View>
       
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.editButton}>
-          <Text style={styles.buttonText}>Editar Propriedade</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.manageButton}>
-          <Text style={styles.buttonText}>Gerenciar Inquilino</Text>
+        {/* We will change this to an "Edit" button later */}
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteProperty}>
+          <Text style={styles.buttonText}>Deletar Propriedade</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -134,13 +148,14 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#4a86e8',
     padding: 20,
+    paddingTop: 40,
     marginBottom: 15,
-    marginTop:24,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
+    textAlign: 'center'
   },
   section: {
     backgroundColor: '#fff',
@@ -154,23 +169,18 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 15,
   },
-  infoText: {
-    fontSize: 16,
-    marginBottom: 5,
-  },
-  featuresRow: {
+  infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 15,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
-  featureItem: {
-    marginBottom: 10,
-  },
-  featureLabel: {
+  infoLabel: {
     color: '#666',
-    fontSize: 14,
+    fontSize: 16,
   },
-  featureValue: {
+  infoValue: {
     fontSize: 16,
     fontWeight: '500',
   },
@@ -187,54 +197,23 @@ const styles = StyleSheet.create({
   tenantPhone: {
     color: '#666',
   },
-  paymentItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  noTenantText: {
+    textAlign: 'center',
+    color: '#666',
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  paymentMonth: {
-    flex: 2,
-  },
-  paymentStatus: {
-    flex: 1,
-    color: '#4CAF50',
-    fontWeight: '500',
-  },
-  paymentAmount: {
-    flex: 1,
-    textAlign: 'right',
-    fontWeight: '500',
-  },
-  documentItem: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  documentText: {
-    fontSize: 16,
+    fontStyle: 'italic',
   },
   buttonContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around', // Changed to space-around
     padding: 15,
     marginBottom: 20,
   },
-  editButton: {
-    backgroundColor: '#4a86e8',
+  deleteButton: { // Changed from editButton
+    backgroundColor: '#F44336', // Red color for delete
     padding: 15,
     borderRadius: 8,
     flex: 1,
-    marginRight: 10,
-    alignItems: 'center',
-  },
-  manageButton: {
-    backgroundColor: '#FF9800',
-    padding: 15,
-    borderRadius: 8,
-    flex: 1,
-    marginLeft: 10,
     alignItems: 'center',
   },
   buttonText: {

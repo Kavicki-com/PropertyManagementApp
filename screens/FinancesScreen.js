@@ -1,66 +1,103 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+// screens/FinancesScreen.js
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { supabase } from '../lib/supabase';
+import { useIsFocused } from '@react-navigation/native';
+import { MaterialIcons } from '@expo/vector-icons';
 
-const FinancesScreen = () => {
-  const transactions = [
-    { id: 1, description: '123 Main St Rent Payment', amount: 1200, type: 'income' },
-    { id: 2, description: '456 Oak Ave Maintenance', amount: 300, type: 'expense' },
-    { id: 3, description: '789 Pine Ln Rent Payment', amount: 1500, type: 'income' },
-    { id: 4, description: '123 Main St Property Tax', amount: 800, type: 'expense' },
-  ];
+const FinancesScreen = ({ navigation }) => {
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState({ totalIncome: 0, totalExpenses: 0, netProfit: 0 });
+  const isFocused = useIsFocused();
+
+  const fetchFinances = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from('finances').select('*');
+
+    if (error) {
+      console.error('Error fetching finances:', error);
+      Alert.alert('Error', 'Could not fetch financial data.');
+    } else {
+      setTransactions(data);
+      calculateOverview(data);
+    }
+    setLoading(false);
+  };
+
+  const calculateOverview = (data) => {
+    const totalIncome = data
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const totalExpenses = data
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const netProfit = totalIncome - totalExpenses;
+    setOverview({ totalIncome, totalExpenses, netProfit });
+  };
+
+  useEffect(() => {
+    if (isFocused) {
+      fetchFinances();
+    }
+  }, [isFocused]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.header}>Finances</Text>
-      
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Overview</Text>
-        <View style={styles.overviewCard}>
-          <View style={styles.overviewItem}>
-            <Text style={styles.overviewLabel}>Total Income</Text>
-            <Text style={styles.incomeAmount}>$12,500</Text>
-          </View>
-          <View style={styles.overviewItem}>
-            <Text style={styles.overviewLabel}>Total Expenses</Text>
-            <Text style={styles.expenseAmount}>$3,200</Text>
-          </View>
-          <View style={styles.overviewItem}>
-            <Text style={styles.overviewLabel}>Net Profit</Text>
-            <Text style={styles.profitAmount}>$9,300</Text>
-          </View>
+    <View style={styles.container}>
+        <Text style={styles.header}>Finances</Text>
+        <ScrollView>
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Overview</Text>
+            <View style={styles.overviewCard}>
+            <View style={styles.overviewItem}>
+                <Text style={styles.overviewLabel}>Total Income</Text>
+                <Text style={styles.incomeAmount}>${overview.totalIncome.toFixed(2)}</Text>
+            </View>
+            <View style={styles.overviewItem}>
+                <Text style={styles.overviewLabel}>Total Expenses</Text>
+                <Text style={styles.expenseAmount}>${overview.totalExpenses.toFixed(2)}</Text>
+            </View>
+            <View style={styles.overviewItem}>
+                <Text style={styles.overviewLabel}>Net Profit</Text>
+                <Text style={styles.profitAmount}>${overview.netProfit.toFixed(2)}</Text>
+            </View>
+            </View>
         </View>
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Transactions</Text>
-        {transactions.map(transaction => (
-          <View key={transaction.id} style={styles.transactionCard}>
-            <Text style={styles.transactionDesc}>{transaction.description}</Text>
-            <Text style={[
-              styles.transactionAmount,
-              transaction.type === 'income' ? styles.income : styles.expense
-            ]}>
-              {transaction.type === 'income' ? '+' : '-'}${transaction.amount}
-            </Text>
-          </View>
-        ))}
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Reports</Text>
-        <View style={styles.reportsContainer}>
-          <View style={styles.reportCard}>
-            <Text style={styles.reportTitle}>Monthly Income</Text>
-          </View>
-          <View style={styles.reportCard}>
-            <Text style={styles.reportTitle}>Expense Breakdown</Text>
-          </View>
+
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Transactions</Text>
+            {transactions.map(transaction => (
+            <View key={transaction.id} style={styles.transactionCard}>
+                <Text style={styles.transactionDesc}>{transaction.description}</Text>
+                <Text style={[
+                styles.transactionAmount,
+                transaction.type === 'income' ? styles.income : styles.expense
+                ]}>
+                {transaction.type === 'income' ? '+' : '-'}${transaction.amount}
+                </Text>
+            </View>
+            ))}
         </View>
-      </View>
-    </ScrollView>
+        </ScrollView>
+ <TouchableOpacity 
+            style={styles.addButton} 
+            onPress={() => navigation.navigate('AddTransaction')}
+        >
+            <MaterialIcons name="add" size={30} color="white" />
+        </TouchableOpacity>
+    </View>
   );
 };
 
+// ... (Your styles remain the same, with the addition of the addButton style)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -135,22 +172,21 @@ const styles = StyleSheet.create({
   expense: {
     color: '#F44336',
   },
-  reportsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  reportCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    width: '48%',
-    height: 150,
+  addButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    backgroundColor: '#4a86e8',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  reportTitle: {
-    fontWeight: '500',
-    textAlign: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });
 
