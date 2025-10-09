@@ -1,4 +1,3 @@
-// screens/TenantsScreen.js
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -13,6 +12,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 
+// Updated TenantItem to display more information
 const TenantItem = ({ item, onPress }) => (
   <TouchableOpacity style={styles.tenantCard} onPress={() => onPress(item)}>
     <Image
@@ -21,17 +21,21 @@ const TenantItem = ({ item, onPress }) => (
     />
     <View style={styles.tenantInfo}>
       <Text style={styles.tenantName}>{item.full_name}</Text>
-      {/* We will add property address later */}
+      <View style={styles.tenantMeta}>
+        <MaterialIcons name="phone" size={16} color="#666" />
+        <Text style={styles.tenantMetaText}>{item.phone || 'N/A'}</Text>
+      </View>
     </View>
-    <View style={styles.tenantStatus}>
-      <Text style={styles.statusActive}>Ativo</Text>
+    <View style={styles.dueDateContainer}>
+      <Text style={styles.dueDateLabel}>Vencimento</Text>
+      <Text style={styles.dueDateText}>Dia {item.due_date || 'N/A'}</Text>
     </View>
   </TouchableOpacity>
 );
 
 const TenantsScreen = ({ navigation }) => {
-  const [tenants, setTenants] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tenants, setTenants] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
   const isFocused = useIsFocused();
 
   const fetchTenants = async () => {
@@ -46,7 +50,7 @@ const TenantsScreen = ({ navigation }) => {
     setLoading(false);
   };
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (isFocused) {
       fetchTenants();
     }
@@ -66,7 +70,9 @@ const TenantsScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Inquilinos</Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>Inquilinos</Text>
+      </View>
       <FlatList
         data={tenants}
         renderItem={({ item }) => <TenantItem item={item} onPress={handleTenantPress} />}
@@ -84,21 +90,25 @@ const TenantsScreen = ({ navigation }) => {
   );
 };
 
-// ... (Your styles remain the same)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  headerContainer: {
     padding: 15,
-    position: 'relative',
+    paddingTop: 50, // Safe area for status bar
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
   },
   header: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 20,
     color: '#333',
   },
   listContent: {
+    padding: 15,
     paddingBottom: 80,
   },
   tenantCard: {
@@ -110,7 +120,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
   },
@@ -125,23 +135,31 @@ const styles = StyleSheet.create({
   },
   tenantName: {
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 17,
     marginBottom: 5,
+    color: '#333',
   },
-  tenantAddress: {
+  tenantMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tenantMetaText: {
     color: '#666',
     fontSize: 14,
+    marginLeft: 5,
   },
-  tenantStatus: {
-    backgroundColor: '#e8f5e9',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+  dueDateContainer: {
+    alignItems: 'center',
+    paddingLeft: 10,
   },
-  statusActive: {
-    color: '#4CAF50',
-    fontWeight: '500',
+  dueDateLabel: {
     fontSize: 12,
+    color: '#888',
+  },
+  dueDateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4a86e8',
   },
   addButton: {
     position: 'absolute',
@@ -154,11 +172,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 8,
   },
 });
 
 export default TenantsScreen;
+
