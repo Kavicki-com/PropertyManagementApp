@@ -1,3 +1,4 @@
+// App.js
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -15,11 +16,9 @@ import EditPropertyScreen from './screens/EditPropertyScreen';
 import TenantsScreen from './screens/TenantsScreen';
 import TenantDetailsScreen from './screens/TenantDetailsScreen';
 import AddTenantScreen from './screens/AddTenantScreen';
-import EditTenantScreen from './screens/EditTenantScreen';
+import EditTenantScreen from './screens/EditTenantScreen'; // Make sure this is imported
 import FinancesScreen from './screens/FinancesScreen';
 import AddTransactionScreen from './screens/AddTransactionScreen';
-import SettingsScreen from './screens/SettingsScreen';
-import EditProfileScreen from './screens/EditProfileScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -44,8 +43,6 @@ function MainTabs() {
             iconName = 'people';
           } else if (route.name === 'Finanças') {
             iconName = 'attach-money';
-          } else if (route.name === 'Configurações') {
-            iconName = 'settings';
           }
           return <MaterialIcons name={iconName} size={size} color={color} />;
         },
@@ -55,7 +52,6 @@ function MainTabs() {
       <Tab.Screen name="Imóveis" component={PropertiesScreen} />
       <Tab.Screen name="Inquilinos" component={TenantsScreen} />
       <Tab.Screen name="Finanças" component={FinancesScreen} />
-      <Tab.Screen name="Configurações" component={SettingsScreen} />
     </Tab.Navigator>
   );
 }
@@ -74,9 +70,7 @@ export default function App() {
         <Stack.Screen name="AddTenant" component={AddTenantScreen} />
         <Stack.Screen name="EditTenant" component={EditTenantScreen} />
         <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
-        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
-
