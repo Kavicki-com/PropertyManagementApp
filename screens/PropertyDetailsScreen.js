@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { useIsFocused } from '@react-navigation/native';
 
 const PropertyDetailsScreen = ({ route, navigation }) => {
   // Get the property object passed from the navigation
@@ -9,6 +10,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
 
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
+  const isFocused = useIsFocused();
 
   useEffect(() => {
     const fetchTenantForProperty = async () => {
@@ -30,8 +32,10 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       setLoading(false);
     };
 
-    fetchTenantForProperty();
-  }, [property?.id]);
+    if (isFocused) {
+        fetchTenantForProperty();
+    }
+  }, [property?.id, isFocused]);
 
   if (!property) {
     return (
@@ -193,6 +197,9 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     alignItems: 'center',
   },
+  buttonContainer: {
+    padding: 15,
+  }
 });
 
 export default PropertyDetailsScreen;

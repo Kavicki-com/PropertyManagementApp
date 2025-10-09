@@ -1,5 +1,5 @@
 // screens/AddPropertyScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,12 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import DropDownPicker from 'react-native-dropdown-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
-import { supabase } from '../lib/supabase'; // Make sure this path is correct
+import { supabase } from '../lib/supabase';
 
 const AddPropertyScreen = ({ navigation }) => {
   const [endereco, setEndereco] = useState('');
@@ -29,6 +31,24 @@ const AddPropertyScreen = ({ navigation }) => {
   const [showDataFimPicker, setShowDataFimPicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Tenant Dropdown state
+  const [open, setOpen] = useState(false);
+  const [tenantId, setTenantId] = useState(null);
+  const [tenants, setTenants] = useState([]);
+
+  useEffect(() => {
+    const fetchTenants = async () => {
+      const { data, error } = await supabase.from('tenants').select('id, full_name');
+      if (error) {
+        console.error("Error fetching tenants:", error);
+      } else {
+        const formattedTenants = data.map(t => ({ label: t.full_name, value: t.id }));
+        setTenants(formattedTenants);
+      }
+    };
+    fetchTenants();
+  }, []);
+
   const handleAddProperty = async () => {
     setLoading(true);
 
@@ -39,8 +59,10 @@ const AddPropertyScreen = ({ navigation }) => {
       setLoading(false);
       return;
     }
+    
+    const isRented = tenantId !== null;
 
-    const { error } = await supabase.from('properties').insert({
+    const { data: newProperty, error } = await supabase.from('properties').insert({
       user_id: user.id,
       address: endereco,
       type: tipoPropriedade,
@@ -52,14 +74,29 @@ const AddPropertyScreen = ({ navigation }) => {
       lease_term: parseInt(prazoContrato, 10) || null,
       start_date: dataInicio.toISOString(),
       end_date: dataFim.toISOString(),
-    });
+      // REMOVED rented: isRented
+    }).select().single();
 
     if (error) {
       Alert.alert('Error adding property', error.message);
-    } else {
-      Alert.alert('Success', 'Property added successfully!');
-      navigation.goBack();
+      setLoading(false);
+      return;
     }
+
+    if (isRented && newProperty) {
+        const { error: tenantError } = await supabase
+            .from('tenants')
+            .update({ property_id: newProperty.id })
+            .eq('id', tenantId);
+
+        if (tenantError) {
+            Alert.alert('Property created, but failed to associate tenant', tenantError.message);
+        }
+    }
+
+
+    Alert.alert('Success', 'Property added successfully!');
+    navigation.goBack();
 
     setLoading(false);
   };
@@ -79,10 +116,25 @@ const AddPropertyScreen = ({ navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={styles.header}>Adicionar Propriedade</Text>
 
-      {/* --- Your TextInputs remain here --- */}
+        <View style={[styles.inputGroup, { zIndex: 1000 }]}>
+            <Text style={styles.label}>Inquilino Associado (Opcional)</Text>
+            <DropDownPicker
+            open={open}
+            value={tenantId}
+            items={tenants}
+            setOpen={setOpen}
+            setValue={setTenantId}
+            setItems={setTenants}
+            searchable={true}
+            placeholder="Selecione um inquilino para alugar"
+            listMode="MODAL"
+            clearable={true} 
+            />
+        </View>
+
         <View style={styles.inputGroup}>
         <Text style={styles.label}>Endereço</Text>
         <TextInput
@@ -217,7 +269,6 @@ const AddPropertyScreen = ({ navigation }) => {
   );
 };
 
-// ... (styles remain the same)
 const styles = StyleSheet.create({
     container: {
       flex: 1,

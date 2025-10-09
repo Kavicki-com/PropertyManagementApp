@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import DropDownPicker from 'react-native-dropdown-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format, parseISO } from 'date-fns';
 import { supabase } from '../lib/supabase';
@@ -17,6 +18,7 @@ import { supabase } from '../lib/supabase';
 const EditPropertyScreen = ({ route, navigation }) => {
   const { property } = route.params;
 
+  // Form state
   const [endereco, setEndereco] = useState('');
   const [tipoPropriedade, setTipoPropriedade] = useState('');
   const [quartos, setQuartos] = useState('');
@@ -31,7 +33,13 @@ const EditPropertyScreen = ({ route, navigation }) => {
   const [showDataFimPicker, setShowDataFimPicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Pre-fill the form with the property's data when the screen loads
+  // Tenant Dropdown state
+  const [open, setOpen] = useState(false);
+  const [tenantId, setTenantId] = useState(null); // This will hold the selected tenant's ID
+  const [tenants, setTenants] = useState([]);
+  const [initialTenantId, setInitialTenantId] = useState(null);
+
+  // Pre-fill the form with the property's data
   useEffect(() => {
     if (property) {
       setEndereco(property.address || '');
@@ -42,14 +50,45 @@ const EditPropertyScreen = ({ route, navigation }) => {
       setTamanhoLote(property.lot_size || '');
       setAluguel(property.rent?.toString() || '');
       setPrazoContrato(property.lease_term?.toString() || '');
-      setDataInicio(parseISO(property.start_date));
-      setDataFim(parseISO(property.end_date));
+      setDataInicio(property.start_date ? parseISO(property.start_date) : new Date());
+      setDataFim(property.end_date ? parseISO(property.end_date) : new Date());
+
+      // Find the tenant currently associated with this property
+      const fetchCurrentTenant = async () => {
+        const { data, error } = await supabase
+          .from('tenants')
+          .select('id')
+          .eq('property_id', property.id)
+          .single();
+
+        if (data) {
+          setTenantId(data.id);
+          setInitialTenantId(data.id);
+        }
+      };
+      fetchCurrentTenant();
     }
   }, [property]);
 
+  // Fetch all available tenants to populate the dropdown
+  useEffect(() => {
+    const fetchTenants = async () => {
+      const { data, error } = await supabase.from('tenants').select('id, full_name');
+      if (error) {
+        console.error("Error fetching tenants:", error);
+      } else {
+        const formattedTenants = data.map(t => ({ label: t.full_name, value: t.id }));
+        setTenants(formattedTenants);
+      }
+    };
+    fetchTenants();
+  }, []);
+
   const handleUpdateProperty = async () => {
     setLoading(true);
-    const { error } = await supabase
+
+    // 1. Update the property details
+    const { error: propertyError } = await supabase
       .from('properties')
       .update({
         address: endereco,
@@ -62,18 +101,46 @@ const EditPropertyScreen = ({ route, navigation }) => {
         lease_term: parseInt(prazoContrato, 10) || null,
         start_date: dataInicio.toISOString(),
         end_date: dataFim.toISOString(),
+        // REMOVED rented: isRented
       })
       .eq('id', property.id);
 
-    if (error) {
-      Alert.alert('Error updating property', error.message);
-    } else {
-      Alert.alert('Success', 'Property updated successfully!');
-      navigation.goBack();
+    if (propertyError) {
+      Alert.alert('Error updating property', propertyError.message);
+      setLoading(false);
+      return;
     }
+
+    // 2. If there was an initial tenant, but now it's different or null,
+    //    release the old tenant from this property.
+    if (initialTenantId && initialTenantId !== tenantId) {
+      const { error: clearTenantError } = await supabase
+        .from('tenants')
+        .update({ property_id: null })
+        .eq('id', initialTenantId);
+      if (clearTenantError) console.warn("Could not clear previous tenant:", clearTenantError.message);
+    }
+    
+    // 3. If a new tenant is selected, associate them with this property
+    if (tenantId && tenantId !== initialTenantId) {
+        const { error: tenantError } = await supabase
+            .from('tenants')
+            .update({ property_id: property.id })
+            .eq('id', tenantId);
+
+        if (tenantError) {
+            Alert.alert('Error associating new tenant', tenantError.message);
+            setLoading(false);
+            return;
+        }
+    }
+
+    Alert.alert('Success', 'Property updated successfully!');
+    navigation.goBack();
     setLoading(false);
   };
-  
+
+  // Date picker handlers
   const onDataInicioChange = (event, selectedDate) => {
     setShowDataInicioPicker(false);
     if (selectedDate) setDataInicio(selectedDate);
@@ -85,31 +152,79 @@ const EditPropertyScreen = ({ route, navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={styles.header}>Editar Propriedade</Text>
-      
-        <View style={styles.inputGroup}>
-            <Text style={styles.label}>Endereço</Text>
-            <TextInput style={styles.input} value={endereco} onChangeText={setEndereco} />
-        </View>
 
-        <View style={styles.inputGroup}>
-            <Text style={styles.label}>Tipo de Propriedade</Text>
-            <TextInput style={styles.input} value={tipoPropriedade} onChangeText={setTipoPropriedade} />
-        </View>
+      {/* Tenant Dropdown */}
+      <View style={[styles.inputGroup, { zIndex: 1000 }]}>
+        <Text style={styles.label}>Inquilino Associado</Text>
+        <DropDownPicker
+          open={open}
+          value={tenantId}
+          items={tenants}
+          setOpen={setOpen}
+          setValue={setTenantId}
+          setItems={setTenants}
+          searchable={true}
+          placeholder="Selecione um inquilino para alugar"
+          listMode="MODAL"
+          clearable={true} 
+        />
+      </View>
 
-        <View style={styles.inputRow}>
-            <View style={styles.inputGroupHalf}>
-                <Text style={styles.label}>Quartos</Text>
-                <TextInput style={styles.input} value={quartos} onChangeText={setQuartos} keyboardType="numeric" />
-            </View>
-            <View style={styles.inputGroupHalf}>
-                <Text style={styles.label}>Banheiros</Text>
-                <TextInput style={styles.input} value={banheiros} onChangeText={setBanheiros} keyboardType="numeric" />
-            </View>
-        </View>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Endereço</Text>
+        <TextInput style={styles.input} value={endereco} onChangeText={setEndereco} />
+      </View>
 
-        {/* ... other fields ... */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Tipo de Propriedade</Text>
+        <TextInput style={styles.input} value={tipoPropriedade} onChangeText={setTipoPropriedade} />
+      </View>
+
+      <View style={styles.inputRow}>
+        <View style={styles.inputGroupHalf}>
+          <Text style={styles.label}>Quartos</Text>
+          <TextInput style={styles.input} value={quartos} onChangeText={setQuartos} keyboardType="numeric" />
+        </View>
+        <View style={styles.inputGroupHalf}>
+          <Text style={styles.label}>Banheiros</Text>
+          <TextInput style={styles.input} value={banheiros} onChangeText={setBanheiros} keyboardType="numeric" />
+        </View>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Área (m²)</Text>
+        <TextInput style={styles.input} value={area} onChangeText={setArea} keyboardType="numeric" />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Tamanho do Lote</Text>
+        <TextInput style={styles.input} value={tamanhoLote} onChangeText={setTamanhoLote} />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Valor do Aluguel (R$)</Text>
+        <TextInput style={styles.input} value={aluguel} onChangeText={setAluguel} keyboardType="decimal-pad" />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Prazo do Contrato (meses)</Text>
+        <TextInput style={styles.input} value={prazoContrato} onChangeText={setPrazoContrato} keyboardType="numeric" />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Datas do Contrato</Text>
+        <View style={styles.dateRow}>
+          <TouchableOpacity style={styles.dateInput} onPress={() => setShowDataInicioPicker(true)}>
+            <Text>{format(dataInicio, 'dd/MM/yyyy')}</Text>
+          </TouchableOpacity>
+          <Text style={styles.dateSeparator}>até</Text>
+          <TouchableOpacity style={styles.dateInput} onPress={() => setShowDataFimPicker(true)}>
+            <Text>{format(dataFim, 'dd/MM/yyyy')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <TouchableOpacity style={styles.updateButton} onPress={handleUpdateProperty} disabled={loading}>
         {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
