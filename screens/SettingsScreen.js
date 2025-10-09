@@ -1,4 +1,5 @@
-// screens/SettingsScreen.js
+// screens/SettingsScreen.js 
+//comentário novo
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
