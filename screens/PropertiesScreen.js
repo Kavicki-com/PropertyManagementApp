@@ -1,4 +1,3 @@
-// screens/PropertiesScreen.js
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -10,27 +9,34 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { supabase } from '../lib/supabase'; // Make sure you have created this file
+import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 
-const PropertyItem = ({ item, onPress }) => (
-  <TouchableOpacity style={styles.propertyCard} onPress={() => onPress(item)}>
-    <Image
-      source={require('../assets/property-placeholder.jpg')}
-      style={styles.propertyImage}
-    />
-    <View style={styles.propertyInfo}>
-      <Text style={styles.propertyAddress}>{item.address}</Text>
-      <View style={styles.propertyMeta}>
-        <Text style={styles.propertyType}>{item.type}</Text>
-        {/* You can add a status field to your database later if you want */}
-        {/* <View style={[styles.statusBadge, item.status === 'Ocupado' ? styles.occupied : styles.vacant]}>
-          <Text style={styles.statusText}>{item.status}</Text>
-        </View> */}
+const PropertyItem = ({ item, onPress }) => {
+  // Check if the property has any tenants associated with it
+  const hasTenant = item.tenants && item.tenants.length > 0;
+  const status = hasTenant ? 'Alugada' : 'Disponível';
+  const statusStyle = hasTenant ? styles.rented : styles.available;
+  const statusTextStyle = hasTenant ? styles.rentedText : styles.availableText;
+
+  return (
+    <TouchableOpacity style={styles.propertyCard} onPress={() => onPress(item)}>
+      <Image 
+        source={require('../assets/property-placeholder.jpg')} 
+        style={styles.propertyImage} 
+      />
+      <View style={styles.propertyInfo}>
+        <Text style={styles.propertyAddress}>{item.address}</Text>
+        <View style={styles.propertyMeta}>
+          <Text style={styles.propertyType}>{item.type}</Text>
+          <View style={[styles.statusBadge, statusStyle]}>
+            <Text style={[styles.statusText, statusTextStyle]}>{status}</Text>
+          </View>
+        </View>
       </View>
-    </View>
-  </TouchableOpacity>
-);
+    </TouchableOpacity>
+  );
+};
 
 const PropertiesScreen = ({ navigation }) => {
   const [properties, setProperties] = useState([]);
@@ -39,7 +45,10 @@ const PropertiesScreen = ({ navigation }) => {
 
   const fetchProperties = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('properties').select('*');
+    // Updated query to fetch properties and a count of their tenants
+    const { data, error } = await supabase
+      .from('properties')
+      .select('*, tenants(id)'); // This fetches all properties and checks for linked tenants
 
     if (error) {
       console.error('Error fetching properties:', error);
@@ -69,16 +78,20 @@ const PropertiesScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Propriedades</Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>Propriedades</Text>
+      </View>
       <FlatList
         data={properties}
-        renderItem={({ item }) => <PropertyItem item={item} onPress={handlePropertyPress} />}
-        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <PropertyItem item={item} onPress={handlePropertyPress} />
+        )}
+        keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
       />
-
-      <TouchableOpacity
-        style={styles.addButton}
+      
+      <TouchableOpacity 
+        style={styles.addButton} 
         onPress={() => navigation.navigate('AddProperty')}
       >
         <MaterialIcons name="add" size={30} color="white" />
@@ -87,22 +100,26 @@ const PropertiesScreen = ({ navigation }) => {
   );
 };
 
-// ... (styles remain the same)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  headerContainer: {
     padding: 15,
-    position: 'relative', // Importante para posicionar o botão flutuante
+    paddingTop: 50,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
   },
   header: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 20,
     color: '#333',
   },
   listContent: {
-    paddingBottom: 80, // Espaço extra para o botão flutuante
+    padding: 15,
+    paddingBottom: 80,
   },
   propertyCard: {
     backgroundColor: '#fff',
@@ -125,7 +142,7 @@ const styles = StyleSheet.create({
   propertyAddress: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 5,
+    marginBottom: 8,
   },
   propertyMeta: {
     flexDirection: 'row',
@@ -134,23 +151,29 @@ const styles = StyleSheet.create({
   },
   propertyType: {
     color: '#666',
+    fontSize: 14,
   },
   statusBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 15,
   },
-  occupied: {
-    backgroundColor: '#ffebee',
+  rented: {
+    backgroundColor: '#e8f5e9', // Light green background
   },
-  vacant: {
-    backgroundColor: '#e8f5e9',
+  available: {
+    backgroundColor: '#e3f2fd', // Light blue background
   },
   statusText: {
-    fontWeight: '500',
+    fontWeight: 'bold',
     fontSize: 12,
   },
-  // ESTILO ADDBUTTON ADICIONADO AQUI
+  rentedText: {
+    color: '#2e7d32', // Dark green text
+  },
+  availableText: {
+    color: '#1565c0', // Dark blue text
+  },
   addButton: {
     position: 'absolute',
     bottom: 30,
@@ -168,6 +191,5 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
 });
-
 
 export default PropertiesScreen;
