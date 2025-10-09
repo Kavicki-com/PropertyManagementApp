@@ -11,9 +11,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { format, parseISO } from 'date-fns';
 import { supabase } from '../lib/supabase';
+import CustomDatePicker from '../components/CustomDatePicker'; // Import the custom component
 
 const EditPropertyScreen = ({ route, navigation }) => {
   const { property } = route.params;
@@ -35,7 +35,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
 
   // Tenant Dropdown state
   const [open, setOpen] = useState(false);
-  const [tenantId, setTenantId] = useState(null); // This will hold the selected tenant's ID
+  const [tenantId, setTenantId] = useState(null);
   const [tenants, setTenants] = useState([]);
   const [initialTenantId, setInitialTenantId] = useState(null);
 
@@ -55,12 +55,11 @@ const EditPropertyScreen = ({ route, navigation }) => {
 
       // Find the tenant currently associated with this property
       const fetchCurrentTenant = async () => {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('tenants')
           .select('id')
           .eq('property_id', property.id)
           .single();
-
         if (data) {
           setTenantId(data.id);
           setInitialTenantId(data.id);
@@ -86,7 +85,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
 
   const handleUpdateProperty = async () => {
     setLoading(true);
-
+    
     // 1. Update the property details
     const { error: propertyError } = await supabase
       .from('properties')
@@ -101,7 +100,6 @@ const EditPropertyScreen = ({ route, navigation }) => {
         lease_term: parseInt(prazoContrato, 10) || null,
         start_date: dataInicio.toISOString(),
         end_date: dataFim.toISOString(),
-        // REMOVED rented: isRented
       })
       .eq('id', property.id);
 
@@ -140,7 +138,6 @@ const EditPropertyScreen = ({ route, navigation }) => {
     setLoading(false);
   };
 
-  // Date picker handlers
   const onDataInicioChange = (event, selectedDate) => {
     setShowDataInicioPicker(false);
     if (selectedDate) setDataInicio(selectedDate);
@@ -230,8 +227,19 @@ const EditPropertyScreen = ({ route, navigation }) => {
         {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
       </TouchableOpacity>
 
-      {showDataInicioPicker && <DateTimePicker value={dataInicio} mode="date" display="default" onChange={onDataInicioChange} />}
-      {showDataFimPicker && <DateTimePicker value={dataFim} mode="date" display="default" onChange={onDataFimChange} />}
+      <CustomDatePicker
+        visible={showDataInicioPicker}
+        date={dataInicio}
+        onDateChange={onDataInicioChange}
+        onClose={() => setShowDataInicioPicker(false)}
+      />
+
+      <CustomDatePicker
+        visible={showDataFimPicker}
+        date={dataFim}
+        onDateChange={onDataFimChange}
+        onClose={() => setShowDataFimPicker(false)}
+      />
     </ScrollView>
   );
 };

@@ -1,3 +1,4 @@
+// screens/TenantDetailsScreen.js
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
@@ -16,13 +17,14 @@ const TenantDetailsScreen = ({ route, navigation }) => {
 
       setLoading(true);
       
-      // This query fetches the latest tenant info AND the address of their linked property
+      // This query now fetches the rent from the related property
       const { data: tenantData, error: tenantError } = await supabase
         .from('tenants')
         .select(`
           *,
           properties (
-            address
+            address,
+            rent 
           )
         `)
         .eq('id', initialTenant.id)
@@ -102,7 +104,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Valor do Aluguel</Text>
-          <Text style={styles.infoValue}>${tenant.rent_amount || 0}/mês</Text>
+          <Text style={styles.infoValue}>${tenant.properties?.rent || 0}/mês</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Vencimento</Text>
@@ -143,4 +145,3 @@ const styles = StyleSheet.create({
 });
 
 export default TenantDetailsScreen;
-

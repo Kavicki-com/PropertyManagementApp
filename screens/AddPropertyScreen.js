@@ -12,9 +12,9 @@ import {
   Platform,
 } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
+import CustomDatePicker from '../components/CustomDatePicker'; // Import the custom component
 
 const AddPropertyScreen = ({ navigation }) => {
   const [endereco, setEndereco] = useState('');
@@ -74,7 +74,6 @@ const AddPropertyScreen = ({ navigation }) => {
       lease_term: parseInt(prazoContrato, 10) || null,
       start_date: dataInicio.toISOString(),
       end_date: dataFim.toISOString(),
-      // REMOVED rented: isRented
     }).select().single();
 
     if (error) {
@@ -102,14 +101,14 @@ const AddPropertyScreen = ({ navigation }) => {
   };
 
   const onDataInicioChange = (event, selectedDate) => {
-    setShowDataInicioPicker(false);
+    setShowDataInicioPicker(false); // Close the picker
     if (selectedDate) {
       setDataInicio(selectedDate);
     }
   };
 
   const onDataFimChange = (event, selectedDate) => {
-    setShowDataFimPicker(false);
+    setShowDataFimPicker(false); // Close the picker
     if (selectedDate) {
       setDataFim(selectedDate);
     }
@@ -248,23 +247,19 @@ const AddPropertyScreen = ({ navigation }) => {
         )}
       </TouchableOpacity>
 
-      {showDataInicioPicker && (
-        <DateTimePicker
-          value={dataInicio}
-          mode="date"
-          display="default"
-          onChange={onDataInicioChange}
-        />
-      )}
+      <CustomDatePicker
+        visible={showDataInicioPicker}
+        date={dataInicio}
+        onDateChange={onDataInicioChange}
+        onClose={() => setShowDataInicioPicker(false)}
+      />
 
-      {showDataFimPicker && (
-        <DateTimePicker
-          value={dataFim}
-          mode="date"
-          display="default"
-          onChange={onDataFimChange}
-        />
-      )}
+      <CustomDatePicker
+        visible={showDataFimPicker}
+        date={dataFim}
+        onDateChange={onDataFimChange}
+        onClose={() => setShowDataFimPicker(false)}
+      />
     </ScrollView>
   );
 };
