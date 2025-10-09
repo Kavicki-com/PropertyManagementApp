@@ -1,38 +1,65 @@
-// screens/TenantDetailsScreen.js
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
-import { supabase } from '../lib/supabase'; // Make sure this path is correct
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
-const TenantDetailsScreen = ({ route, navigation }) => { // Add navigation prop
-  const { tenant } = route.params;
+const TenantDetailsScreen = ({ route, navigation }) => {
+  const { tenant: initialTenant } = route.params;
+  
+  const [tenant, setTenant] = useState(initialTenant);
+  const [loading, setLoading] = useState(true);
+  const isFocused = useIsFocused();
 
-  // Note: The logic to fetch the associated property remains the same,
-  // but we are removing it for simplicity in this step to focus on deletion.
-  // You can add it back in from the previous version if you like.
+  useEffect(() => {
+    const fetchDetails = async () => {
+      if (!initialTenant?.id) return;
+
+      setLoading(true);
+      
+      // This query fetches the latest tenant info AND the address of their linked property
+      const { data: tenantData, error: tenantError } = await supabase
+        .from('tenants')
+        .select(`
+          *,
+          properties (
+            address
+          )
+        `)
+        .eq('id', initialTenant.id)
+        .single();
+
+      if (tenantError) {
+        setLoading(false);
+        Alert.alert('Error', 'Could not fetch tenant details.');
+        console.error('Error fetching details:', tenantError);
+        return;
+      }
+      
+      setTenant(tenantData);
+      setLoading(false);
+    };
+
+    // Re-fetch data every time the screen comes into focus
+    if (isFocused) {
+      fetchDetails();
+    }
+  }, [isFocused, initialTenant?.id]);
 
   const handleDeleteTenant = async () => {
     Alert.alert(
       "Confirmar Exclusão",
-      "Você tem certeza que quer deletar este inquilino? Esta ação não pode ser desfeita.",
+      "Você tem certeza que quer deletar este inquilino?",
       [
-        {
-          text: "Cancelar",
-          style: "cancel"
-        },
+        { text: "Cancelar", style: "cancel" },
         { 
           text: "Deletar", 
           onPress: async () => {
-            const { error } = await supabase
-              .from('tenants')
-              .delete()
-              .eq('id', tenant.id);
-
+            const { error } = await supabase.from('tenants').delete().eq('id', tenant.id);
             if (error) {
               Alert.alert('Erro', 'Não foi possível deletar o inquilino.');
-              console.error('Error deleting tenant:', error);
             } else {
               Alert.alert('Sucesso', 'Inquilino deletado.');
-              navigation.goBack(); // Go back to the tenants list
+              navigation.goBack();
             }
           },
           style: 'destructive' 
@@ -41,12 +68,8 @@ const TenantDetailsScreen = ({ route, navigation }) => { // Add navigation prop
     );
   };
 
-  if (!tenant) {
-    return (
-      <View style={styles.container}>
-        <Text>Tenant not found.</Text>
-      </View>
-    );
+  if (loading || !tenant) {
+    return <View style={styles.loadingContainer}><ActivityIndicator size="large" /></View>;
   }
 
   return (
@@ -57,42 +80,36 @@ const TenantDetailsScreen = ({ route, navigation }) => { // Add navigation prop
           style={styles.avatar} 
         />
         <Text style={styles.tenantName}>{tenant.full_name}</Text>
-        <Text style={styles.tenantId}>Identificação do Inquilino: {tenant.id_number}</Text>
       </View>
       
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Informações de Contato</Text>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Telefone</Text>
-          <Text style={styles.infoValue}>{tenant.phone}</Text>
+          <Text style={styles.infoValue}>{tenant.phone || 'N/A'}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Email</Text>
-          <Text style={styles.infoValue}>{tenant.email}</Text>
+          <Text style={styles.infoValue}>{tenant.email || 'N/A'}</Text>
         </View>
       </View>
       
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Detalhes do Contrato</Text>
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Início do Contrato</Text>
-          <Text style={styles.infoValue}>{new Date(tenant.start_date).toLocaleDateString()}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Término do Contrato</Text>
-          <Text style={styles.infoValue}>{new Date(tenant.end_date).toLocaleDateString()}</Text>
+          <Text style={styles.infoLabel}>Propriedade</Text>
+          <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode='tail'>{tenant.properties?.address || 'Nenhuma'}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Valor do Aluguel</Text>
-          <Text style={styles.infoValue}>${tenant.rent_amount}/mês</Text>
+          <Text style={styles.infoValue}>${tenant.rent_amount || 0}/mês</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Vencimento</Text>
+          <Text style={styles.infoValue}>{tenant.due_date ? `Todo dia ${tenant.due_date}` : 'N/A'}</Text>
         </View>
       </View>
       
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteTenant}>
-          <Text style={styles.buttonText}>Deletar Inquilino</Text>
-        </TouchableOpacity>
-      </View>
       <View style={styles.buttonContainer}>
         <TouchableOpacity 
           style={styles.editButton}
@@ -109,91 +126,21 @@ const TenantDetailsScreen = ({ route, navigation }) => { // Add navigation prop
 };
 
 const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: '#f5f5f5',
-    },
-    header: {
-      backgroundColor: '#4a86e8',
-      padding: 30,
-      paddingTop: 50,
-      alignItems: 'center',
-      marginBottom: 15,
-    },
-    avatar: {
-      width: 100,
-      height: 100,
-      borderRadius: 50,
-      marginBottom: 15,
-    },
-    tenantName: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: '#fff',
-      marginBottom: 5,
-    },
-    tenantId: {
-      color: '#fff',
-      fontSize: 16,
-    },
-    section: {
-      backgroundColor: '#fff',
-      borderRadius: 12,
-      padding: 15,
-      marginBottom: 15,
-      marginHorizontal: 15,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      marginBottom: 15,
-    },
-    infoRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: '#eee',
-    },
-    infoLabel: {
-      color: '#666',
-    },
-    infoValue: {
-      fontWeight: '500',
-    },
-    buttonContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        padding: 15,
-        marginBottom: 20,
-    },
-    deleteButton: {
-        backgroundColor: '#F44336', // Red color
-        padding: 15,
-        borderRadius: 8,
-        flex: 1,
-        alignItems: 'center',
-    },
-    buttonText: {
-      color: '#fff',
-      fontWeight: 'bold',
-    },
-    editButton: {
-    backgroundColor: '#FF9800',
-    padding: 15,
-    borderRadius: 8,
-    flex: 1,
-    marginRight: 10,
-    alignItems: 'center',
-  },
-  deleteButton: {
-    backgroundColor: '#F44336',
-    padding: 15,
-    borderRadius: 8,
-    flex: 1,
-    marginLeft: 10,
-    alignItems: 'center',
-  },
-  });
+    container: { flex: 1, backgroundColor: '#f5f5f5' },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' },
+    header: { backgroundColor: '#4a86e8', padding: 30, paddingTop: 50, alignItems: 'center', marginBottom: 15 },
+    avatar: { width: 100, height: 100, borderRadius: 50, marginBottom: 15 },
+    tenantName: { fontSize: 24, fontWeight: 'bold', color: '#fff', marginBottom: 5 },
+    section: { backgroundColor: '#fff', borderRadius: 12, padding: 15, marginBottom: 15, marginHorizontal: 15 },
+    sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
+    infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
+    infoLabel: { color: '#666' },
+    infoValue: { fontWeight: '500', flex: 1, textAlign: 'right' },
+    buttonContainer: { flexDirection: 'row', justifyContent: 'space-between', padding: 15, marginBottom: 20 },
+    editButton: { backgroundColor: '#FF9800', padding: 15, borderRadius: 8, flex: 1, marginRight: 10, alignItems: 'center' },
+    deleteButton: { backgroundColor: '#F44336', padding: 15, borderRadius: 8, flex: 1, marginLeft: 10, alignItems: 'center' },
+    buttonText: { color: '#fff', fontWeight: 'bold' },
+});
 
 export default TenantDetailsScreen;
+
