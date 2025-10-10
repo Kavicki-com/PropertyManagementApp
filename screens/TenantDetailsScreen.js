@@ -74,77 +74,155 @@ const TenantDetailsScreen = ({ route, navigation }) => {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Image 
-          source={require('../assets/avatar-placeholder.png')} 
-          style={styles.avatar} 
-        />
-        <Text style={styles.tenantName}>{tenant.full_name}</Text>
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Informações de Contato</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Telefone</Text>
-          <Text style={styles.infoValue}>{tenant.phone || 'N/A'}</Text>
+    <View style={styles.container}>
+        <View style={styles.headerContainer}>
+            <Text style={styles.header}>{tenant.full_name}</Text>
         </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Email</Text>
-          <Text style={styles.infoValue}>{tenant.email || 'N/A'}</Text>
-        </View>
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Detalhes do Contrato</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Propriedade</Text>
-          <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode='tail'>{tenant.properties?.address || 'Nenhuma'}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Valor do Aluguel</Text>
-          <Text style={styles.infoValue}>${tenant.properties?.rent || 0}/mês</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Duração do Contrato</Text>
-          <Text style={styles.infoValue}>{tenant.lease_term} meses</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Vencimento</Text>
-          <Text style={styles.infoValue}>{tenant.due_date ? `Todo dia ${tenant.due_date}` : 'N/A'}</Text>
-        </View>
-      </View>
-      
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity 
-          style={styles.editButton}
-          onPress={() => navigation.navigate('EditTenant', { tenant: tenant })}
-        >
-          <Text style={styles.buttonText}>Editar Inquilino</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteTenant}>
-          <Text style={styles.buttonText}>Deletar Inquilino</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        <ScrollView style={styles.scrollContainer}>
+            <View style={styles.avatarContainer}>
+                <Image 
+                source={require('../assets/avatar-placeholder.png')} 
+                style={styles.avatar} 
+                />
+            </View>
+            
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Informações de Contato</Text>
+                <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Telefone</Text>
+                <Text style={styles.infoValue}>{tenant.phone || 'N/A'}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Email</Text>
+                <Text style={styles.infoValue}>{tenant.email || 'N/A'}</Text>
+                </View>
+            </View>
+            
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Detalhes do Contrato</Text>
+                <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Propriedade</Text>
+                <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode='tail'>{tenant.properties?.address || 'Nenhuma'}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Valor do Aluguel</Text>
+                <Text style={styles.infoValue}>${tenant.properties?.rent || 0}/mês</Text>
+                </View>
+                <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Duração do Contrato</Text>
+                <Text style={styles.infoValue}>{tenant.lease_term} meses</Text>
+                </View>
+                <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Vencimento</Text>
+                <Text style={styles.infoValue}>{tenant.due_date ? `Todo dia ${tenant.due_date}` : 'N/A'}</Text>
+                </View>
+            </View>
+            
+            <View style={styles.buttonContainer}>
+                <TouchableOpacity 
+                style={styles.editButton}
+                onPress={() => navigation.navigate('EditTenant', { tenant: tenant })}
+                >
+                <Text style={styles.buttonText}>Editar Inquilino</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteTenant}>
+                <Text style={styles.buttonText}>Deletar Inquilino</Text>
+                </TouchableOpacity>
+            </View>
+        </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f5f5f5' },
-    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' },
-    header: { backgroundColor: '#4a86e8', padding: 30, paddingTop: 50, alignItems: 'center', marginBottom: 15 },
-    avatar: { width: 100, height: 100, borderRadius: 50, marginBottom: 15 },
-    tenantName: { fontSize: 24, fontWeight: 'bold', color: '#fff', marginBottom: 5 },
-    section: { backgroundColor: '#fff', borderRadius: 12, padding: 15, marginBottom: 15, marginHorizontal: 15 },
-    sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
-    infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
-    infoLabel: { color: '#666' },
-    infoValue: { fontWeight: '500', flex: 1, textAlign: 'right' },
-    buttonContainer: { flexDirection: 'row', justifyContent: 'space-between', padding: 15, marginBottom: 20 },
-    editButton: { backgroundColor: '#FF9800', padding: 15, borderRadius: 8, flex: 1, marginRight: 10, alignItems: 'center' },
-    deleteButton: { backgroundColor: '#F44336', padding: 15, borderRadius: 8, flex: 1, marginLeft: 10, alignItems: 'center' },
-    buttonText: { color: '#fff', fontWeight: 'bold' },
+    container: { 
+        flex: 1, 
+        backgroundColor: '#f5f5f5',
+    },
+    scrollContainer: {
+        flex: 1,
+    },
+    loadingContainer: { 
+        flex: 1, 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        backgroundColor: '#f5f5f5',
+    },
+    headerContainer: {
+        padding: 15,
+        paddingTop: 50,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#ddd',
+    },
+    header: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    avatarContainer: {
+        alignItems: 'center',
+        marginTop: 20,
+    },
+    avatar: { 
+        width: 100, 
+        height: 100, 
+        borderRadius: 50, 
+        marginBottom: 15,
+    },
+    section: { 
+        backgroundColor: '#fff', 
+        borderRadius: 12, 
+        padding: 15, 
+        marginHorizontal: 15,
+        marginTop: 20
+    },
+    sectionTitle: { 
+        fontSize: 18, 
+        fontWeight: 'bold', 
+        marginBottom: 15,
+    },
+    infoRow: { 
+        flexDirection: 'row', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        paddingVertical: 12, 
+        borderBottomWidth: 1, 
+        borderBottomColor: '#eee',
+    },
+    infoLabel: { 
+        color: '#666',
+    },
+    infoValue: { 
+        fontWeight: '500', 
+        flex: 1, 
+        textAlign: 'right',
+    },
+    buttonContainer: { 
+        flexDirection: 'column', 
+        justifyContent: 'center', 
+        padding: 15, 
+        gap: '8',
+        marginBottom: 20,
+    },
+    editButton: { 
+        backgroundColor: '#FF9800', 
+        padding: 15, 
+        borderRadius: 8, 
+        flex: 1,  
+        alignItems: 'center',
+    },
+    deleteButton: { 
+        backgroundColor: '#F44336', 
+        padding: 15, 
+        borderRadius: 8, 
+        flex: 1,  
+        alignItems: 'center',
+    },
+    buttonText: { 
+        color: '#fff', 
+        fontWeight: 'bold',
+    },
 });
 
 export default TenantDetailsScreen;

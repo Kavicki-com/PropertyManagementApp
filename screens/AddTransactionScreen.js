@@ -81,87 +81,100 @@ const AddTransactionScreen = ({ navigation }) => {
   };
 
   return (
-    <ScrollView 
-        style={styles.container}
-        keyboardShouldPersistTaps="handled"
-    >
-      <Text style={styles.header}>Add Transaction</Text>
+    <View style={styles.container}>
+        <View style={styles.headerContainer}>
+            <Text style={styles.header}>Adicionar Transação</Text>
+        </View>
+        <ScrollView 
+            style={styles.scrollContainer}
+            keyboardShouldPersistTaps="handled"
+        >
 
-      {/* Property Dropdown */}
-      <View style={[styles.inputGroup, { zIndex: 2000 }]}>
-        <Text style={styles.label}>Property</Text>
-        <DropDownPicker
-            open={propertyOpen}
-            value={propertyValue}
-            items={propertyItems}
-            setOpen={setPropertyOpen}
-            setValue={setPropertyValue}
-            setItems={setPropertyItems}
-            searchable={true}
-            placeholder="Select a property"
-            listMode="MODAL"
-            zIndex={2000}
-        />
-      </View>
-      
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Description</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g., Rent Payment, Maintenance"
-          value={description}
-          onChangeText={setDescription}
-        />
-      </View>
+        {/* Property Dropdown */}
+        <View style={[styles.inputGroup, { zIndex: 2000 }]}>
+            <Text style={styles.label}>Propriedade</Text>
+            <DropDownPicker
+                open={propertyOpen}
+                value={propertyValue}
+                items={propertyItems}
+                setOpen={setPropertyOpen}
+                setValue={setPropertyValue}
+                setItems={setPropertyItems}
+                searchable={true}
+                placeholder="Select a property"
+                listMode="MODAL"
+                zIndex={2000}
+            />
+        </View>
+        
+        <View style={styles.inputGroup}>
+            <Text style={styles.label}>Descrição</Text>
+            <TextInput
+            style={styles.input}
+            placeholder="e.g., Rent Payment, Maintenance"
+            value={description}
+            onChangeText={setDescription}
+            />
+        </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Amount ($)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g., 1200"
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="numeric"
-        />
-      </View>
+        <View style={styles.inputGroup}>
+            <Text style={styles.label}>Valor ($)</Text>
+            <TextInput
+            style={styles.input}
+            placeholder="e.g., 1200"
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="numeric"
+            />
+        </View>
 
-      {/* Type Dropdown */}
-      <View style={[styles.inputGroup, { zIndex: 1000 }]}>
-        <Text style={styles.label}>Type</Text>
-        <DropDownPicker
-            open={typeOpen}
-            value={typeValue}
-            items={typeItems}
-            setOpen={setTypeOpen}
-            setValue={setTypeValue}
-            setItems={setTypeItems}
-            listMode="MODAL"
-            zIndex={1000}
-        />
-      </View>
+        {/* Type Dropdown */}
+        <View style={[styles.inputGroup, { zIndex: 1000 }]}>
+            <Text style={styles.label}>Tipo</Text>
+            <DropDownPicker
+                open={typeOpen}
+                value={typeValue}
+                items={typeItems}
+                setOpen={setTypeOpen}
+                setValue={setTypeValue}
+                setItems={setTypeItems}
+                listMode="MODAL"
+                zIndex={1000}
+            />
+        </View>
 
-      <TouchableOpacity style={styles.addButton} onPress={handleAddTransaction} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={styles.addButtonText}>Add Transaction</Text>
-        )}
-      </TouchableOpacity>
-    </ScrollView>
+        <TouchableOpacity style={styles.addButton} onPress={handleAddTransaction} disabled={loading}>
+            {loading ? (
+            <ActivityIndicator color="white" />
+            ) : (
+            <Text style={styles.addButtonText}>Adicionar Transação</Text>
+            )}
+        </TouchableOpacity>
+        </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
+  },
+  scrollContainer: {
+    flex: 1,
     padding: 20,
   },
+  headerContainer: {
+    padding: 15,
+    paddingTop: 50,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
   header: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
+    color: '#333',
   },
   inputGroup: {
     marginBottom: 20,
@@ -192,4 +205,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AddTransactionScreen;    
+export default AddTransactionScreen;

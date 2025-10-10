@@ -72,72 +72,73 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{property.address}</Text>
+    <View style={styles.container}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>{property.address}</Text>
       </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Detalhes da Propriedade</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Tipo</Text>
-          <Text style={styles.infoValue}>{property.type || 'N/A'}</Text>
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Detalhes da Propriedade</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Tipo</Text>
+            <Text style={styles.infoValue}>{property.type || 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Quartos</Text>
+            <Text style={styles.infoValue}>{property.bedrooms}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Banheiros</Text>
+            <Text style={styles.infoValue}>{property.bathrooms}</Text>
+          </View>
+           <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Área (m²)</Text>
+            <Text style={styles.infoValue}>{property.sqft}</Text>
+          </View>
         </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Quartos</Text>
-          <Text style={styles.infoValue}>{property.bedrooms}</Text>
+        
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Aluguel & Contrato</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Aluguel Mensal</Text>
+            <Text style={styles.infoValue}>${property.rent}/mês</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Prazo do Contrato</Text>
+            <Text style={styles.infoValue}>{property.lease_term} meses</Text>
+          </View>
         </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Banheiros</Text>
-          <Text style={styles.infoValue}>{property.bathrooms}</Text>
+        
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Inquilino(s)</Text>
+          {loading ? <ActivityIndicator /> : (
+              tenant ? (
+                  <View style={styles.tenantCard}>
+                      <Text style={styles.tenantName}>{tenant.full_name}</Text>
+                      <Text style={styles.tenantPhone}>{tenant.phone}</Text>
+                  </View>
+              ) : (
+                  <Text style={styles.noTenantText}>Nenhum inquilino associado.</Text>
+              )
+          )}
         </View>
-         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Área (m²)</Text>
-          <Text style={styles.infoValue}>{property.sqft}</Text>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity 
+            style={styles.editButton} 
+            onPress={() => navigation.navigate('EditProperty', { property: property })}
+          >
+            <Text style={styles.buttonText}>Editar Propriedade</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.deleteButton} 
+            onPress={handleDeleteProperty}
+            disabled={isDeleting}
+          >
+            {isDeleting ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Deletar Propriedade</Text>}
+          </TouchableOpacity>
         </View>
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Aluguel & Contrato</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Aluguel Mensal</Text>
-          <Text style={styles.infoValue}>${property.rent}/mês</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Prazo do Contrato</Text>
-          <Text style={styles.infoValue}>{property.lease_term} meses</Text>
-        </View>
-      </View>
-      
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Inquilino(s)</Text>
-        {loading ? <ActivityIndicator /> : (
-            tenant ? (
-                <View style={styles.tenantCard}>
-                    <Text style={styles.tenantName}>{tenant.full_name}</Text>
-                    <Text style={styles.tenantPhone}>{tenant.phone}</Text>
-                </View>
-            ) : (
-                <Text style={styles.noTenantText}>Nenhum inquilino associado.</Text>
-            )
-        )}
-      </View>
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity 
-          style={styles.editButton} 
-          onPress={() => navigation.navigate('EditProperty', { property: property })}
-        >
-          <Text style={styles.buttonText}>Editar Propriedade</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.deleteButton} 
-          onPress={handleDeleteProperty}
-          disabled={isDeleting}
-        >
-          {isDeleting ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Deletar Propriedade</Text>}
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -146,24 +147,28 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#f5f5f5',
     },
-    header: {
-        backgroundColor: '#4a86e8',
-        paddingVertical: 20,
-        paddingHorizontal: 15,
-        paddingTop: 50, // For status bar height
+    scrollContainer: {
+        flex: 1,
     },
-    title: {
-        fontSize: 24,
+    headerContainer: {
+        padding: 15,
+        paddingTop: 50,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#ddd',
+    },
+    header: {
+        fontSize: 28,
         fontWeight: 'bold',
-        color: '#fff',
-        textAlign: 'left',
+        color: '#333',
     },
     section: {
         backgroundColor: '#fff',
         borderRadius: 8,
         padding: 15,
         marginHorizontal: 15,
-        marginBottom: 15,
+        marginTop: 15,
+        marginBottom: 0,
     },
     sectionTitle: {
         fontSize: 18,
@@ -205,8 +210,9 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
     },
     buttonContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+        flexDirection: 'column',
+        gap: '8',
+        justifyContent: 'center',
         paddingHorizontal: 15,
         paddingVertical: 10,
     },
@@ -215,7 +221,6 @@ const styles = StyleSheet.create({
         padding: 15,
         borderRadius: 8,
         flex: 1,
-        marginRight: 10,
         alignItems: 'center',
     },
     deleteButton: {
@@ -223,7 +228,6 @@ const styles = StyleSheet.create({
         padding: 15,
         borderRadius: 8,
         flex: 1,
-        marginLeft: 10,
         alignItems: 'center',
     },
     buttonText: { 

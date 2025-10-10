@@ -1,6 +1,6 @@
 // screens/FinancesScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -13,7 +13,9 @@ const FinancesScreen = ({ navigation }) => {
 
   const fetchFinances = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('finances').select('*');
+    const { data, error } = await supabase
+      .from('finances')
+      .select('*, properties (address)'); // Updated query to fetch property address
 
     if (error) {
       console.error('Error fetching finances:', error);
@@ -78,7 +80,10 @@ const FinancesScreen = ({ navigation }) => {
             <Text style={styles.sectionTitle}>Transactions</Text>
             {transactions.map(transaction => (
             <View key={transaction.id} style={styles.transactionCard}>
-                <Text style={styles.transactionDesc}>{transaction.description}</Text>
+                <View style={styles.transactionDetails}>
+                    <Text style={styles.transactionDesc}>{transaction.description}</Text>
+                    <Text style={styles.transactionProperty}>{transaction.properties?.address || 'N/A'}</Text>
+                </View>
                 <Text style={[
                 styles.transactionAmount,
                 transaction.type === 'income' ? styles.income : styles.expense
@@ -89,7 +94,7 @@ const FinancesScreen = ({ navigation }) => {
             ))}
         </View>
         </ScrollView>
- <TouchableOpacity 
+        <TouchableOpacity 
             style={styles.addButton} 
             onPress={() => navigation.navigate('AddTransaction')}
         >
@@ -99,15 +104,14 @@ const FinancesScreen = ({ navigation }) => {
   );
 };
 
-// ... (Your styles remain the same, with the addition of the addButton style)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
   scrollContainer: {
-    flex: 1,
-    padding: 15,
+      flex: 1,
+      padding: 15,
   },
   headerContainer: {
     padding: 15,
@@ -170,9 +174,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  transactionDesc: {
+  transactionDetails: {
     flex: 1,
     marginRight: 10,
+  },
+  transactionDesc: {
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  transactionProperty: {
+    color: '#666',
+    fontSize: 14,
   },
   transactionAmount: {
     fontWeight: 'bold',
