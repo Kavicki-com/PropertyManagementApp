@@ -19,6 +19,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 
 const AddTenantScreen = ({ navigation }) => {
   const [fullName, setFullName] = useState('');
+  const [cpf, setCpf] = useState(''); // New state for CPF
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [rentAmount, setRentAmount] = useState('');
@@ -88,6 +89,7 @@ const AddTenantScreen = ({ navigation }) => {
       user_id: user.id,
       property_id: value,
       full_name: fullName,
+      cpf: cpf, // Add CPF to the insert object
       phone: phone,
       email: email,
       rent_amount: parseInt(rentAmount, 10) || null,
@@ -141,6 +143,17 @@ const AddTenantScreen = ({ navigation }) => {
                 placeholder="Digite o nome do inquilino"
                 value={fullName}
                 onChangeText={setFullName}
+                />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>CPF</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Digite o CPF do inquilino"
+                value={cpf}
+                onChangeText={setCpf}
+                keyboardType="numeric"
                 />
             </View>
 

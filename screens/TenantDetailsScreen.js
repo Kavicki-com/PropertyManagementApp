@@ -94,12 +94,16 @@ const TenantDetailsScreen = ({ route, navigation }) => {
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Informações de Contato</Text>
                 <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Telefone</Text>
-                <Text style={styles.infoValue}>{tenant.phone || 'N/A'}</Text>
+                    <Text style={styles.infoLabel}>CPF</Text>
+                    <Text style={styles.infoValue}>{tenant.cpf || 'N/A'}</Text>
                 </View>
                 <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Email</Text>
-                <Text style={styles.infoValue}>{tenant.email || 'N/A'}</Text>
+                    <Text style={styles.infoLabel}>Telefone</Text>
+                    <Text style={styles.infoValue}>{tenant.phone || 'N/A'}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Email</Text>
+                    <Text style={styles.infoValue}>{tenant.email || 'N/A'}</Text>
                 </View>
             </View>
             

@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
         marginRight: 15,
     },
     header: {
-        fontSize: 28,
+        fontSize: 24,
         fontWeight: 'bold',
         color: '#333',
     },

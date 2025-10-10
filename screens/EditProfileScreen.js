@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const EditProfileScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -105,47 +106,52 @@ const EditProfileScreen = ({ navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Editar Perfil</Text>
-      </View>
-      
-      {loading ? <ActivityIndicator style={{marginTop: 20}} /> : (
-        <View style={styles.formContainer}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Informações Pessoais</Text>
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nome Completo</Text>
-                <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
-            </View>
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Telefone</Text>
-                <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-            </View>
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>E-mail</Text>
-                <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize='none' />
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Alterar Senha</Text>
-             <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nova Senha</Text>
-                <TextInput style={styles.input} placeholder="Deixe em branco para não alterar" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
-            </View>
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Confirmar Nova Senha</Text>
-                <TextInput style={styles.input} placeholder="Deixe em branco para não alterar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.saveButton} onPress={handleUpdateProfile} disabled={isSaving}>
-            {isSaving ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
-          </TouchableOpacity>
+    <View style={styles.container}>
+        <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Editar Perfil</Text>
+            <View style={{ width: 24 }} />
         </View>
-      )}
-    </ScrollView>
+        <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+            {loading ? <ActivityIndicator style={{marginTop: 20}} /> : (
+                <View style={styles.formContainer}>
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Informações Pessoais</Text>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Nome Completo</Text>
+                        <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
+                    </View>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Telefone</Text>
+                        <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+                    </View>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>E-mail</Text>
+                        <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize='none' />
+                    </View>
+                </View>
+
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Alterar Senha</Text>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Nova Senha</Text>
+                        <TextInput style={styles.input} placeholder="Deixe em branco para não alterar" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
+                    </View>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Confirmar Nova Senha</Text>
+                        <TextInput style={styles.input} placeholder="Deixe em branco para não alterar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
+                    </View>
+                </View>
+
+                <TouchableOpacity style={styles.saveButton} onPress={handleUpdateProfile} disabled={isSaving}>
+                    {isSaving ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
+                </TouchableOpacity>
+                </View>
+            )}
+        </ScrollView>
+    </View>
   );
 };
 
@@ -154,17 +160,28 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#f5f5f5',
     },
+    scrollContainer: {
+        flex: 1,
+    },
     header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         backgroundColor: '#fff',
-        padding: 20,
+        paddingHorizontal: 15,
         paddingTop: 50,
+        paddingBottom: 15,
         borderBottomWidth: 1,
         borderBottomColor: '#ddd',
     },
+    backButton: {
+        padding: 5,
+    },
     headerTitle: {
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: 'bold',
-        textAlign: 'left',
+        textAlign: 'center',
+        flex: 1,
     },
     formContainer: {
         padding: 20,
@@ -211,4 +228,3 @@ const styles = StyleSheet.create({
 });
 
 export default EditProfileScreen;
-

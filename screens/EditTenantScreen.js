@@ -21,6 +21,7 @@ const EditTenantScreen = ({ route, navigation }) => {
   const { tenant } = route.params;
 
   const [fullName, setFullName] = useState('');
+  const [cpf, setCpf] = useState(''); // New state for CPF
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [rentAmount, setRentAmount] = useState('');
@@ -42,6 +43,7 @@ const EditTenantScreen = ({ route, navigation }) => {
     // Pre-fill form with tenant data
     if (tenant) {
       setFullName(tenant.full_name || '');
+      setCpf(tenant.cpf || ''); // Pre-fill CPF
       setPhone(tenant.phone || '');
       setEmail(tenant.email || '');
       setRentAmount(tenant.rent_amount?.toString() || '');
@@ -93,6 +95,7 @@ const EditTenantScreen = ({ route, navigation }) => {
       .from('tenants')
       .update({
         full_name: fullName,
+        cpf: cpf, // Add CPF to the update object
         phone: phone,
         email: email,
         rent_amount: parseInt(rentAmount, 10) || null,
@@ -137,6 +140,17 @@ const EditTenantScreen = ({ route, navigation }) => {
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Nome Completo</Text>
                 <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>CPF</Text>
+                <TextInput 
+                    style={styles.input} 
+                    value={cpf} 
+                    onChangeText={setCpf} 
+                    keyboardType="numeric"
+                    placeholder="Digite o CPF do inquilino"
+                />
             </View>
             
             <View style={[styles.inputGroup, Platform.OS === 'android' && { zIndex: 1000 }]}>

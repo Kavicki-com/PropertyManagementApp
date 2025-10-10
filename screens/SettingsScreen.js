@@ -1,5 +1,4 @@
 // screens/SettingsScreen.js 
-//comentário novo
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -54,15 +53,10 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Configurações</Text>
-        <View style={{ width: 24 }} />
       </View>
-      <ScrollView>
 
       {/* User Settings */}
       <View style={styles.section}>
@@ -106,7 +100,6 @@ const SettingsScreen = ({ navigation }) => {
         <Text style={styles.logoutButtonText}>Sair</Text>
       </TouchableOpacity>
     </ScrollView>
-    </View>
   );
 };
 
@@ -116,24 +109,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: '#fff',
-    paddingHorizontal: 15,
+    padding: 20,
     paddingTop: 50,
-    paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
-  },
-  backButton: {
-    padding: 5,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'left',
-    flex: 1,
   },
   section: {
     marginTop: 20,
