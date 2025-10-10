@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        textAlign: 'center',
+        textAlign: 'left',
     },
     formContainer: {
         padding: 20,

@@ -52,8 +52,10 @@ const FinancesScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-        <Text style={styles.header}>Finances</Text>
-        <ScrollView>
+        <View style={styles.headerContainer}>
+            <Text style={styles.header}>Finanças</Text>
+        </View>
+        <ScrollView style={styles.scrollContainer}>
         <View style={styles.section}>
             <Text style={styles.sectionTitle}>Overview</Text>
             <View style={styles.overviewCard}>
@@ -102,12 +104,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  scrollContainer: {
+    flex: 1,
     padding: 15,
   },
+  headerContainer: {
+    padding: 15,
+    paddingTop: 50,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
   header: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 20,
+    color: '#333',
   },
   section: {
     marginBottom: 20,

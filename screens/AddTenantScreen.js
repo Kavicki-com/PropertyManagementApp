@@ -12,9 +12,9 @@ import {
   Platform,
 } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
-import { format } from 'date-fns';
+import { format, differenceInMonths } from 'date-fns';
 import { supabase } from '../lib/supabase';
-import CustomDatePicker from '../components/CustomDatePicker'; // Import the custom component
+import CustomDatePicker from '../components/CustomDatePicker';
 
 const AddTenantScreen = ({ navigation }) => {
   const [fullName, setFullName] = useState('');
@@ -28,13 +28,13 @@ const AddTenantScreen = ({ navigation }) => {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [contractLength, setContractLength] = useState(0);
 
   // DropDownPicker state
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(null); // This will hold the selected property ID
+  const [value, setValue] = useState(null);
   const [items, setItems] = useState([]);
 
-  // Fetch properties for the DropDownPicker
   useEffect(() => {
     const fetchProperties = async () => {
       const { data, error } = await supabase.from('properties').select('id, address, rent');
@@ -44,7 +44,7 @@ const AddTenantScreen = ({ navigation }) => {
         const formattedProperties = data.map(prop => ({
           label: prop.address,
           value: prop.id,
-          rent: prop.rent, // Keep rent data associated with the item
+          rent: prop.rent,
         }));
         setItems(formattedProperties);
       }
@@ -52,7 +52,6 @@ const AddTenantScreen = ({ navigation }) => {
     fetchProperties();
   }, []);
 
-  // Auto-fill rent amount when a property is selected
   useEffect(() => {
     if (value) {
       const selectedProperty = items.find(item => item.value === value);
@@ -60,9 +59,14 @@ const AddTenantScreen = ({ navigation }) => {
         setRentAmount(selectedProperty.rent.toString());
       }
     } else {
-      setRentAmount(''); // Clear if no property is selected
+      setRentAmount('');
     }
   }, [value, items]);
+
+  useEffect(() => {
+    const months = differenceInMonths(endDate, startDate);
+    setContractLength(months);
+  }, [startDate, endDate]);
 
   const handleAddTenant = async () => {
     if (!value) {
@@ -90,6 +94,7 @@ const AddTenantScreen = ({ navigation }) => {
       due_date: parseInt(dueDate, 10) || null,
       start_date: startDate.toISOString(),
       end_date: endDate.toISOString(),
+      lease_term: contractLength,
     });
 
     if (error) {
@@ -102,183 +107,208 @@ const AddTenantScreen = ({ navigation }) => {
   };
 
   const onStartDateChange = (event, selectedDate) => {
-    setShowStartPicker(false); // Close picker
+    setShowStartPicker(false);
     if (selectedDate) {
       setStartDate(selectedDate);
     }
   };
 
   const onEndDateChange = (event, selectedDate) => {
-    setShowEndPicker(false); // Close picker
+    setShowEndPicker(false);
     if (selectedDate) {
       setEndDate(selectedDate);
     }
   };
 
   return (
-    <ScrollView 
-        style={styles.container}
-        keyboardShouldPersistTaps="handled"
-    >
-      <Text style={styles.header}>Adicionar Inquilino</Text>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Nome Completo</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Digite o nome do inquilino"
-          value={fullName}
-          onChangeText={setFullName}
-        />
-      </View>
-
-      <View style={[styles.inputGroup, { zIndex: 1000 }]}>
-        <Text style={styles.label}>Propriedade</Text>
-        <DropDownPicker
-            open={open}
-            value={value}
-            items={items}
-            setOpen={setOpen}
-            setValue={setValue}
-            setItems={setItems}
-            searchable={true}
-            placeholder="Selecione uma propriedade"
-            listMode="MODAL"
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Telefone</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Digite o telefone do inquilino"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Digite o email do inquilino"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Data de locação</Text>
-        <View style={styles.dateRow}>
-          <TouchableOpacity
-            style={styles.dateInput}
-            onPress={() => setShowStartPicker(true)}
-          >
-            <Text>{format(startDate, 'dd/MM/yyyy')}</Text>
-          </TouchableOpacity>
-          <Text style={styles.dateSeparator}>até</Text>
-          <TouchableOpacity
-            style={styles.dateInput}
-            onPress={() => setShowEndPicker(true)}
-          >
-            <Text>{format(endDate, 'dd/MM/yyyy')}</Text>
-          </TouchableOpacity>
+    <View style={styles.container}>
+        <View style={styles.headerContainer}>
+            <Text style={styles.header}>Adicionar Inquilino</Text>
         </View>
-      </View>
+        <ScrollView 
+            style={styles.scrollContainer}
+            keyboardShouldPersistTaps="handled"
+        >
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nome Completo</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Digite o nome do inquilino"
+                value={fullName}
+                onChangeText={setFullName}
+                />
+            </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Valor do Aluguel</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Selecione uma propriedade para preencher"
-          value={rentAmount}
-          onChangeText={setRentAmount}
-          keyboardType="decimal-pad"
-        />
-      </View>
-      
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Dia do Vencimento do Aluguel</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: 5"
-          value={dueDate}
-          onChangeText={setDueDate}
-          keyboardType="numeric"
-        />
-      </View>
+            <View style={[styles.inputGroup, { zIndex: 1000 }]}>
+                <Text style={styles.label}>Propriedade</Text>
+                <DropDownPicker
+                    open={open}
+                    value={value}
+                    items={items}
+                    setOpen={setOpen}
+                    setValue={setValue}
+                    setItems={setItems}
+                    searchable={true}
+                    placeholder="Selecione uma propriedade"
+                    listMode="MODAL"
+                />
+            </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Depósito Caução</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Insira o valor de depósito"
-          value={deposit}
-          onChangeText={setDeposit}
-          keyboardType="decimal-pad"
-        />
-      </View>
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Telefone</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Digite o telefone do inquilino"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                />
+            </View>
 
-      <TouchableOpacity style={styles.addButton} onPress={handleAddTenant} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={styles.addButtonText}>Adicionar Inquilino</Text>
-        )}
-      </TouchableOpacity>
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Digite o email do inquilino"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                />
+            </View>
 
-      <CustomDatePicker
-        visible={showStartPicker}
-        date={startDate}
-        onDateChange={onStartDateChange}
-        onClose={() => setShowStartPicker(false)}
-      />
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Data de locação</Text>
+                <View style={styles.dateRow}>
+                <TouchableOpacity
+                    style={styles.dateInput}
+                    onPress={() => setShowStartPicker(true)}
+                >
+                    <Text>{format(startDate, 'dd/MM/yyyy')}</Text>
+                </TouchableOpacity>
+                <Text style={styles.dateSeparator}>até</Text>
+                <TouchableOpacity
+                    style={styles.dateInput}
+                    onPress={() => setShowEndPicker(true)}
+                >
+                    <Text>{format(endDate, 'dd/MM/yyyy')}</Text>
+                </TouchableOpacity>
+                </View>
+            </View>
+            
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Duração do Contrato (meses)</Text>
+                <TextInput
+                style={[styles.input, styles.disabledInput]}
+                value={`${contractLength} meses`}
+                editable={false}
+                />
+            </View>
 
-      <CustomDatePicker
-        visible={showEndPicker}
-        date={endDate}
-        onDateChange={onEndDateChange}
-        onClose={() => setShowEndPicker(false)}
-      />
-    </ScrollView>
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Valor do Aluguel</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Selecione uma propriedade para preencher"
+                value={rentAmount}
+                onChangeText={setRentAmount}
+                keyboardType="decimal-pad"
+                />
+            </View>
+            
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Dia do Vencimento do Aluguel</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Ex: 5"
+                value={dueDate}
+                onChangeText={setDueDate}
+                keyboardType="numeric"
+                />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Depósito Caução</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Insira o valor de depósito"
+                value={deposit}
+                onChangeText={setDeposit}
+                keyboardType="decimal-pad"
+                />
+            </View>
+
+            <TouchableOpacity style={styles.addButton} onPress={handleAddTenant} disabled={loading}>
+                {loading ? (
+                <ActivityIndicator color="white" />
+                ) : (
+                <Text style={styles.addButtonText}>Adicionar Inquilino</Text>
+                )}
+            </TouchableOpacity>
+
+            <CustomDatePicker
+                visible={showStartPicker}
+                date={startDate}
+                onDateChange={onStartDateChange}
+                onClose={() => setShowStartPicker(false)}
+            />
+
+            <CustomDatePicker
+                visible={showEndPicker}
+                date={endDate}
+                onDateChange={onEndDateChange}
+                onClose={() => setShowEndPicker(false)}
+            />
+        </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: '#f5f5f5',
+    },
+    scrollContainer: {
+        flex: 1,
         padding: 20,
-      },
-      header: {
-        fontSize: 24,
+    },
+    headerContainer: {
+        padding: 15,
+        paddingTop: 50,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#ddd',
+    },
+    header: {
+        fontSize: 28,
         fontWeight: 'bold',
+        color: '#333',
+    },
+    inputGroup: {
         marginBottom: 20,
-        textAlign: 'center',
-      },
-      inputGroup: {
-        marginBottom: 20,
-      },
-      label: {
+    },
+    label: {
         marginBottom: 8,
         fontWeight: '500',
-      },
-      input: {
+    },
+    input: {
         height: 50,
         borderWidth: 1,
         borderColor: '#ddd',
         borderRadius: 8,
         paddingHorizontal: 15,
         fontSize: 16,
-      },
-      dateRow: {
+    },
+    disabledInput: {
+        backgroundColor: '#f0f0f0',
+        color: '#666',
+    },
+    dateRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-      },
-      dateInput: {
+    },
+    dateInput: {
         flex: 1,
         height: 50,
         borderWidth: 1,
@@ -286,24 +316,24 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         paddingHorizontal: 15,
         justifyContent: 'center',
-      },
-      dateSeparator: {
+    },
+    dateSeparator: {
         marginHorizontal: 10,
         color: '#666',
-      },
-      addButton: {
+    },
+    addButton: {
         backgroundColor: '#4a86e8',
         padding: 15,
         borderRadius: 8,
         alignItems: 'center',
         marginTop: 10,
-        marginBottom: 50, // Add some margin at the bottom
-      },
-      addButtonText: {
+        marginBottom: 50,
+    },
+    addButtonText: {
         color: 'white',
         fontWeight: 'bold',
         fontSize: 16,
-      },
+    },
 });
 
 export default AddTenantScreen;

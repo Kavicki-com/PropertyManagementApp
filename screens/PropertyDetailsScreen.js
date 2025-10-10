@@ -1,6 +1,6 @@
 // screens/PropertyDetailsScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -10,6 +10,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
 
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const isFocused = useIsFocused();
 
   useEffect(() => {
@@ -36,6 +37,31 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         fetchTenantForProperty();
     }
   }, [property?.id, isFocused]);
+
+  const handleDeleteProperty = async () => {
+    Alert.alert(
+      "Confirmar Exclusão",
+      "Você tem certeza que quer deletar esta propriedade?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { 
+          text: "Deletar", 
+          onPress: async () => {
+            setIsDeleting(true);
+            const { error } = await supabase.from('properties').delete().eq('id', property.id);
+            if (error) {
+              Alert.alert('Erro', 'Não foi possível deletar a propriedade.');
+            } else {
+              Alert.alert('Sucesso', 'Propriedade deletada.');
+              navigation.goBack();
+            }
+            setIsDeleting(false);
+          },
+          style: 'destructive' 
+        }
+      ]
+    );
+  };
 
   if (!property) {
     return (
@@ -81,14 +107,6 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           <Text style={styles.infoLabel}>Prazo do Contrato</Text>
           <Text style={styles.infoValue}>{property.lease_term} meses</Text>
         </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Início do Contrato</Text>
-          <Text style={styles.infoValue}>{new Date(property.start_date).toLocaleDateString()}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Término do Contrato</Text>
-          <Text style={styles.infoValue}>{new Date(property.end_date).toLocaleDateString()}</Text>
-        </View>
       </View>
       
       <View style={styles.section}>
@@ -111,7 +129,13 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         >
           <Text style={styles.buttonText}>Editar Propriedade</Text>
         </TouchableOpacity>
-        {/* ... delete button */}
+        <TouchableOpacity 
+          style={styles.deleteButton} 
+          onPress={handleDeleteProperty}
+          disabled={isDeleting}
+        >
+          {isDeleting ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Deletar Propriedade</Text>}
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -132,7 +156,7 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: 'bold',
         color: '#fff',
-        textAlign: 'center',
+        textAlign: 'left',
     },
     section: {
         backgroundColor: '#fff',
@@ -180,26 +204,32 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         fontStyle: 'italic',
     },
-
+    buttonContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+    },
     editButton: {
-    backgroundColor: '#FF9800', // Orange color for edit
-    padding: 15,
-    borderRadius: 8,
-    flex: 1,
-    marginRight: 10,
-    alignItems: 'center',
-  },
-  deleteButton: {
-    backgroundColor: '#F44336', // Red color for delete
-    padding: 15,
-    borderRadius: 8,
-    flex: 1,
-    marginLeft: 10,
-    alignItems: 'center',
-  },
-  buttonContainer: {
-    padding: 15,
-  }
+        backgroundColor: '#FF9800', // Orange color for edit
+        padding: 15,
+        borderRadius: 8,
+        flex: 1,
+        marginRight: 10,
+        alignItems: 'center',
+    },
+    deleteButton: {
+        backgroundColor: '#F44336', // Red color for delete
+        padding: 15,
+        borderRadius: 8,
+        flex: 1,
+        marginLeft: 10,
+        alignItems: 'center',
+    },
+    buttonText: { 
+        color: 'white',
+        fontWeight: 'bold',
+    },
 });
 
 export default PropertyDetailsScreen;

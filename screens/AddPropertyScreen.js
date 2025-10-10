@@ -12,9 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
-import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
-import CustomDatePicker from '../components/CustomDatePicker'; // Import the custom component
 
 const AddPropertyScreen = ({ navigation }) => {
   const [endereco, setEndereco] = useState('');
@@ -24,11 +22,6 @@ const AddPropertyScreen = ({ navigation }) => {
   const [area, setArea] = useState('');
   const [tamanhoLote, setTamanhoLote] = useState('');
   const [aluguel, setAluguel] = useState('');
-  const [prazoContrato, setPrazoContrato] = useState('');
-  const [dataInicio, setDataInicio] = useState(new Date());
-  const [dataFim, setDataFim] = useState(new Date());
-  const [showDataInicioPicker, setShowDataInicioPicker] = useState(false);
-  const [showDataFimPicker, setShowDataFimPicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Tenant Dropdown state
@@ -71,9 +64,6 @@ const AddPropertyScreen = ({ navigation }) => {
       sqft: parseInt(area, 10) || null,
       lot_size: tamanhoLote,
       rent: parseInt(aluguel, 10) || null,
-      lease_term: parseInt(prazoContrato, 10) || null,
-      start_date: dataInicio.toISOString(),
-      end_date: dataFim.toISOString(),
     }).select().single();
 
     if (error) {
@@ -100,23 +90,12 @@ const AddPropertyScreen = ({ navigation }) => {
     setLoading(false);
   };
 
-  const onDataInicioChange = (event, selectedDate) => {
-    setShowDataInicioPicker(false); // Close the picker
-    if (selectedDate) {
-      setDataInicio(selectedDate);
-    }
-  };
-
-  const onDataFimChange = (event, selectedDate) => {
-    setShowDataFimPicker(false); // Close the picker
-    if (selectedDate) {
-      setDataFim(selectedDate);
-    }
-  };
-
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      <Text style={styles.header}>Adicionar Propriedade</Text>
+    <View style={styles.container}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>Adicionar Propriedade</Text>
+      </View>
+      <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
 
         <View style={[styles.inputGroup, { zIndex: 1000 }]}>
             <Text style={styles.label}>Inquilino Associado (Opcional)</Text>
@@ -209,36 +188,6 @@ const AddPropertyScreen = ({ navigation }) => {
         />
       </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Prazo do Contrato (meses)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: 12"
-          value={prazoContrato}
-          onChangeText={setPrazoContrato}
-          keyboardType="numeric"
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Datas do Contrato</Text>
-        <View style={styles.dateRow}>
-          <TouchableOpacity
-            style={styles.dateInput}
-            onPress={() => setShowDataInicioPicker(true)}
-          >
-            <Text>{format(dataInicio, 'dd/MM/yyyy')}</Text>
-          </TouchableOpacity>
-          <Text style={styles.dateSeparator}>até</Text>
-          <TouchableOpacity
-            style={styles.dateInput}
-            onPress={() => setShowDataFimPicker(true)}
-          >
-            <Text>{format(dataFim, 'dd/MM/yyyy')}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <TouchableOpacity style={styles.addButton} onPress={handleAddProperty} disabled={loading}>
         {loading ? (
           <ActivityIndicator color="white" />
@@ -246,36 +195,31 @@ const AddPropertyScreen = ({ navigation }) => {
           <Text style={styles.addButtonText}>Adicionar Propriedade</Text>
         )}
       </TouchableOpacity>
-
-      <CustomDatePicker
-        visible={showDataInicioPicker}
-        date={dataInicio}
-        onDateChange={onDataInicioChange}
-        onClose={() => setShowDataInicioPicker(false)}
-      />
-
-      <CustomDatePicker
-        visible={showDataFimPicker}
-        date={dataFim}
-        onDateChange={onDataFimChange}
-        onClose={() => setShowDataFimPicker(false)}
-      />
     </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: '#fff',
-      padding: 20,
+      backgroundColor: '#f5f5f5',
     },
+    scrollContainer: {
+        flex: 1,
+        padding: 20,
+    },
+    headerContainer: {
+        padding: 15,
+        paddingTop: 50,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#ddd',
+      },
     header: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      marginBottom: 20,
-      textAlign: 'center',
-      color: '#333',
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#333',
     },
     inputGroup: {
       marginBottom: 20,
@@ -301,25 +245,6 @@ const styles = StyleSheet.create({
       paddingHorizontal: 15,
       fontSize: 16,
       backgroundColor: '#f9f9f9',
-    },
-    dateRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    dateInput: {
-      flex: 1,
-      height: 50,
-      borderWidth: 1,
-      borderColor: '#ddd',
-      borderRadius: 8,
-      paddingHorizontal: 15,
-      justifyContent: 'center',
-      backgroundColor: '#f9f9f9',
-    },
-    dateSeparator: {
-      marginHorizontal: 10,
-      color: '#666',
     },
     addButton: {
       backgroundColor: '#4a86e8',

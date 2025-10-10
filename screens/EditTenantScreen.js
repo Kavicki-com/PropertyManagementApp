@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInMonths } from 'date-fns';
 import { supabase } from '../lib/supabase';
 import CustomDatePicker from '../components/CustomDatePicker'; // Import the custom component
 
@@ -30,6 +30,7 @@ const EditTenantScreen = ({ route, navigation }) => {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [contractLength, setContractLength] = useState(0);
 
   // Property Dropdown state
   const [open, setOpen] = useState(false);
@@ -78,6 +79,12 @@ const EditTenantScreen = ({ route, navigation }) => {
           setRentAmount(''); // Clear if no property is selected
         }
       }, [propertyId, properties]);
+      
+    // Calculate contract length whenever start or end dates change
+    useEffect(() => {
+        const months = differenceInMonths(endDate, startDate);
+        setContractLength(months);
+    }, [startDate, endDate]);
 
   const handleUpdateTenant = async () => {
     setLoading(true);
@@ -93,6 +100,7 @@ const EditTenantScreen = ({ route, navigation }) => {
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
         property_id: propertyId,
+        lease_term: contractLength,
       })
       .eq('id', tenant.id);
 
@@ -116,125 +124,196 @@ const EditTenantScreen = ({ route, navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      <Text style={styles.header}>Editar Inquilino</Text>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Nome Completo</Text>
-        <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
-      </View>
-      
-      <View style={[styles.inputGroup, Platform.OS === 'android' && { zIndex: 1000 }]}>
-        <Text style={styles.label}>Propriedade</Text>
-        <DropDownPicker
-            open={open}
-            value={propertyId}
-            items={properties}
-            setOpen={setOpen}
-            setValue={setPropertyId}
-            setItems={setProperties}
-            searchable={true}
-            placeholder="Selecione uma propriedade"
-            listMode="MODAL"
-            clearable={true}
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Telefone</Text>
-        <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Data de locação</Text>
-        <View style={styles.dateRow}>
-          <TouchableOpacity
-            style={styles.dateInput}
-            onPress={() => setShowStartPicker(true)}
-          >
-            <Text>{format(startDate, 'dd/MM/yyyy')}</Text>
-          </TouchableOpacity>
-          <Text style={styles.dateSeparator}>até</Text>
-          <TouchableOpacity
-            style={styles.dateInput}
-            onPress={() => setShowEndPicker(true)}
-          >
-            <Text>{format(endDate, 'dd/MM/yyyy')}</Text>
-          </TouchableOpacity>
+    <View style={styles.container}>
+        <View style={styles.headerContainer}>
+            <Text style={styles.header}>Editar Inquilino</Text>
         </View>
-      </View>
+        <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nome Completo</Text>
+                <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
+            </View>
+            
+            <View style={[styles.inputGroup, Platform.OS === 'android' && { zIndex: 1000 }]}>
+                <Text style={styles.label}>Propriedade</Text>
+                <DropDownPicker
+                    open={open}
+                    value={propertyId}
+                    items={properties}
+                    setOpen={setOpen}
+                    setValue={setPropertyId}
+                    setItems={setProperties}
+                    searchable={true}
+                    placeholder="Selecione uma propriedade"
+                    listMode="MODAL"
+                    clearable={true}
+                />
+            </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Valor do Aluguel</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Selecione uma propriedade para preencher"
-          value={rentAmount}
-          onChangeText={setRentAmount}
-          keyboardType="decimal-pad"
-        />
-      </View>
-      
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Dia do Vencimento do Aluguel</Text>
-        <TextInput 
-            style={styles.input} 
-            value={dueDate} 
-            onChangeText={setDueDate} 
-            keyboardType="numeric"
-            placeholder="Ex: 5"
-        />
-      </View>
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Telefone</Text>
+                <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+            </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Depósito Caução</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Insira o valor de depósito"
-          value={deposit}
-          onChangeText={setDeposit}
-          keyboardType="decimal-pad"
-        />
-      </View>
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Data de locação</Text>
+                <View style={styles.dateRow}>
+                <TouchableOpacity
+                    style={styles.dateInput}
+                    onPress={() => setShowStartPicker(true)}
+                >
+                    <Text>{format(startDate, 'dd/MM/yyyy')}</Text>
+                </TouchableOpacity>
+                <Text style={styles.dateSeparator}>até</Text>
+                <TouchableOpacity
+                    style={styles.dateInput}
+                    onPress={() => setShowEndPicker(true)}
+                >
+                    <Text>{format(endDate, 'dd/MM/yyyy')}</Text>
+                </TouchableOpacity>
+                </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Duração do Contrato (meses)</Text>
+                <TextInput
+                    style={[styles.input, styles.disabledInput]}
+                    value={`${contractLength} meses`}
+                    editable={false}
+                />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Valor do Aluguel</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Selecione uma propriedade para preencher"
+                value={rentAmount}
+                onChangeText={setRentAmount}
+                keyboardType="decimal-pad"
+                />
+            </View>
+            
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Dia do Vencimento do Aluguel</Text>
+                <TextInput 
+                    style={styles.input} 
+                    value={dueDate} 
+                    onChangeText={setDueDate} 
+                    keyboardType="numeric"
+                    placeholder="Ex: 5"
+                />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Depósito Caução</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Insira o valor de depósito"
+                value={deposit}
+                onChangeText={setDeposit}
+                keyboardType="decimal-pad"
+                />
+            </View>
 
 
-      <TouchableOpacity style={styles.updateButton} onPress={handleUpdateTenant} disabled={loading}>
-        {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
-      </TouchableOpacity>
+            <TouchableOpacity style={styles.updateButton} onPress={handleUpdateTenant} disabled={loading}>
+                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
+            </TouchableOpacity>
 
-      <CustomDatePicker
-        visible={showStartPicker}
-        date={startDate}
-        onDateChange={onStartDateChange}
-        onClose={() => setShowStartPicker(false)}
-      />
+            <CustomDatePicker
+                visible={showStartPicker}
+                date={startDate}
+                onDateChange={onStartDateChange}
+                onClose={() => setShowStartPicker(false)}
+            />
 
-      <CustomDatePicker
-        visible={showEndPicker}
-        date={endDate}
-        onDateChange={onEndDateChange}
-        onClose={() => setShowEndPicker(false)}
-      />
-    </ScrollView>
+            <CustomDatePicker
+                visible={showEndPicker}
+                date={endDate}
+                onDateChange={onEndDateChange}
+                onClose={() => setShowEndPicker(false)}
+            />
+        </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff', padding: 20 },
-    header: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-    inputGroup: { marginBottom: 20 },
-    label: { marginBottom: 8, fontWeight: '500' },
-    input: { height: 50, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 15, fontSize: 16 },
-    dateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    dateInput: { flex: 1, height: 50, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 15, justifyContent: 'center' },
-    dateSeparator: { marginHorizontal: 10, color: '#666' },
-    updateButton: { backgroundColor: '#FF9800', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
-    buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+    container: { 
+        flex: 1, 
+        backgroundColor: '#f5f5f5',
+    },
+    scrollContainer: {
+        flex: 1,
+        padding: 20,
+    },
+    headerContainer: {
+        padding: 15,
+        paddingTop: 50,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#ddd',
+    },
+    header: { 
+        fontSize: 28, 
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    inputGroup: { 
+        marginBottom: 20,
+    },
+    label: { 
+        marginBottom: 8, 
+        fontWeight: '500',
+    },
+    input: { 
+        height: 50, 
+        borderWidth: 1, 
+        borderColor: '#ddd', 
+        borderRadius: 8, 
+        paddingHorizontal: 15, 
+        fontSize: 16,
+    },
+    disabledInput: {
+        backgroundColor: '#f5f5f5',
+        color: '#666',
+    },
+    dateRow: { 
+        flexDirection: 'row', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+    },
+    dateInput: { 
+        flex: 1, 
+        height: 50, 
+        borderWidth: 1, 
+        borderColor: '#ddd', 
+        borderRadius: 8, 
+        paddingHorizontal: 15, 
+        justifyContent: 'center',
+    },
+    dateSeparator: { 
+        marginHorizontal: 10, 
+        color: '#666',
+    },
+    updateButton: { 
+        backgroundColor: '#FF9800', 
+        padding: 15, 
+        borderRadius: 8, 
+        alignItems: 'center', 
+        marginTop: 10,
+    },
+    buttonText: { 
+        color: 'white', 
+        fontWeight: 'bold', 
+        fontSize: 16,
+    },
 });
 
 export default EditTenantScreen;

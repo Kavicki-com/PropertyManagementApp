@@ -17,7 +17,6 @@ const TenantDetailsScreen = ({ route, navigation }) => {
 
       setLoading(true);
       
-      // This query now fetches the rent from the related property
       const { data: tenantData, error: tenantError } = await supabase
         .from('tenants')
         .select(`
@@ -105,6 +104,10 @@ const TenantDetailsScreen = ({ route, navigation }) => {
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Valor do Aluguel</Text>
           <Text style={styles.infoValue}>${tenant.properties?.rent || 0}/mês</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Duração do Contrato</Text>
+          <Text style={styles.infoValue}>{tenant.lease_term} meses</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Vencimento</Text>

@@ -69,45 +69,49 @@ const DashboardScreen = ({ navigation }) => {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.header}>Início</Text>
+    <View style={styles.container}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>Início</Text>
+      </View>
+      <ScrollView style={styles.scrollContainer}>
       
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <View style={styles.statIconContainer}>
-            <MaterialIcons name="attach-money" size={24} color="#fff" />
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <View style={styles.statIconContainer}>
+              <MaterialIcons name="attach-money" size={24} color="#fff" />
+            </View>
+            <Text style={styles.statAmount}>R${stats.rentCollected.toFixed(2)}</Text>
+            <Text style={styles.statLabel}>Aluguel Coletado</Text>
+            <Text style={styles.statSubLabel}>Este Mês</Text>
           </View>
-          <Text style={styles.statAmount}>R${stats.rentCollected.toFixed(2)}</Text>
-          <Text style={styles.statLabel}>Aluguel Coletado</Text>
-          <Text style={styles.statSubLabel}>Este Mês</Text>
+          
+          <View style={styles.statCard}>
+            <View style={[styles.statIconContainer, { backgroundColor: '#4CAF50' }]}>
+              <MaterialIcons name="people" size={24} color="#fff" />
+            </View>
+            <Text style={styles.statAmount}>{stats.activeTenants}</Text>
+            <Text style={styles.statLabel}>Inquilinos Ativos</Text>
+            <Text style={styles.statSubLabel}>Em {stats.propertyCount} Propriedades</Text>
+          </View>
+          
+          {/* This card can be implemented as a more advanced feature later */}
+          <View style={styles.statCard}>
+            <View style={[styles.statIconContainer, { backgroundColor: '#FF9800' }]}>
+              <MaterialIcons name="event" size={24} color="#fff" />
+            </View>
+            <Text style={styles.statAmount}>1</Text>
+            <Text style={styles.statLabel}>Próximo Aluguel</Text>
+            <Text style={styles.statSubLabel}>Vence em 5 Dias</Text>
+          </View>
         </View>
         
-        <View style={styles.statCard}>
-          <View style={[styles.statIconContainer, { backgroundColor: '#4CAF50' }]}>
-            <MaterialIcons name="people" size={24} color="#fff" />
-          </View>
-          <Text style={styles.statAmount}>{stats.activeTenants}</Text>
-          <Text style={styles.statLabel}>Inquilinos Ativos</Text>
-          <Text style={styles.statSubLabel}>Em {stats.propertyCount} Propriedades</Text>
+        {/* We can make "Recent Activity" dynamic in a future step */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Atividade Recente</Text>
+          {/* Placeholder for recent activity */}
         </View>
-        
-        {/* This card can be implemented as a more advanced feature later */}
-        <View style={styles.statCard}>
-          <View style={[styles.statIconContainer, { backgroundColor: '#FF9800' }]}>
-            <MaterialIcons name="event" size={24} color="#fff" />
-          </View>
-          <Text style={styles.statAmount}>1</Text>
-          <Text style={styles.statLabel}>Próximo Aluguel</Text>
-          <Text style={styles.statSubLabel}>Vence em 5 Dias</Text>
-        </View>
-      </View>
-      
-      {/* We can make "Recent Activity" dynamic in a future step */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Atividade Recente</Text>
-        {/* Placeholder for recent activity */}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -116,12 +120,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  scrollContainer: {
+    flex: 1,
     padding: 15,
   },
+  headerContainer: {
+    padding: 15,
+    paddingTop: 50,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
   header: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 20,
     color: '#333',
   },
   statsContainer: {
