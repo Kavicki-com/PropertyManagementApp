@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
     },
     editButton: {
-        backgroundColor: '#FF9800', // Orange color for edit
+        backgroundColor: '#4a86e8', // Orange color for edit
         padding: 15,
         borderRadius: 8,
         flex: 1,

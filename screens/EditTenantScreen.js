@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
         color: '#666',
     },
     updateButton: { 
-        backgroundColor: '#FF9800', 
+        backgroundColor: '#4a86e8', 
         padding: 15, 
         borderRadius: 8, 
         alignItems: 'center', 

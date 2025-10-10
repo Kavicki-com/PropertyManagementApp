@@ -25,7 +25,6 @@ const EditPropertyScreen = ({ route, navigation }) => {
   const [tamanhoLote, setTamanhoLote] = useState('');
   const [aluguel, setAluguel] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   // Tenant Dropdown state
   const [open, setOpen] = useState(false);
@@ -60,7 +59,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
     }
   }, [property]);
 
-  // Fetch all available tenants to populate the dropdown
+  // Fetch all available tenants and add a "Set as vacant" option
   useEffect(() => {
     const fetchTenants = async () => {
       const { data, error } = await supabase.from('tenants').select('id, full_name');
@@ -68,7 +67,10 @@ const EditPropertyScreen = ({ route, navigation }) => {
         console.error("Error fetching tenants:", error);
       } else {
         const formattedTenants = data.map(t => ({ label: t.full_name, value: t.id }));
-        setTenants(formattedTenants);
+        setTenants([
+            { label: 'Tornar vago (sem inquilino)', value: null },
+            ...formattedTenants
+        ]);
       }
     };
     fetchTenants();
@@ -97,58 +99,51 @@ const EditPropertyScreen = ({ route, navigation }) => {
       return;
     }
 
-    // 2. If there was an initial tenant, but now it's different or null,
-    //    release the old tenant from this property.
-    if (initialTenantId && initialTenantId !== tenantId) {
+    // Tenant association logic
+    // Case 1: Tenant was removed (cleared from dropdown)
+    if (initialTenantId && tenantId === null) {
       const { error: clearTenantError } = await supabase
         .from('tenants')
         .update({ property_id: null })
         .eq('id', initialTenantId);
-      if (clearTenantError) console.warn("Could not clear previous tenant:", clearTenantError.message);
-    }
-    
-    // 3. If a new tenant is selected, associate them with this property
-    if (tenantId && tenantId !== initialTenantId) {
-        const { error: tenantError } = await supabase
-            .from('tenants')
-            .update({ property_id: property.id })
-            .eq('id', tenantId);
+      if (clearTenantError) {
+        console.warn("Could not clear previous tenant:", clearTenantError.message);
+      }
+    } 
+    // Case 2: Tenant was changed to a different one
+    else if (initialTenantId && tenantId !== initialTenantId) {
+      await supabase
+        .from('tenants')
+        .update({ property_id: null })
+        .eq('id', initialTenantId);
+      const { error: tenantError } = await supabase
+        .from('tenants')
+        .update({ property_id: property.id })
+        .eq('id', tenantId);
 
-        if (tenantError) {
-            Alert.alert('Error associating new tenant', tenantError.message);
-            setLoading(false);
-            return;
-        }
+      if (tenantError) {
+        Alert.alert('Error associating new tenant', tenantError.message);
+        setLoading(false);
+        return;
+      }
+    }
+    // Case 3: A new tenant was added (property was vacant)
+    else if (!initialTenantId && tenantId) {
+      const { error: tenantError } = await supabase
+        .from('tenants')
+        .update({ property_id: property.id })
+        .eq('id', tenantId);
+
+      if (tenantError) {
+        Alert.alert('Error associating new tenant', tenantError.message);
+        setLoading(false);
+        return;
+      }
     }
 
     Alert.alert('Success', 'Property updated successfully!');
     navigation.goBack();
     setLoading(false);
-  };
-
-  const handleDeleteProperty = async () => {
-    Alert.alert(
-      "Confirmar Exclusão",
-      "Você tem certeza que quer deletar esta propriedade?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        { 
-          text: "Deletar", 
-          onPress: async () => {
-            setIsDeleting(true);
-            const { error } = await supabase.from('properties').delete().eq('id', property.id);
-            if (error) {
-              Alert.alert('Erro', 'Não foi possível deletar a propriedade.');
-            } else {
-              Alert.alert('Sucesso', 'Propriedade deletada.');
-              navigation.goBack();
-            }
-            setIsDeleting(false);
-          },
-          style: 'destructive' 
-        }
-      ]
-    );
   };
 
   return (
@@ -169,9 +164,8 @@ const EditPropertyScreen = ({ route, navigation }) => {
             setValue={setTenantId}
             setItems={setTenants}
             searchable={true}
-            placeholder="Selecione um inquilino para alugar"
+            placeholder="Selecione um inquilino"
             listMode="MODAL"
-            clearable={true} 
           />
         </View>
 
@@ -211,14 +205,10 @@ const EditPropertyScreen = ({ route, navigation }) => {
           <TextInput style={styles.input} value={aluguel} onChangeText={setAluguel} keyboardType="decimal-pad" />
         </View>
 
-        <TouchableOpacity style={styles.updateButton} onPress={handleUpdateProperty} disabled={loading || isDeleting}>
+        <TouchableOpacity style={styles.updateButton} onPress={handleUpdateProperty} disabled={loading}>
           {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteProperty} disabled={loading || isDeleting}>
-          {isDeleting ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Deletar Propriedade</Text>}
-        </TouchableOpacity>
-
       </ScrollView>
     </View>
   );
@@ -269,14 +259,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     updateButton: { 
-        backgroundColor: '#FF9800', 
-        padding: 15, 
-        borderRadius: 8, 
-        alignItems: 'center', 
-        marginTop: 10,
-    },
-    deleteButton: { 
-        backgroundColor: '#F44336', 
+        backgroundColor: '#4a86e8', 
         padding: 15, 
         borderRadius: 8, 
         alignItems: 'center', 
