@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const PropertyDetailsScreen = ({ route, navigation }) => {
   // Get the property object passed from the navigation
@@ -74,6 +75,9 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
+        </TouchableOpacity>
         <Text style={styles.header}>{property.address}</Text>
       </View>
       <ScrollView style={styles.scrollContainer}>
@@ -102,10 +106,6 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Aluguel Mensal</Text>
             <Text style={styles.infoValue}>${property.rent}/mês</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Prazo do Contrato</Text>
-            <Text style={styles.infoValue}>{property.lease_term} meses</Text>
           </View>
         </View>
         
@@ -151,11 +151,16 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     headerContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
         padding: 15,
         paddingTop: 50,
         backgroundColor: '#fff',
         borderBottomWidth: 1,
         borderBottomColor: '#ddd',
+    },
+    backButton: {
+        marginRight: 15,
     },
     header: {
         fontSize: 28,
@@ -211,7 +216,7 @@ const styles = StyleSheet.create({
     },
     buttonContainer: {
         flexDirection: 'column',
-        gap: '8',
+        gap: 8,
         justifyContent: 'center',
         paddingHorizontal: 15,
         paddingVertical: 10,

@@ -188,7 +188,7 @@ const DashboardScreen = ({ navigation }) => {
                   styles.transactionAmount,
                   transaction.type === 'income' ? styles.income : styles.expense
                   ]}>
-                  {transaction.type === 'income' ? '+' : '-'}${transaction.amount}
+                  {transaction.type === 'income' ? '+' : '-'}R${transaction.amount}
                   </Text>
               </View>
             ))}
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#ddd',
   },
   header: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
   },

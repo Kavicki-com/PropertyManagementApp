@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const TenantDetailsScreen = ({ route, navigation }) => {
   const { tenant: initialTenant } = route.params;
@@ -76,7 +77,11 @@ const TenantDetailsScreen = ({ route, navigation }) => {
   return (
     <View style={styles.container}>
         <View style={styles.headerContainer}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
+            </TouchableOpacity>
             <Text style={styles.header}>{tenant.full_name}</Text>
+            <View style={{ width: 24 }} />
         </View>
         <ScrollView style={styles.scrollContainer}>
             <View style={styles.avatarContainer}>
@@ -149,16 +154,24 @@ const styles = StyleSheet.create({
         backgroundColor: '#f5f5f5',
     },
     headerContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         padding: 15,
         paddingTop: 50,
         backgroundColor: '#fff',
         borderBottomWidth: 1,
         borderBottomColor: '#ddd',
     },
+    backButton: {
+        padding: 5,
+    },
     header: {
-        fontSize: 28,
+        fontSize: 22,
         fontWeight: 'bold',
         color: '#333',
+        textAlign: 'left',
+        flex: 1,
     },
     avatarContainer: {
         alignItems: 'center',
@@ -202,7 +215,7 @@ const styles = StyleSheet.create({
         flexDirection: 'column', 
         justifyContent: 'center', 
         padding: 15, 
-        gap: '8',
+        gap: 8,
         marginBottom: 20,
     },
     editButton: { 

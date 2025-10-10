@@ -59,25 +59,25 @@ const FinancesScreen = ({ navigation }) => {
         </View>
         <ScrollView style={styles.scrollContainer}>
         <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Overview</Text>
+            <Text style={styles.sectionTitle}>Visão geral</Text>
             <View style={styles.overviewCard}>
             <View style={styles.overviewItem}>
-                <Text style={styles.overviewLabel}>Total Income</Text>
-                <Text style={styles.incomeAmount}>${overview.totalIncome.toFixed(2)}</Text>
+                <Text style={styles.overviewLabel}>Entradas</Text>
+                <Text style={styles.incomeAmount}>R${overview.totalIncome.toFixed(2)}</Text>
             </View>
             <View style={styles.overviewItem}>
-                <Text style={styles.overviewLabel}>Total Expenses</Text>
-                <Text style={styles.expenseAmount}>${overview.totalExpenses.toFixed(2)}</Text>
+                <Text style={styles.overviewLabel}>Despesas</Text>
+                <Text style={styles.expenseAmount}>R${overview.totalExpenses.toFixed(2)}</Text>
             </View>
             <View style={styles.overviewItem}>
-                <Text style={styles.overviewLabel}>Net Profit</Text>
-                <Text style={styles.profitAmount}>${overview.netProfit.toFixed(2)}</Text>
+                <Text style={styles.overviewLabel}>Lucro</Text>
+                <Text style={styles.profitAmount}>R${overview.netProfit.toFixed(2)}</Text>
             </View>
             </View>
         </View>
 
         <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Transactions</Text>
+            <Text style={styles.sectionTitle}>Lançamentos</Text>
             {transactions.map(transaction => (
             <View key={transaction.id} style={styles.transactionCard}>
                 <View style={styles.transactionDetails}>
@@ -88,7 +88,7 @@ const FinancesScreen = ({ navigation }) => {
                 styles.transactionAmount,
                 transaction.type === 'income' ? styles.income : styles.expense
                 ]}>
-                {transaction.type === 'income' ? '+' : '-'}${transaction.amount}
+                {transaction.type === 'income' ? '+' : '-'}R${transaction.amount}
                 </Text>
             </View>
             ))}
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#ddd',
   },
   header: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
   },

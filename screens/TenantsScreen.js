@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#ddd',
   },
   header: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
   },

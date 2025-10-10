@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker'; // Use the new dropdown picker
 import { supabase } from '../lib/supabase';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const AddTransactionScreen = ({ navigation }) => {
   const [description, setDescription] = useState('');
@@ -83,7 +84,11 @@ const AddTransactionScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
         <View style={styles.headerContainer}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
+            </TouchableOpacity>
             <Text style={styles.header}>Adicionar Transação</Text>
+            <View style={{ width: 24 }} />
         </View>
         <ScrollView 
             style={styles.scrollContainer}
@@ -165,16 +170,24 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 15,
     paddingTop: 50,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
   },
+  backButton: {
+      padding: 5,
+  },
   header: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
+    textAlign: 'left',
+    flex: 1,
   },
   inputGroup: {
     marginBottom: 20,
