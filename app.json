@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "PropertyManagementApp",
-    "slug": "PropertyManagementApp",
+    "name": "llord",
+    "slug": "llord",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
@@ -17,7 +17,11 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kavicki.com.llord",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,6 +31,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d060a5f9-4d18-4a38-b02d-d354c0fd46ea"
+      }
+    },
+    "owner": "kavicki.com"
   }
 }
