@@ -10,9 +10,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  ActivityIndicator, // Added for loading state
+  ActivityIndicator,
 } from 'react-native';
-import { supabase } from '../lib/supabase'; // Make sure you have created this file
+import { supabase } from '../lib/supabase';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -28,8 +28,6 @@ const LoginScreen = ({ navigation }) => {
 
     if (error) {
       Alert.alert('Error', error.message);
-    } else {
-      navigation.navigate('Main');
     }
     setLoading(false);
   };
@@ -65,7 +63,7 @@ const LoginScreen = ({ navigation }) => {
         />
       </View>
 
-      <TouchableOpacity>
+      <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
         <Text style={styles.forgotPassword}>Esqueceu a senha?</Text>
       </TouchableOpacity>
 
@@ -87,7 +85,6 @@ const LoginScreen = ({ navigation }) => {
   );
 };
 
-// ... (styles remain the same)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -100,7 +97,6 @@ const styles = StyleSheet.create({
     height: 100,
     alignSelf: 'center',
     marginBottom: 30,
-
   },
   title: {
     fontSize: 24,
@@ -151,6 +147,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-
 
 export default LoginScreen;

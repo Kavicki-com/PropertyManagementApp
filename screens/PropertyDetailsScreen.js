@@ -42,15 +42,30 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   const handleDeleteProperty = async () => {
     Alert.alert(
       "Confirmar Exclusão",
-      "Você tem certeza que quer deletar esta propriedade?",
+      "Você tem certeza que quer deletar esta propriedade? Qualquer inquilino associado será desvinculado.",
       [
         { text: "Cancelar", style: "cancel" },
         { 
           text: "Deletar", 
           onPress: async () => {
             setIsDeleting(true);
-            const { error } = await supabase.from('properties').delete().eq('id', property.id);
-            if (error) {
+
+            // Etapa 1: Desassociar inquilinos desta propriedade
+            const { error: updateError } = await supabase
+              .from('tenants')
+              .update({ property_id: null })
+              .eq('property_id', property.id);
+
+            if (updateError) {
+              Alert.alert('Erro', 'Não foi possível desvincular o inquilino da propriedade.');
+              setIsDeleting(false);
+              return;
+            }
+            
+            // Etapa 2: Deletar a propriedade
+            const { error: deleteError } = await supabase.from('properties').delete().eq('id', property.id);
+            
+            if (deleteError) {
               Alert.alert('Erro', 'Não foi possível deletar a propriedade.');
             } else {
               Alert.alert('Sucesso', 'Propriedade deletada.');
@@ -78,7 +93,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.header}>{property.address}</Text>
+        <Text style={styles.header} numberOfLines={1} ellipsizeMode='tail'>{property.address}</Text>
       </View>
       <ScrollView style={styles.scrollContainer}>
         <View style={styles.section}>
@@ -105,7 +120,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           <Text style={styles.sectionTitle}>Aluguel & Contrato</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Aluguel Mensal</Text>
-            <Text style={styles.infoValue}>${property.rent}/mês</Text>
+            <Text style={styles.infoValue}>R${property.rent}/mês</Text>
           </View>
         </View>
         
@@ -163,9 +178,10 @@ const styles = StyleSheet.create({
         marginRight: 15,
     },
     header: {
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: 'bold',
         color: '#333',
+        flex: 1,
     },
     section: {
         backgroundColor: '#fff',
@@ -219,7 +235,7 @@ const styles = StyleSheet.create({
         gap: 8,
         justifyContent: 'center',
         paddingHorizontal: 15,
-        paddingVertical: 10,
+        paddingVertical: 20,
     },
     editButton: {
         backgroundColor: '#4a86e8', // Orange color for edit
