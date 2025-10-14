@@ -6,7 +6,6 @@ import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 const PropertyDetailsScreen = ({ route, navigation }) => {
-  // Get the property object passed from the navigation
   const { property } = route.params;
 
   const [tenant, setTenant] = useState(null);
@@ -19,14 +18,13 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       if (!property?.id) return;
 
       setLoading(true);
-      // Find the tenant who is linked to this property's ID
       const { data, error } = await supabase
         .from('tenants')
         .select('full_name, phone')
         .eq('property_id', property.id)
-        .single(); // .single() gets one record instead of an array
+        .single();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found, which is ok
+      if (error && error.code !== 'PGRST116') {
         console.error('Error fetching tenant:', error);
       } else {
         setTenant(data);
@@ -42,7 +40,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   const handleDeleteProperty = async () => {
     Alert.alert(
       "Confirmar Exclusão",
-      "Você tem certeza que quer deletar esta propriedade? Qualquer inquilino associado será desvinculado.",
+      "Você tem certeza que quer deletar esta propriedade? Todos os inquilinos e registros financeiros associados serão permanentemente removidos.",
       [
         { text: "Cancelar", style: "cancel" },
         { 
@@ -50,20 +48,35 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           onPress: async () => {
             setIsDeleting(true);
 
-            // Etapa 1: Desassociar inquilinos desta propriedade
-            const { error: updateError } = await supabase
+            // Etapa 1: Desvincular inquilinos (opcional, mas boa prática)
+            const { error: tenantUpdateError } = await supabase
               .from('tenants')
               .update({ property_id: null })
               .eq('property_id', property.id);
 
-            if (updateError) {
+            if (tenantUpdateError) {
               Alert.alert('Erro', 'Não foi possível desvincular o inquilino da propriedade.');
               setIsDeleting(false);
               return;
             }
+
+            // Etapa 2: Deletar registros financeiros associados (CORREÇÃO)
+            const { error: financeError } = await supabase
+              .from('finances')
+              .delete()
+              .eq('property_id', property.id);
+
+            if (financeError) {
+              Alert.alert('Erro', 'Não foi possível deletar os registros financeiros associados.');
+              setIsDeleting(false);
+              return;
+            }
             
-            // Etapa 2: Deletar a propriedade
-            const { error: deleteError } = await supabase.from('properties').delete().eq('id', property.id);
+            // Etapa 3: Deletar a propriedade
+            const { error: deleteError } = await supabase
+              .from('properties')
+              .delete()
+              .eq('id', property.id);
             
             if (deleteError) {
               Alert.alert('Erro', 'Não foi possível deletar a propriedade.');
@@ -238,14 +251,14 @@ const styles = StyleSheet.create({
         paddingVertical: 20,
     },
     editButton: {
-        backgroundColor: '#4a86e8', // Orange color for edit
+        backgroundColor: '#4a86e8',
         padding: 15,
         borderRadius: 8,
         flex: 1,
         alignItems: 'center',
     },
     deleteButton: {
-        backgroundColor: '#F44336', // Red color for delete
+        backgroundColor: '#F44336',
         padding: 15,
         borderRadius: 8,
         flex: 1,
