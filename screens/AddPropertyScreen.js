@@ -78,7 +78,8 @@ const AddPropertyScreen = ({ navigation }) => {
     for (const image of images) {
       const fileName = `${user.id}/${Date.now()}.jpg`;
       
-      // *** VERIFIQUE SE ESTE NOME DE BUCKET ESTÁ CORRETO ***
+      // --- PONTO DE CORREÇÃO ---
+      // Verifique se o nome 'property-images' é exatamente igual ao nome do seu bucket no Supabase.
       const bucketName = 'property-images';
       
       const { error: uploadError } = await supabase.storage
@@ -86,7 +87,7 @@ const AddPropertyScreen = ({ navigation }) => {
         .upload(fileName, decode(image.base64), { contentType: 'image/jpeg' });
 
       if (uploadError) {
-        Alert.alert('Erro no Upload', `Não foi possível enviar a imagem: ${uploadError.message}`);
+        Alert.alert('Erro no Upload', `Bucket não encontrado ou erro ao enviar: ${uploadError.message}`);
         setLoading(false);
         return;
       }
@@ -122,7 +123,7 @@ const AddPropertyScreen = ({ navigation }) => {
     setLoading(false);
   };
   
-  // O restante do seu componente (return e styles) continua o mesmo...
+  // O restante do componente (return e styles) permanece igual...
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
@@ -248,7 +249,6 @@ const AddPropertyScreen = ({ navigation }) => {
     </View>
   );
 };
-
 const styles = StyleSheet.create({
     container: {
       flex: 1,

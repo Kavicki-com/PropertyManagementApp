@@ -17,7 +17,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Buffer } from 'buffer';
 
-// Função para decodificar a imagem para o upload no Supabase
 const decode = (base64) => {
   const binaryString = Buffer.from(base64, 'base64').toString('binary');
   const len = binaryString.length;
@@ -31,7 +30,6 @@ const decode = (base64) => {
 const EditPropertyScreen = ({ route, navigation }) => {
   const { property } = route.params;
 
-  // Estados do formulário
   const [endereco, setEndereco] = useState('');
   const [quartos, setQuartos] = useState('');
   const [banheiros, setBanheiros] = useState('');
@@ -39,9 +37,8 @@ const EditPropertyScreen = ({ route, navigation }) => {
   const [area, setArea] = useState('');
   const [aluguel, setAluguel] = useState('');
   const [loading, setLoading] = useState(false);
-  const [images, setImages] = useState([]); // Armazena URLs existentes e objetos de novas imagens
+  const [images, setImages] = useState([]);
 
-  // Estado do Dropdown de Tipo
   const [typeOpen, setTypeOpen] = useState(false);
   const [typeValue, setTypeValue] = useState('');
   const [typeItems, setTypeItems] = useState([
@@ -49,13 +46,11 @@ const EditPropertyScreen = ({ route, navigation }) => {
     { label: 'Comercial', value: 'Comercial' },
   ]);
 
-  // Estado do Dropdown de Inquilino
   const [tenantOpen, setTenantOpen] = useState(false);
   const [tenantId, setTenantId] = useState(null);
   const [tenants, setTenants] = useState([]);
   const [initialTenantId, setInitialTenantId] = useState(null);
 
-  // Preenche o formulário com os dados da propriedade
   useEffect(() => {
     if (property) {
       setEndereco(property.address || '');
@@ -65,9 +60,8 @@ const EditPropertyScreen = ({ route, navigation }) => {
       setTotalComodos(property.total_rooms?.toString() || '');
       setArea(property.sqft?.toString() || '');
       setAluguel(property.rent?.toString() || '');
-      setImages(property.image_urls || []); // Carrega as imagens existentes
+      setImages(property.image_urls || []);
 
-      // Busca o inquilino atual
       const fetchCurrentTenant = async () => {
         const { data } = await supabase
           .from('tenants')
@@ -83,7 +77,6 @@ const EditPropertyScreen = ({ route, navigation }) => {
     }
   }, [property]);
 
-  // Busca todos os inquilinos disponíveis
   useEffect(() => {
     const fetchTenants = async () => {
       const { data, error } = await supabase.from('tenants').select('id, full_name');
@@ -115,7 +108,6 @@ const EditPropertyScreen = ({ route, navigation }) => {
       : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7 });
   
     if (!result.canceled) {
-      // Adiciona um objeto diferenciado para novas imagens
       setImages([...images, { uri: result.assets[0].uri, base64: result.assets[0].base64, isNew: true }]);
     }
   };
@@ -124,34 +116,36 @@ const EditPropertyScreen = ({ route, navigation }) => {
     setImages(images.filter((_, index) => index !== indexToRemove));
   };
 
-
   const handleUpdateProperty = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
 
-    // 1. Gerenciar Imagens
     const finalImageUrls = [];
     for (const image of images) {
-      if (typeof image === 'string') { // Imagem existente (URL)
+      if (typeof image === 'string') {
         finalImageUrls.push(image);
-      } else if (image.isNew) { // Nova imagem para upload
+      } else if (image.isNew) {
         const fileName = `${user.id}/${Date.now()}.jpg`;
+        
+        // --- PONTO DE CORREÇÃO ---
+        // Verifique se o nome 'property-images' é exatamente igual ao nome do seu bucket no Supabase.
+        const bucketName = 'property-images';
+        
         const { error: uploadError } = await supabase.storage
-          .from('property-images')
+          .from(bucketName)
           .upload(fileName, decode(image.base64), { contentType: 'image/jpeg' });
         
         if (uploadError) {
-          Alert.alert('Erro no Upload', uploadError.message);
+          Alert.alert('Erro no Upload', `Bucket não encontrado ou erro ao enviar: ${uploadError.message}`);
           setLoading(false);
           return;
         }
         
-        const { data: urlData } = supabase.storage.from('property-images').getPublicUrl(fileName);
+        const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
         finalImageUrls.push(urlData.publicUrl);
       }
     }
 
-    // 2. Atualizar os detalhes da propriedade
     const { error: propertyError } = await supabase
       .from('properties')
       .update({
@@ -172,7 +166,6 @@ const EditPropertyScreen = ({ route, navigation }) => {
       return;
     }
 
-    // 3. Lógica de associação de inquilino (mantida)
     if (initialTenantId && tenantId === null) {
         await supabase.from('tenants').update({ property_id: null }).eq('id', initialTenantId);
     } else if (tenantId !== initialTenantId) {
@@ -187,6 +180,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
     setLoading(false);
   };
 
+  // O restante do componente (return e styles) permanece igual...
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
