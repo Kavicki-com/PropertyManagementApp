@@ -1,46 +1,84 @@
 // screens/PropertyDetailsScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { 
+    View, 
+    Text, 
+    StyleSheet, 
+    ScrollView, 
+    TouchableOpacity, 
+    ActivityIndicator, 
+    Alert, 
+    Image,
+    Modal,
+    SafeAreaView
+} from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 const PropertyDetailsScreen = ({ route, navigation }) => {
-  const { property } = route.params;
+  const { property: initialProperty } = route.params;
 
+  const [property, setProperty] = useState(null); 
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
   const isFocused = useIsFocused();
 
   useEffect(() => {
-    const fetchTenantForProperty = async () => {
-      if (!property?.id) return;
+    const fetchFullPropertyDetails = async () => {
+      if (!initialProperty?.id) {
+        Alert.alert("Erro", "ID da propriedade não encontrado.");
+        setLoading(false);
+        return;
+      }
 
       setLoading(true);
-      const { data, error } = await supabase
-        .from('tenants')
-        .select('full_name, phone')
-        .eq('property_id', property.id)
+      
+      const { data: propertyData, error: propertyError } = await supabase
+        .from('properties')
+        .select('*')
+        .eq('id', initialProperty.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching tenant:', error);
-      } else {
-        setTenant(data);
+      if (propertyError) {
+        setLoading(false);
+        Alert.alert('Erro', 'Não foi possível buscar os detalhes da propriedade.');
+        console.error('Error fetching property:', propertyError);
+        return;
       }
+      
+      if (propertyData) {
+        setProperty(propertyData);
+      }
+
+      const { data: tenantData, error: tenantError } = await supabase
+        .from('tenants')
+        .select('full_name, phone')
+        .eq('property_id', initialProperty.id)
+        .single();
+
+      if (tenantError && tenantError.code !== 'PGRST116') {
+        console.error('Error fetching tenant:', tenantError);
+      } else {
+        setTenant(tenantData);
+      }
+      
       setLoading(false);
     };
 
     if (isFocused) {
-        fetchTenantForProperty();
+      fetchFullPropertyDetails();
     }
-  }, [property?.id, isFocused]);
+  }, [isFocused, initialProperty?.id]);
 
+  // --- CORREÇÃO APLICADA AQUI ---
   const handleDeleteProperty = async () => {
     Alert.alert(
       "Confirmar Exclusão",
-      "Você tem certeza que quer deletar esta propriedade? Todos os inquilinos e registros financeiros associados serão permanentemente removidos.",
+      "Deseja realmente deletar esta propriedade? Seus registros financeiros serão REMOVIDOS e o inquilino será DESVINCULADO.",
       [
         { text: "Cancelar", style: "cancel" },
         { 
@@ -48,35 +86,41 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           onPress: async () => {
             setIsDeleting(true);
 
-            // Etapa 1: Desvincular inquilinos (opcional, mas boa prática)
-            const { error: tenantUpdateError } = await supabase
-              .from('tenants')
-              .update({ property_id: null })
-              .eq('property_id', property.id);
-
-            if (tenantUpdateError) {
-              Alert.alert('Erro', 'Não foi possível desvincular o inquilino da propriedade.');
-              setIsDeleting(false);
-              return;
-            }
-
-            // Etapa 2: Deletar registros financeiros associados (CORREÇÃO)
+            // Etapa 1: Deletar os registros financeiros permanentemente
             const { error: financeError } = await supabase
               .from('finances')
-              .delete()
+              .delete() // <-- Ação: DELETAR
               .eq('property_id', property.id);
 
             if (financeError) {
-              Alert.alert('Erro', 'Não foi possível deletar os registros financeiros associados.');
+              Alert.alert('Erro', 'Não foi possível deletar os registros financeiros.');
               setIsDeleting(false);
               return;
             }
             
-            // Etapa 3: Deletar a propriedade
-            const { error: deleteError } = await supabase
-              .from('properties')
-              .delete()
-              .eq('id', property.id);
+            // Etapa 2: Desvincular o inquilino (não deletar)
+            const { error: tenantError } = await supabase
+              .from('tenants')
+              .update({ property_id: null }) // <-- Ação: ATUALIZAR para nulo
+              .eq('property_id', property.id);
+
+            if (tenantError) {
+              Alert.alert('Erro', 'Não foi possível desvincular o inquilino.');
+              setIsDeleting(false);
+              return;
+            }
+
+            // Etapa 3: Deletar as imagens do Storage
+            if (property.image_urls && property.image_urls.length > 0) {
+              const bucketName = 'property-images';
+              const filePaths = property.image_urls.map(url => url.split(`${bucketName}/`)[1]).filter(Boolean);
+              if (filePaths.length > 0) {
+                await supabase.storage.from(bucketName).remove(filePaths);
+              }
+            }
+
+            // Etapa 4: Deletar a propriedade
+            const { error: deleteError } = await supabase.from('properties').delete().eq('id', property.id);
             
             if (deleteError) {
               Alert.alert('Erro', 'Não foi possível deletar a propriedade.');
@@ -91,11 +135,17 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       ]
     );
   };
+  // --- FIM DA CORREÇÃO ---
+  
+  const openImageModal = (imageUrl) => {
+    setSelectedImage(imageUrl);
+    setModalVisible(true);
+  };
 
-  if (!property) {
+  if (loading || !property) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Property not found.</Text>
+        <ActivityIndicator size="large" />
       </View>
     );
   }
@@ -106,9 +156,26 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.header} numberOfLines={1} ellipsizeMode='tail'>{property.address}</Text>
+        <Text style={styles.header} numberOfLines={1} ellipsizeMode="tail">{property.address}</Text>
       </View>
       <ScrollView style={styles.scrollContainer}>
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Fotos do Imóvel</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {property.image_urls && property.image_urls.length > 0 ? (
+                property.image_urls.map((url, index) => (
+                <TouchableOpacity key={index} onPress={() => openImageModal(url)}>
+                    <Image source={{ uri: url }} style={styles.galleryImage} />
+                </TouchableOpacity>
+                ))
+            ) : (
+                <View style={styles.noImageContainer}>
+                    <Text style={styles.noImageText}>Nenhuma foto cadastrada</Text>
+                </View>
+            )}
+            </ScrollView>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Detalhes da Propriedade</Text>
           <View style={styles.infoRow}>
@@ -127,6 +194,10 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             <Text style={styles.infoLabel}>Área (m²)</Text>
             <Text style={styles.infoValue}>{property.sqft}</Text>
           </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Total de Cômodos</Text>
+            <Text style={styles.infoValue}>{property.total_rooms || 'N/A'}</Text>
+          </View>
         </View>
         
         <View style={styles.section}>
@@ -139,15 +210,13 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Inquilino(s)</Text>
-          {loading ? <ActivityIndicator /> : (
-              tenant ? (
-                  <View style={styles.tenantCard}>
-                      <Text style={styles.tenantName}>{tenant.full_name}</Text>
-                      <Text style={styles.tenantPhone}>{tenant.phone}</Text>
-                  </View>
-              ) : (
-                  <Text style={styles.noTenantText}>Nenhum inquilino associado.</Text>
-              )
+          {tenant ? (
+              <View style={styles.tenantCard}>
+                  <Text style={styles.tenantName}>{tenant.full_name}</Text>
+                  <Text style={styles.tenantPhone}>{tenant.phone}</Text>
+              </View>
+          ) : (
+              <Text style={styles.noTenantText}>Nenhum inquilino associado.</Text>
           )}
         </View>
         <View style={styles.buttonContainer}>
@@ -166,6 +235,20 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <Modal
+          animationType="fade"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+      >
+          <SafeAreaView style={styles.modalContainer}>
+              <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
+                  <MaterialIcons name="close" size={30} color="#fff" />
+              </TouchableOpacity>
+              <Image source={{ uri: selectedImage }} style={styles.fullScreenImage} resizeMode="contain" />
+          </SafeAreaView>
+      </Modal>
     </View>
   );
 };
@@ -188,7 +271,7 @@ const styles = StyleSheet.create({
         borderBottomColor: '#ddd',
     },
     backButton: {
-        marginRight: 15,
+        marginRight: 10,
     },
     header: {
         fontSize: 22,
@@ -208,6 +291,25 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         marginBottom: 10,
+    },
+    galleryImage: {
+      width: 120,
+      height: 120,
+      borderRadius: 8,
+      marginRight: 10,
+      backgroundColor: '#eee',
+    },
+    noImageContainer: {
+        width: 120,
+        height: 120,
+        borderRadius: 8,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    noImageText: {
+        color: '#999',
+        fontSize: 12,
     },
     infoRow: {
         flexDirection: 'row',
@@ -267,6 +369,22 @@ const styles = StyleSheet.create({
     buttonText: { 
         color: 'white',
         fontWeight: 'bold',
+    },
+    modalContainer: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    closeButton: {
+        position: 'absolute',
+        top: 50,
+        right: 20,
+        zIndex: 1,
+    },
+    fullScreenImage: {
+        width: '100%',
+        height: '80%',
     },
 });
 
