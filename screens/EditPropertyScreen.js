@@ -9,42 +9,59 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { Buffer } from 'buffer';
+
+const decode = (base64) => {
+  const binaryString = Buffer.from(base64, 'base64').toString('binary');
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+};
 
 const EditPropertyScreen = ({ route, navigation }) => {
   const { property } = route.params;
 
-  // Form state
   const [endereco, setEndereco] = useState('');
-  const [tipoPropriedade, setTipoPropriedade] = useState('');
   const [quartos, setQuartos] = useState('');
   const [banheiros, setBanheiros] = useState('');
+  const [totalComodos, setTotalComodos] = useState('');
   const [area, setArea] = useState('');
-  const [tamanhoLote, setTamanhoLote] = useState('');
   const [aluguel, setAluguel] = useState('');
   const [loading, setLoading] = useState(false);
+  const [images, setImages] = useState([]);
 
-  // Tenant Dropdown state
-  const [open, setOpen] = useState(false);
+  const [typeOpen, setTypeOpen] = useState(false);
+  const [typeValue, setTypeValue] = useState('');
+  const [typeItems, setTypeItems] = useState([
+    { label: 'Residencial', value: 'Residencial' },
+    { label: 'Comercial', value: 'Comercial' },
+  ]);
+
+  const [tenantOpen, setTenantOpen] = useState(false);
   const [tenantId, setTenantId] = useState(null);
   const [tenants, setTenants] = useState([]);
   const [initialTenantId, setInitialTenantId] = useState(null);
 
-  // Pre-fill the form with the property's data
   useEffect(() => {
     if (property) {
       setEndereco(property.address || '');
-      setTipoPropriedade(property.type || '');
+      setTypeValue(property.type || '');
       setQuartos(property.bedrooms?.toString() || '');
       setBanheiros(property.bathrooms?.toString() || '');
+      setTotalComodos(property.total_rooms?.toString() || '');
       setArea(property.sqft?.toString() || '');
-      setTamanhoLote(property.lot_size || '');
       setAluguel(property.rent?.toString() || '');
+      setImages(property.image_urls || []);
 
-      // Find the tenant currently associated with this property
       const fetchCurrentTenant = async () => {
         const { data } = await supabase
           .from('tenants')
@@ -60,7 +77,6 @@ const EditPropertyScreen = ({ route, navigation }) => {
     }
   }, [property]);
 
-  // Fetch all available tenants and add a "Set as vacant" option
   useEffect(() => {
     const fetchTenants = async () => {
       const { data, error } = await supabase.from('tenants').select('id, full_name');
@@ -77,76 +93,94 @@ const EditPropertyScreen = ({ route, navigation }) => {
     fetchTenants();
   }, []);
 
+  const handleImagePicker = async (useCamera = false) => {
+    const permission = useCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+  
+    if (permission.status !== 'granted') {
+      Alert.alert('Permissão necessária', 'Você precisa permitir o acesso para adicionar fotos.');
+      return;
+    }
+  
+    const result = useCamera
+      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 })
+      : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7 });
+  
+    if (!result.canceled) {
+      setImages([...images, { uri: result.assets[0].uri, base64: result.assets[0].base64, isNew: true }]);
+    }
+  };
+
+  const removeImage = (indexToRemove) => {
+    setImages(images.filter((_, index) => index !== indexToRemove));
+  };
+
   const handleUpdateProperty = async () => {
     setLoading(true);
-    
-    // 1. Update the property details
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const finalImageUrls = [];
+    for (const image of images) {
+      if (typeof image === 'string') {
+        finalImageUrls.push(image);
+      } else if (image.isNew) {
+        const fileName = `${user.id}/${Date.now()}.jpg`;
+        
+        // --- PONTO DE CORREÇÃO ---
+        // Verifique se o nome 'property-images' é exatamente igual ao nome do seu bucket no Supabase.
+        const bucketName = 'property-images';
+        
+        const { error: uploadError } = await supabase.storage
+          .from(bucketName)
+          .upload(fileName, decode(image.base64), { contentType: 'image/jpeg' });
+        
+        if (uploadError) {
+          Alert.alert('Erro no Upload', `Bucket não encontrado ou erro ao enviar: ${uploadError.message}`);
+          setLoading(false);
+          return;
+        }
+        
+        const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+        finalImageUrls.push(urlData.publicUrl);
+      }
+    }
+
     const { error: propertyError } = await supabase
       .from('properties')
       .update({
         address: endereco,
-        type: tipoPropriedade,
+        type: typeValue,
         bedrooms: parseInt(quartos, 10) || null,
         bathrooms: parseInt(banheiros, 10) || null,
+        total_rooms: parseInt(totalComodos, 10) || null,
         sqft: parseInt(area, 10) || null,
-        lot_size: tamanhoLote,
         rent: parseInt(aluguel, 10) || null,
+        image_urls: finalImageUrls,
       })
       .eq('id', property.id);
 
     if (propertyError) {
-      Alert.alert('Error updating property', propertyError.message);
+      Alert.alert('Erro ao atualizar propriedade', propertyError.message);
       setLoading(false);
       return;
     }
 
-    // Tenant association logic
-    // Case 1: Tenant was removed (cleared from dropdown)
     if (initialTenantId && tenantId === null) {
-      const { error: clearTenantError } = await supabase
-        .from('tenants')
-        .update({ property_id: null })
-        .eq('id', initialTenantId);
-      if (clearTenantError) {
-        console.warn("Could not clear previous tenant:", clearTenantError.message);
-      }
-    } 
-    // Case 2: Tenant was changed to a different one
-    else if (initialTenantId && tenantId !== initialTenantId) {
-      await supabase
-        .from('tenants')
-        .update({ property_id: null })
-        .eq('id', initialTenantId);
-      const { error: tenantError } = await supabase
-        .from('tenants')
-        .update({ property_id: property.id })
-        .eq('id', tenantId);
-
-      if (tenantError) {
-        Alert.alert('Error associating new tenant', tenantError.message);
-        setLoading(false);
-        return;
-      }
-    }
-    // Case 3: A new tenant was added (property was vacant)
-    else if (!initialTenantId && tenantId) {
-      const { error: tenantError } = await supabase
-        .from('tenants')
-        .update({ property_id: property.id })
-        .eq('id', tenantId);
-
-      if (tenantError) {
-        Alert.alert('Error associating new tenant', tenantError.message);
-        setLoading(false);
-        return;
-      }
+        await supabase.from('tenants').update({ property_id: null }).eq('id', initialTenantId);
+    } else if (tenantId !== initialTenantId) {
+        if (initialTenantId) {
+            await supabase.from('tenants').update({ property_id: null }).eq('id', initialTenantId);
+        }
+        await supabase.from('tenants').update({ property_id: property.id }).eq('id', tenantId);
     }
 
-    Alert.alert('Success', 'Property updated successfully!');
+    Alert.alert('Sucesso', 'Propriedade atualizada!');
     navigation.goBack();
     setLoading(false);
   };
 
+  // O restante do componente (return e styles) permanece igual...
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
@@ -158,19 +192,19 @@ const EditPropertyScreen = ({ route, navigation }) => {
       </View>
       <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
 
-        {/* Tenant Dropdown */}
-        <View style={[styles.inputGroup, { zIndex: 1000 }]}>
+        <View style={[styles.inputGroup, { zIndex: 2000 }]}>
           <Text style={styles.label}>Inquilino Associado</Text>
           <DropDownPicker
-            open={open}
+            open={tenantOpen}
             value={tenantId}
             items={tenants}
-            setOpen={setOpen}
+            setOpen={setTenantOpen}
             setValue={setTenantId}
             setItems={setTenants}
             searchable={true}
             placeholder="Selecione um inquilino"
             listMode="MODAL"
+            zIndex={2000}
           />
         </View>
 
@@ -179,9 +213,19 @@ const EditPropertyScreen = ({ route, navigation }) => {
           <TextInput style={styles.input} value={endereco} onChangeText={setEndereco} />
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Tipo de Propriedade</Text>
-          <TextInput style={styles.input} value={tipoPropriedade} onChangeText={setTipoPropriedade} />
+        <View style={[styles.inputGroup, { zIndex: 1000 }]}>
+            <Text style={styles.label}>Tipo de Propriedade</Text>
+            <DropDownPicker
+                open={typeOpen}
+                value={typeValue}
+                items={typeItems}
+                setOpen={setTypeOpen}
+                setValue={setTypeValue}
+                setItems={setTypeItems}
+                placeholder="Selecione o tipo"
+                listMode="MODAL"
+                zIndex={1000}
+            />
         </View>
 
         <View style={styles.inputRow}>
@@ -194,20 +238,44 @@ const EditPropertyScreen = ({ route, navigation }) => {
             <TextInput style={styles.input} value={banheiros} onChangeText={setBanheiros} keyboardType="numeric" />
           </View>
         </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Área (m²)</Text>
-          <TextInput style={styles.input} value={area} onChangeText={setArea} keyboardType="numeric" />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Tamanho do Lote</Text>
-          <TextInput style={styles.input} value={tamanhoLote} onChangeText={setTamanhoLote} />
+        
+        <View style={styles.inputRow}>
+            <View style={styles.inputGroupHalf}>
+                <Text style={styles.label}>Total de Cômodos</Text>
+                <TextInput style={styles.input} value={totalComodos} onChangeText={setTotalComodos} keyboardType="numeric" />
+            </View>
+            <View style={styles.inputGroupHalf}>
+                <Text style={styles.label}>Área (m²)</Text>
+                <TextInput style={styles.input} value={area} onChangeText={setArea} keyboardType="numeric" />
+            </View>
         </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Valor do Aluguel (R$)</Text>
           <TextInput style={styles.input} value={aluguel} onChangeText={setAluguel} keyboardType="decimal-pad" />
+        </View>
+
+        {/* Seção de Gerenciamento de Imagens */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Fotos do Imóvel</Text>
+          <View style={styles.imagePickerContainer}>
+            <TouchableOpacity style={styles.imagePickerButton} onPress={() => handleImagePicker(true)}>
+              <MaterialIcons name="photo-camera" size={24} color="#4a86e8" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.imagePickerButton} onPress={() => handleImagePicker(false)}>
+              <MaterialIcons name="photo-library" size={24} color="#4a86e8" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailContainer}>
+            {images.map((image, index) => (
+              <View key={index} style={styles.thumbnailWrapper}>
+                <Image source={{ uri: typeof image === 'string' ? image : image.uri }} style={styles.thumbnail} />
+                <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(index)}>
+                  <MaterialIcons name="cancel" size={24} color="#F44336" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
         </View>
 
         <TouchableOpacity style={styles.updateButton} onPress={handleUpdateProperty} disabled={loading}>
@@ -277,11 +345,47 @@ const styles = StyleSheet.create({
         borderRadius: 8, 
         alignItems: 'center', 
         marginTop: 10,
+        marginBottom: 40,
     },
     buttonText: { 
         color: 'white', 
         fontWeight: 'bold', 
         fontSize: 16,
+    },
+    imagePickerContainer: {
+        flexDirection: 'row',
+        marginBottom: 15,
+    },
+    imagePickerButton: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f0f0f0',
+        padding: 10,
+        borderRadius: 8,
+        height: 50,
+        width: 50,
+        marginRight: 10,
+    },
+    thumbnailContainer: {
+        flexDirection: 'row',
+    },
+    thumbnailWrapper: {
+        position: 'relative',
+        marginRight: 10,
+    },
+    thumbnail: {
+        width: 100,
+        height: 100,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#ddd',
+    },
+    removeImageButton: {
+        position: 'absolute',
+        top: -5,
+        right: -5,
+        backgroundColor: 'white',
+        borderRadius: 12,
     },
 });
 

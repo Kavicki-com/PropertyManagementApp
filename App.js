@@ -5,7 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from './lib/supabase';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Linking } from 'react-native';
 
 // Telas
 import LoginScreen from './screens/LoginScreen';
@@ -30,10 +30,10 @@ const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const linking = {
-  prefixes: ['llord://'],
+  prefixes: ['llord://', 'exp://'],
   config: {
     screens: {
-      ResetPassword: 'reset-password',
+      ResetPassword: 'reset',
     },
   },
 };
@@ -86,15 +86,47 @@ export default function App() {
           // antes de tentar navegar.
           setTimeout(() => {
             navigationRef.current?.navigate('ResetPassword');
-          }, 0);
+          }, 100);
         }
       }
     );
 
+    // Listener adicional para deep links
+    const handleUrl = (url) => {
+      console.log('Linking URL received:', url);
+      handleDeepLink(url);
+    };
+
+    const linkingSubscription = Linking.addEventListener('url', handleUrl);
+
+    // Verifica se o app foi aberto com uma URL
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        console.log('Initial URL:', url);
+        handleDeepLink(url);
+      }
+    });
+
     return () => {
       subscription.unsubscribe();
+      linkingSubscription?.remove();
     };
   }, []);
+
+  // Função para lidar com deep linking
+  const handleDeepLink = (url) => {
+    console.log('Deep link received:', url);
+    
+    // Detecta se é um link de reset (contém 'reset')
+    if (url && url.includes('reset')) {
+      console.log('Navigating to ResetPassword screen');
+      
+      // Para reset de senha, não precisamos definir sessão
+      // O usuário deve estar deslogado para poder redefinir a senha
+      // Navega diretamente para a tela de reset
+      navigationRef.current?.navigate('ResetPassword');
+    }
+  };
 
   if (loading) {
     return (
@@ -105,7 +137,27 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer ref={navigationRef} linking={linking} fallback={<ActivityIndicator />}>
+    <NavigationContainer 
+      ref={navigationRef} 
+      linking={{
+        ...linking,
+        getInitialURL: () => {
+          // Retorna a URL inicial se houver
+          return null;
+        },
+        subscribe: (listener) => {
+          // Listener para deep links
+          const handleUrl = (url) => {
+            handleDeepLink(url);
+            listener(url);
+          };
+          
+          // Retorna função de limpeza
+          return () => {};
+        }
+      }} 
+      fallback={<ActivityIndicator />}
+    >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {session && session.user ? (
           <Stack.Group>

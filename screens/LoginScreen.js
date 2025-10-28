@@ -32,6 +32,7 @@ const LoginScreen = ({ navigation }) => {
     setLoading(false);
   };
 
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

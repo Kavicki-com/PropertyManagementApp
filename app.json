@@ -4,6 +4,7 @@
     "slug": "llord",
     "scheme": "llord",
     "version": "1.0.0",
+    "owner":"kavickicom",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "splash": {
@@ -21,14 +22,35 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.kavicki.com.llord",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "llord",
+            "CFBundleURLSchemes": ["llord"]
+          }
+        ]
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#fafafa"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "llord"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -7,22 +7,29 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  Alert, // Adicionado para melhor feedback de erro
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 
 const PropertyItem = ({ item, onPress }) => {
-  // Check if the property has any tenants associated with it
   const hasTenant = item.tenants && item.tenants.length > 0;
   const status = hasTenant ? 'Alugada' : 'Disponível';
   const statusStyle = hasTenant ? styles.rented : styles.available;
   const statusTextStyle = hasTenant ? styles.rentedText : styles.availableText;
 
+  // --- CORREÇÃO APLICADA AQUI ---
+  // Define a fonte da imagem: usa a primeira URL da lista se existir,
+  // caso contrário, usa a imagem placeholder local.
+  const imageSource = (item.image_urls && item.image_urls.length > 0)
+    ? { uri: item.image_urls[0] }
+    : require('../assets/property-placeholder.jpg');
+
   return (
     <TouchableOpacity style={styles.propertyCard} onPress={() => onPress(item)}>
       <Image 
-        source={require('../assets/property-placeholder.jpg')} 
+        source={imageSource} // A imagem agora é dinâmica
         style={styles.propertyImage} 
       />
       <View style={styles.propertyInfo}>
@@ -37,6 +44,7 @@ const PropertyItem = ({ item, onPress }) => {
     </TouchableOpacity>
   );
 };
+// --- FIM DA CORREÇÃO ---
 
 const PropertiesScreen = ({ navigation }) => {
   const [properties, setProperties] = useState([]);
@@ -45,13 +53,14 @@ const PropertiesScreen = ({ navigation }) => {
 
   const fetchProperties = async () => {
     setLoading(true);
-    // Updated query to fetch properties and a count of their tenants
+    // A consulta agora seleciona explicitamente a coluna 'image_urls' para garantir que ela seja retornada
     const { data, error } = await supabase
       .from('properties')
-      .select('*, tenants(id)'); // This fetches all properties and checks for linked tenants
+      .select('*, image_urls, tenants(id)');
 
     if (error) {
       console.error('Error fetching properties:', error);
+      Alert.alert("Erro", "Não foi possível carregar as propriedades.");
     } else {
       setProperties(data);
     }
@@ -68,7 +77,7 @@ const PropertiesScreen = ({ navigation }) => {
     navigation.navigate('PropertyDetails', { property });
   };
 
-  if (loading) {
+  if (loading && properties.length === 0) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" />
@@ -86,8 +95,10 @@ const PropertiesScreen = ({ navigation }) => {
         renderItem={({ item }) => (
           <PropertyItem item={item} onPress={handlePropertyPress} />
         )}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item.id.toString()}
         contentContainerStyle={styles.listContent}
+        onRefresh={fetchProperties} // Permite "puxar para atualizar"
+        refreshing={loading}
       />
       
       <TouchableOpacity 
@@ -135,6 +146,7 @@ const styles = StyleSheet.create({
   propertyImage: {
     width: '100%',
     height: 150,
+    backgroundColor: '#e0e0e0', // Cor de fundo para o placeholder
   },
   propertyInfo: {
     padding: 15,
@@ -159,20 +171,20 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   rented: {
-    backgroundColor: '#e8f5e9', // Light green background
+    backgroundColor: '#e8f5e9',
   },
   available: {
-    backgroundColor: '#e3f2fd', // Light blue background
+    backgroundColor: '#e3f2fd',
   },
   statusText: {
     fontWeight: 'bold',
     fontSize: 12,
   },
   rentedText: {
-    color: '#2e7d32', // Dark green text
+    color: '#2e7d32',
   },
   availableText: {
-    color: '#1565c0', // Dark blue text
+    color: '#1565c0',
   },
   addButton: {
     position: 'absolute',
