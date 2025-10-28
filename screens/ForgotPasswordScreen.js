@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 
 const ForgotPasswordScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -25,9 +26,16 @@ const ForgotPasswordScreen = ({ navigation }) => {
     }
 
     setLoading(true);
-    // A URL de redirecionamento DEVE ser o seu esquema de deep link.
+    
+    // Para Expo Go, usa uma URL simples que funciona
+    // O Supabase vai redirecionar para esta URL, que por sua vez
+    // vai tentar abrir o app
+    const redirectUrl = 'exp://192.168.1.75:8081/--/reset';
+    
+    console.log('Using redirect URL:', redirectUrl);
+    
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'llord://reset-password',
+      redirectTo: redirectUrl,
     });
 
     if (error) {
