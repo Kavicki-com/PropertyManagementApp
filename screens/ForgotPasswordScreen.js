@@ -27,10 +27,10 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
     setLoading(true);
     
-    // Para Expo Go, usa uma URL simples que funciona
-    // O Supabase vai redirecionar para esta URL, que por sua vez
-    // vai tentar abrir o app
-    const redirectUrl = 'exp://192.168.1.75:8081/--/reset';
+    // URL de redirecionamento usada pelo Supabase após o clique no link do e-mail.
+    // Como você está rodando localmente com Expo Go, usamos a URL `exp://` que
+    // está configurada no Supabase (com o IP da máquina local).
+    const redirectUrl = 'exp://10.0.1.118:8081/--/reset-password';
     
     console.log('Using redirect URL:', redirectUrl);
     
