@@ -77,3 +77,4 @@ Se o deep linking direto não funcionar, pode usar:
 2. Configurar Supabase para redirecionar para essa página
 3. A página redireciona para o app
 
+

@@ -33,7 +33,7 @@ const linking = {
   prefixes: ['llord://', 'exp://'],
   config: {
     screens: {
-      ResetPassword: 'reset',
+      ResetPassword: 'reset-password',
     },
   },
 };
@@ -116,11 +116,11 @@ export default function App() {
   // Função para lidar com deep linking
   const handleDeepLink = (url) => {
     console.log('Deep link received:', url);
-    
-    // Detecta se é um link de reset (contém 'reset')
-    if (url && url.includes('reset')) {
+
+    // Detecta se é um link de reset de senha (contém 'reset-password')
+    if (url && url.includes('reset-password')) {
       console.log('Navigating to ResetPassword screen');
-      
+
       // Para reset de senha, não precisamos definir sessão
       // O usuário deve estar deslogado para poder redefinir a senha
       // Navega diretamente para a tela de reset

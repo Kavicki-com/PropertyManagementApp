@@ -10,10 +10,11 @@ Para que o redirecionamento funcione corretamente, você precisa configurar as s
 
 ### 2. Configure as URLs de redirecionamento
 - Vá para **Authentication** > **URL Configuration**
-- Em **Site URL**, adicione: `llord://`
-- Em **Redirect URLs**, adicione:
+- Em **Site URL**, adicione uma URL **HTTPS** estável do seu projeto (por exemplo, a URL onde você vai hospedar a página de reset de senha deste repositório):  
+  - Exemplo: `https://seu-dominio.com/reset-password` ou a URL pública gerada pelo seu provedor de hosting.
+- Em **Redirect URLs**, adicione **apenas** os esquemas de deep link que o app consegue abrir diretamente:
   - `llord://reset-password`
-  - `llord://`
+  - (Opcional, para desenvolvimento com Expo Go) uma URL `exp://.../--/reset-password` correspondente ao seu servidor local.
 
 ### 3. Configurações adicionais
 - Certifique-se de que **Enable email confirmations** está habilitado
@@ -22,8 +23,8 @@ Para que o redirecionamento funcione corretamente, você precisa configurar as s
 ## Como funciona o fluxo
 
 1. **Usuário solicita reset**: Na tela `ForgotPasswordScreen`, o usuário insere o email
-2. **Email enviado**: Supabase envia email com link contendo `llord://reset-password`
-3. **Deep link**: Quando o usuário clica no link, o app abre automaticamente
+2. **Email enviado**: Supabase envia email com um link HTTPS para a sua **Site URL**, incluindo os parâmetros de reset de senha.
+3. **Deep link**: Sua página web (por exemplo, `public/reset-password.html`) lê os parâmetros da URL e redireciona o usuário para o deep link `llord://reset-password` (ou, em desenvolvimento, para o link `exp://.../--/reset-password`).
 4. **Navegação**: O app detecta o deep link e navega para `ResetPasswordScreen`
 5. **Reset da senha**: O usuário define nova senha
 
