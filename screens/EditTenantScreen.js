@@ -10,29 +10,24 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
-import { format, parseISO, differenceInMonths } from 'date-fns';
 import { supabase } from '../lib/supabase';
-import CustomDatePicker from '../components/CustomDatePicker'; // Import the custom component
 import { MaterialIcons } from '@expo/vector-icons';
 
 const EditTenantScreen = ({ route, navigation }) => {
   const { tenant } = route.params;
 
   const [fullName, setFullName] = useState('');
-  const [cpf, setCpf] = useState(''); // New state for CPF
+  const [cpf, setCpf] = useState('');
+  const [rg, setRg] = useState('');
+  const [nationality, setNationality] = useState('');
+  const [maritalStatus, setMaritalStatus] = useState('');
+  const [profession, setProfession] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [rentAmount, setRentAmount] = useState('');
-  const [deposit, setDeposit] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [contractLength, setContractLength] = useState(0);
 
   // Property Dropdown state
   const [open, setOpen] = useState(false);
@@ -43,20 +38,22 @@ const EditTenantScreen = ({ route, navigation }) => {
     // Pre-fill form with tenant data
     if (tenant) {
       setFullName(tenant.full_name || '');
-      setCpf(tenant.cpf || ''); // Pre-fill CPF
+      setCpf(tenant.cpf || '');
+      setRg(tenant.rg || '');
+      setNationality(tenant.nationality || '');
+      setMaritalStatus(tenant.marital_status || '');
+      setProfession(tenant.profession || '');
       setPhone(tenant.phone || '');
       setEmail(tenant.email || '');
-      setRentAmount(tenant.rent_amount?.toString() || '');
-      setDeposit(tenant.deposit?.toString() || '');
-      setDueDate(tenant.due_date?.toString() || '');
-      setStartDate(tenant.start_date ? parseISO(tenant.start_date) : new Date());
-      setEndDate(tenant.end_date ? parseISO(tenant.end_date) : new Date());
       setPropertyId(tenant.property_id);
     }
 
-    // Fetch available properties for the dropdown
+    // Fetch available properties for the dropdown (apenas imóveis ativos)
     const fetchProperties = async () => {
-      const { data, error } = await supabase.from('properties').select('id, address, rent');
+      const { data, error } = await supabase
+        .from('properties')
+        .select('id, address, rent')
+        .is('archived_at', null);
       if (error) {
         console.error("Error fetching properties:", error);
       } else {
@@ -71,40 +68,20 @@ const EditTenantScreen = ({ route, navigation }) => {
     fetchProperties();
   }, [tenant]);
   
-    // Auto-fill rent amount when a property is selected
-    useEffect(() => {
-        if (propertyId) {
-          const selectedProperty = properties.find(item => item.value === propertyId);
-          if (selectedProperty && selectedProperty.rent) {
-            setRentAmount(selectedProperty.rent.toString());
-          }
-        } else {
-          setRentAmount(''); // Clear if no property is selected
-        }
-      }, [propertyId, properties]);
-      
-    // Calculate contract length whenever start or end dates change
-    useEffect(() => {
-        const months = differenceInMonths(endDate, startDate);
-        setContractLength(months);
-    }, [startDate, endDate]);
-
   const handleUpdateTenant = async () => {
     setLoading(true);
     const { error } = await supabase
       .from('tenants')
       .update({
         full_name: fullName,
-        cpf: cpf, // Add CPF to the update object
+        cpf: cpf,
+        rg: rg,
+        nationality,
+        marital_status: maritalStatus,
+        profession,
         phone: phone,
         email: email,
-        rent_amount: parseInt(rentAmount, 10) || null,
-        deposit: parseInt(deposit, 10) || null,
-        due_date: parseInt(dueDate, 10) || null,
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
         property_id: propertyId,
-        lease_term: contractLength,
       })
       .eq('id', tenant.id);
 
@@ -117,16 +94,6 @@ const EditTenantScreen = ({ route, navigation }) => {
     setLoading(false);
   };
 
-  const onStartDateChange = (event, selectedDate) => {
-    setShowStartPicker(false);
-    if (selectedDate) setStartDate(selectedDate);
-  };
-
-  const onEndDateChange = (event, selectedDate) => {
-    setShowEndPicker(false);
-    if (selectedDate) setEndDate(selectedDate);
-  };
-
   return (
     <View style={styles.container}>
         <View style={styles.headerContainer}>
@@ -136,6 +103,11 @@ const EditTenantScreen = ({ route, navigation }) => {
             <Text style={styles.header}>Editar Inquilino</Text>
             <View style={{ width: 24 }} />
         </View>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 32 : 0}
+        >
         <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Nome Completo</Text>
@@ -152,21 +124,66 @@ const EditTenantScreen = ({ route, navigation }) => {
                     placeholder="Digite o CPF do inquilino"
                 />
             </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>RG</Text>
+                <TextInput 
+                    style={styles.input} 
+                    value={rg} 
+                    onChangeText={setRg}
+                    keyboardType="numeric"
+                    placeholder="Digite o RG do inquilino"
+                />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nacionalidade</Text>
+                <TextInput 
+                    style={styles.input} 
+                    value={nationality} 
+                    onChangeText={setNationality}
+                    placeholder="Ex: Brasileiro(a)"
+                />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Estado civil</Text>
+                <TextInput 
+                    style={styles.input} 
+                    value={maritalStatus} 
+                    onChangeText={setMaritalStatus}
+                    placeholder="Ex: Solteiro(a), Casado(a)"
+                />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Profissão</Text>
+                <TextInput 
+                    style={styles.input} 
+                    value={profession} 
+                    onChangeText={setProfession}
+                    placeholder="Ex: Engenheiro, Professora"
+                />
+            </View>
             
             <View style={[styles.inputGroup, Platform.OS === 'android' && { zIndex: 1000 }]}>
-                <Text style={styles.label}>Propriedade</Text>
-                <DropDownPicker
-                    open={open}
-                    value={propertyId}
-                    items={properties}
-                    setOpen={setOpen}
-                    setValue={setPropertyId}
-                    setItems={setProperties}
-                    searchable={true}
-                    placeholder="Selecione uma propriedade"
-                    listMode="MODAL"
-                    clearable={true}
-                />
+              <Text style={styles.label}>Propriedade</Text>
+              <DropDownPicker
+                open={open}
+                value={propertyId}
+                items={properties}
+                setOpen={setOpen}
+                setValue={setPropertyId}
+                setItems={setProperties}
+                searchable={true}
+                placeholder="Selecione uma propriedade"
+                listMode="MODAL"
+                clearable={true}
+                labelProps={{
+                  numberOfLines: 1,
+                  ellipsizeMode: 'tail',
+                }}
+              />
             </View>
 
             <View style={styles.inputGroup}>
@@ -179,86 +196,11 @@ const EditTenantScreen = ({ route, navigation }) => {
                 <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" />
             </View>
 
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Data de locação</Text>
-                <View style={styles.dateRow}>
-                <TouchableOpacity
-                    style={styles.dateInput}
-                    onPress={() => setShowStartPicker(true)}
-                >
-                    <Text>{format(startDate, 'dd/MM/yyyy')}</Text>
-                </TouchableOpacity>
-                <Text style={styles.dateSeparator}>até</Text>
-                <TouchableOpacity
-                    style={styles.dateInput}
-                    onPress={() => setShowEndPicker(true)}
-                >
-                    <Text>{format(endDate, 'dd/MM/yyyy')}</Text>
-                </TouchableOpacity>
-                </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Duração do Contrato (meses)</Text>
-                <TextInput
-                    style={[styles.input, styles.disabledInput]}
-                    value={`${contractLength} meses`}
-                    editable={false}
-                />
-            </View>
-
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Valor do Aluguel</Text>
-                <TextInput
-                style={styles.input}
-                placeholder="Selecione uma propriedade para preencher"
-                value={rentAmount}
-                onChangeText={setRentAmount}
-                keyboardType="decimal-pad"
-                />
-            </View>
-            
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Dia do Vencimento do Aluguel</Text>
-                <TextInput 
-                    style={styles.input} 
-                    value={dueDate} 
-                    onChangeText={setDueDate} 
-                    keyboardType="numeric"
-                    placeholder="Ex: 5"
-                />
-            </View>
-
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Depósito Caução</Text>
-                <TextInput
-                style={styles.input}
-                placeholder="Insira o valor de depósito"
-                value={deposit}
-                onChangeText={setDeposit}
-                keyboardType="decimal-pad"
-                />
-            </View>
-
-
             <TouchableOpacity style={styles.updateButton} onPress={handleUpdateTenant} disabled={loading}>
                 {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
             </TouchableOpacity>
-
-            <CustomDatePicker
-                visible={showStartPicker}
-                date={startDate}
-                onDateChange={onStartDateChange}
-                onClose={() => setShowStartPicker(false)}
-            />
-
-            <CustomDatePicker
-                visible={showEndPicker}
-                date={endDate}
-                onDateChange={onEndDateChange}
-                onClose={() => setShowEndPicker(false)}
-            />
         </ScrollView>
+        </KeyboardAvoidingView>
     </View>
   );
 };

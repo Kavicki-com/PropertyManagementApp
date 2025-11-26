@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 
 const ForgotPasswordScreen = ({ navigation }) => {
@@ -27,12 +28,18 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
     setLoading(true);
 
-    // URL de redirecionamento usada pelo Supabase após o clique no link do e-mail.
-    // Em produção (build para TestFlight/App Store), usamos o esquema nativo
-    // registrado no app: llord://reset-password
-    // Em desenvolvimento, você pode trocar temporariamente por uma URL exp:// local.
-    const redirectUrl = 'llord://reset-password';
-    
+    // Detecta se está rodando no Expo Go (desenvolvimento) ou em app nativo
+    const isExpoGo = Constants.appOwnership === 'expo';
+
+    // Em desenvolvimento (Expo Go), usamos explicitamente a URL exp:// que abre o projeto local.
+    // Ajuste o IP/porta se o Metro usar outro endereço.
+    const devRedirectUrl = 'exp://10.0.1.118:8081/--/reset-password';
+
+    // Em produção (app nativo / TestFlight), usamos o esquema llord:// registrado no app.
+    const prodRedirectUrl = 'llord://reset-password';
+
+    const redirectUrl = isExpoGo ? devRedirectUrl : prodRedirectUrl;
+
     console.log('Using redirect URL:', redirectUrl);
     
     const { error } = await supabase.auth.resetPasswordForEmail(email, {

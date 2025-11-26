@@ -1,5 +1,5 @@
 // screens/AddTenantScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,117 +9,56 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import DropDownPicker from 'react-native-dropdown-picker';
-import { format, differenceInMonths } from 'date-fns';
 import { supabase } from '../lib/supabase';
-import CustomDatePicker from '../components/CustomDatePicker';
 import { MaterialIcons } from '@expo/vector-icons';
 
-const AddTenantScreen = ({ navigation }) => {
+const AddTenantScreen = ({ route, navigation }) => {
   const [fullName, setFullName] = useState('');
-  const [cpf, setCpf] = useState(''); // New state for CPF
+  const [cpf, setCpf] = useState('');
+  const [rg, setRg] = useState('');
+  const [nationality, setNationality] = useState('');
+  const [maritalStatus, setMaritalStatus] = useState('');
+  const [profession, setProfession] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [rentAmount, setRentAmount] = useState('');
-  const [deposit, setDeposit] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [contractLength, setContractLength] = useState(0);
-
-  // DropDownPicker state
-  const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(null);
-  const [items, setItems] = useState([]);
-
-  useEffect(() => {
-    const fetchProperties = async () => {
-      const { data, error } = await supabase.from('properties').select('id, address, rent');
-      if (error) {
-        Alert.alert('Error', 'Could not fetch properties.');
-      } else {
-        const formattedProperties = data.map(prop => ({
-          label: prop.address,
-          value: prop.id,
-          rent: prop.rent,
-        }));
-        setItems(formattedProperties);
-      }
-    };
-    fetchProperties();
-  }, []);
-
-  useEffect(() => {
-    if (value) {
-      const selectedProperty = items.find(item => item.value === value);
-      if (selectedProperty && selectedProperty.rent) {
-        setRentAmount(selectedProperty.rent.toString());
-      }
-    } else {
-      setRentAmount('');
-    }
-  }, [value, items]);
-
-  useEffect(() => {
-    const months = differenceInMonths(endDate, startDate);
-    setContractLength(months);
-  }, [startDate, endDate]);
 
   const handleAddTenant = async () => {
-    if (!value) {
-      Alert.alert('Erro', 'Por favor, selecione uma propriedade.');
-      return;
-    }
-    
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-      Alert.alert('Erro', 'Você precisa estar logado para adicionar um inquilino.');
+    try {
+      if (!user) {
+        Alert.alert('Erro', 'Você precisa estar logado para adicionar um inquilino.');
+        setLoading(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('tenants')
+        .insert({
+          user_id: user.id,
+          full_name: fullName,
+          cpf: cpf,
+          rg: rg,
+          nationality,
+          marital_status: maritalStatus,
+          profession,
+          phone: phone,
+          email: email,
+        });
+
+      if (error) {
+        Alert.alert('Erro ao adicionar inquilino', error.message);
+      } else {
+        Alert.alert('Sucesso', 'Inquilino adicionado com sucesso!');
+        navigation.goBack();
+      }
+    } finally {
       setLoading(false);
-      return;
-    }
-
-    const { error } = await supabase.from('tenants').insert({
-      user_id: user.id,
-      property_id: value,
-      full_name: fullName,
-      cpf: cpf, // Add CPF to the insert object
-      phone: phone,
-      email: email,
-      rent_amount: parseInt(rentAmount, 10) || null,
-      deposit: parseInt(deposit, 10) || null,
-      due_date: parseInt(dueDate, 10) || null,
-      start_date: startDate.toISOString(),
-      end_date: endDate.toISOString(),
-      lease_term: contractLength,
-    });
-
-    if (error) {
-      Alert.alert('Erro ao adicionar inquilino', error.message);
-    } else {
-      Alert.alert('Sucesso', 'Inquilino adicionado com sucesso!');
-      navigation.goBack();
-    }
-    setLoading(false);
-  };
-
-  const onStartDateChange = (event, selectedDate) => {
-    setShowStartPicker(false);
-    if (selectedDate) {
-      setStartDate(selectedDate);
-    }
-  };
-
-  const onEndDateChange = (event, selectedDate) => {
-    setShowEndPicker(false);
-    if (selectedDate) {
-      setEndDate(selectedDate);
     }
   };
 
@@ -132,6 +71,11 @@ const AddTenantScreen = ({ navigation }) => {
             <Text style={styles.header}>Adicionar Inquilino</Text>
             <View style={{ width: 24 }} />
         </View>
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 32 : 0}
+        >
         <ScrollView 
             style={styles.scrollContainer}
             keyboardShouldPersistTaps="handled"
@@ -157,18 +101,44 @@ const AddTenantScreen = ({ navigation }) => {
                 />
             </View>
 
-            <View style={[styles.inputGroup, { zIndex: 1000 }]}>
-                <Text style={styles.label}>Propriedade</Text>
-                <DropDownPicker
-                    open={open}
-                    value={value}
-                    items={items}
-                    setOpen={setOpen}
-                    setValue={setValue}
-                    setItems={setItems}
-                    searchable={true}
-                    placeholder="Selecione uma propriedade"
-                    listMode="MODAL"
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>RG</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Digite o RG do inquilino"
+                value={rg}
+                onChangeText={setRg}
+                keyboardType="numeric"
+                />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nacionalidade</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Ex: Brasileiro(a)"
+                value={nationality}
+                onChangeText={setNationality}
+                />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Estado civil</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Ex: Solteiro(a), Casado(a)"
+                value={maritalStatus}
+                onChangeText={setMaritalStatus}
+                />
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Profissão</Text>
+                <TextInput
+                style={styles.input}
+                placeholder="Ex: Engenheiro, Professora"
+                value={profession}
+                onChangeText={setProfession}
                 />
             </View>
 
@@ -194,67 +164,6 @@ const AddTenantScreen = ({ navigation }) => {
                 />
             </View>
 
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Data de locação</Text>
-                <View style={styles.dateRow}>
-                <TouchableOpacity
-                    style={styles.dateInput}
-                    onPress={() => setShowStartPicker(true)}
-                >
-                    <Text>{format(startDate, 'dd/MM/yyyy')}</Text>
-                </TouchableOpacity>
-                <Text style={styles.dateSeparator}>até</Text>
-                <TouchableOpacity
-                    style={styles.dateInput}
-                    onPress={() => setShowEndPicker(true)}
-                >
-                    <Text>{format(endDate, 'dd/MM/yyyy')}</Text>
-                </TouchableOpacity>
-                </View>
-            </View>
-            
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Duração do Contrato (meses)</Text>
-                <TextInput
-                style={[styles.input, styles.disabledInput]}
-                value={`${contractLength} meses`}
-                editable={false}
-                />
-            </View>
-
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Valor do Aluguel</Text>
-                <TextInput
-                style={styles.input}
-                placeholder="Selecione uma propriedade para preencher"
-                value={rentAmount}
-                onChangeText={setRentAmount}
-                keyboardType="decimal-pad"
-                />
-            </View>
-            
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Dia do Vencimento do Aluguel</Text>
-                <TextInput
-                style={styles.input}
-                placeholder="Ex: 5"
-                value={dueDate}
-                onChangeText={setDueDate}
-                keyboardType="numeric"
-                />
-            </View>
-
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Depósito Caução</Text>
-                <TextInput
-                style={styles.input}
-                placeholder="Insira o valor de depósito"
-                value={deposit}
-                onChangeText={setDeposit}
-                keyboardType="decimal-pad"
-                />
-            </View>
-
             <TouchableOpacity style={styles.addButton} onPress={handleAddTenant} disabled={loading}>
                 {loading ? (
                 <ActivityIndicator color="white" />
@@ -263,20 +172,8 @@ const AddTenantScreen = ({ navigation }) => {
                 )}
             </TouchableOpacity>
 
-            <CustomDatePicker
-                visible={showStartPicker}
-                date={startDate}
-                onDateChange={onStartDateChange}
-                onClose={() => setShowStartPicker(false)}
-            />
-
-            <CustomDatePicker
-                visible={showEndPicker}
-                date={endDate}
-                onDateChange={onEndDateChange}
-                onClose={() => setShowEndPicker(false)}
-            />
         </ScrollView>
+        </KeyboardAvoidingView>
     </View>
   );
 };

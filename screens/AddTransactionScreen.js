@@ -13,29 +13,37 @@ import {
 } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker'; // Use the new dropdown picker
 import { supabase } from '../lib/supabase';
+import { fetchActiveContractByProperty } from '../lib/contractsService';
 import { MaterialIcons } from '@expo/vector-icons';
 
-const AddTransactionScreen = ({ navigation }) => {
+const AddTransactionScreen = ({ route, navigation }) => {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
 
   // State for Property Dropdown
   const [propertyOpen, setPropertyOpen] = useState(false);
-  const [propertyValue, setPropertyValue] = useState(null);
+  const preselectedPropertyId = route?.params?.preselectedPropertyId ?? null;
+  const [propertyValue, setPropertyValue] = useState(preselectedPropertyId);
   const [propertyItems, setPropertyItems] = useState([]);
+  const preselectedTenantId = route?.params?.preselectedTenantId ?? null;
   
   // State for Type Dropdown
   const [typeOpen, setTypeOpen] = useState(false);
-  const [typeValue, setTypeValue] = useState('income');
+  const preselectedType = route?.params?.preselectedType ?? 'income';
+  const [typeValue, setTypeValue] = useState(preselectedType);
   const [typeItems, setTypeItems] = useState([
-    { label: 'Income', value: 'income' },
-    { label: 'Expense', value: 'expense' },
+    { label: 'Entrada', value: 'income' },
+    { label: 'Despesa', value: 'expense' },
+    { label: 'Aluguel', value: 'rent' },
   ]);
 
   useEffect(() => {
     const fetchProperties = async () => {
-      const { data, error } = await supabase.from('properties').select('id, address');
+      const { data, error } = await supabase
+        .from('properties')
+        .select('id, address')
+        .is('archived_at', null);
       if (error) {
         Alert.alert('Error', 'Could not fetch properties.');
       } else {
@@ -63,12 +71,32 @@ const AddTransactionScreen = ({ navigation }) => {
       return;
     }
 
+    // Descobrir tenant_id a ser usado (se vier da tela do inquilino já temos,
+    // senão, para tipo "Aluguel", buscamos o contrato ativo do imóvel)
+    let tenantIdForInsert = preselectedTenantId ?? null;
+
+    if (!tenantIdForInsert && typeValue === 'rent') {
+      const { data: activeContract, error: contractError } =
+        await fetchActiveContractByProperty(propertyValue);
+
+      if (contractError) {
+        console.error('Erro ao buscar contrato ativo para lançamento de aluguel:', contractError);
+      } else if (activeContract?.tenant_id) {
+        tenantIdForInsert = activeContract.tenant_id;
+      }
+    }
+
+    const dbType = typeValue === 'rent' ? 'income' : typeValue;
+    const finalDescription =
+      description || (typeValue === 'rent' ? 'Aluguel' : '');
+
     const { error } = await supabase.from('finances').insert({
       user_id: user.id,
       property_id: propertyValue,
-      description: description,
+      tenant_id: tenantIdForInsert,
+      description: finalDescription,
       amount: parseFloat(amount),
-      type: typeValue,
+      type: dbType,
       date: new Date().toISOString(),
     });
 

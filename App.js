@@ -5,7 +5,8 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from './lib/supabase';
-import { View, ActivityIndicator, Linking } from 'react-native';
+import { View, ActivityIndicator, Linking as RNLinking } from 'react-native';
+import * as Linking from 'expo-linking';
 
 // Telas
 import LoginScreen from './screens/LoginScreen';
@@ -25,6 +26,9 @@ import FinancesScreen from './screens/FinancesScreen';
 import AddTransactionScreen from './screens/AddTransactionScreen';
 import EditProfileScreen from './screens/EditProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import LinkTenantScreen from './screens/LinkTenantScreen';
+import LinkPropertyScreen from './screens/LinkPropertyScreen';
+import AddContractScreen from './screens/AddContractScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -92,15 +96,16 @@ export default function App() {
     );
 
     // Listener adicional para deep links
-    const handleUrl = (url) => {
+    const handleUrl = (event) => {
+      const url = typeof event === 'string' ? event : event.url;
       console.log('Linking URL received:', url);
       handleDeepLink(url);
     };
 
-    const linkingSubscription = Linking.addEventListener('url', handleUrl);
+    const linkingSubscription = RNLinking.addEventListener('url', handleUrl);
 
     // Verifica se o app foi aberto com uma URL
-    Linking.getInitialURL().then((url) => {
+    RNLinking.getInitialURL().then((url) => {
       if (url) {
         console.log('Initial URL:', url);
         handleDeepLink(url);
@@ -114,17 +119,53 @@ export default function App() {
   }, []);
 
   // Função para lidar com deep linking
-  const handleDeepLink = (url) => {
+  const handleDeepLink = async (url) => {
+    if (!url) return;
+
     console.log('Deep link received:', url);
 
-    // Detecta se é um link de reset de senha (contém 'reset-password')
-    if (url && url.includes('reset-password')) {
-      console.log('Navigating to ResetPassword screen');
+    // Faz o parse da URL para extrair tokens e tipo de operação.
+    // O Supabase está mandando os parâmetros no fragmento (#...), então usamos
+    // Linking.parse e, se necessário, fazemos um parse manual.
+    const { queryParams: parsedParams } = Linking.parse(url);
 
-      // Para reset de senha, não precisamos definir sessão
-      // O usuário deve estar deslogado para poder redefinir a senha
-      // Navega diretamente para a tela de reset
-      navigationRef.current?.navigate('ResetPassword');
+    let queryParams = parsedParams;
+
+    if (!queryParams || Object.keys(queryParams).length === 0) {
+      const hashIndex = url.indexOf('#');
+      if (hashIndex !== -1 && hashIndex + 1 < url.length) {
+        const hash = url.substring(hashIndex + 1);
+        const searchParams = new URLSearchParams(hash);
+        queryParams = Object.fromEntries(searchParams.entries());
+      }
+    }
+
+    const access_token = queryParams?.access_token;
+    const refresh_token = queryParams?.refresh_token;
+    const type = queryParams?.type;
+
+    // Se for um link de recuperação de senha do Supabase, cria a sessão
+    if (type === 'recovery' && access_token && refresh_token) {
+      console.log('Setting session from recovery link');
+      const { error } = await supabase.auth.setSession({
+        access_token,
+        refresh_token,
+      });
+
+      if (error) {
+        console.log('Error setting session from recovery link', error);
+        return;
+      }
+
+      // Após criar a sessão de recuperação, navega para a tela de reset.
+      // Usamos reset para garantir que a navegação funcione mesmo se a pilha mudar
+      // quando a sessão for atualizada.
+      console.log('Navigating to ResetPassword screen after recovery session set');
+      navigationRef.current?.reset({
+        index: 0,
+        routes: [{ name: 'ResetPassword' }],
+      });
+      return;
     }
   };
 
@@ -169,6 +210,9 @@ export default function App() {
             <Stack.Screen name="EditProperty" component={EditPropertyScreen} />
             <Stack.Screen name="AddTenant" component={AddTenantScreen} />
             <Stack.Screen name="EditTenant" component={EditTenantScreen} />
+            <Stack.Screen name="LinkTenant" component={LinkTenantScreen} />
+            <Stack.Screen name="LinkProperty" component={LinkPropertyScreen} />
+            <Stack.Screen name="AddContract" component={AddContractScreen} />
             <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
           </Stack.Group>

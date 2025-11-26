@@ -37,6 +37,7 @@ const AddPropertyScreen = ({ navigation }) => {
   const [aluguel, setAluguel] = useState('');
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState([]);
+  const [errors, setErrors] = useState({});
 
   const [typeOpen, setTypeOpen] = useState(false);
   const [typeValue, setTypeValue] = useState(null);
@@ -46,6 +47,11 @@ const AddPropertyScreen = ({ navigation }) => {
   ]);
 
   const handleImagePicker = async (useCamera = false) => {
+    if (images.length >= 10) {
+      Alert.alert('Limite de fotos', 'Você pode adicionar no máximo 10 fotos por imóvel.');
+      return;
+    }
+
     const permission = useCamera
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -64,7 +70,40 @@ const AddPropertyScreen = ({ navigation }) => {
     }
   };
 
+  const validate = () => {
+    const newErrors = {};
+
+    if (!endereco.trim()) {
+      newErrors.endereco = 'Endereço é obrigatório.';
+    }
+    if (!typeValue) {
+      newErrors.type = 'Selecione o tipo de propriedade.';
+    }
+
+    const parsedRent = parseInt(aluguel.replace(/[^0-9]/g, ''), 10);
+    if (!aluguel.trim()) {
+      newErrors.aluguel = 'Informe o valor do aluguel.';
+    } else if (isNaN(parsedRent) || parsedRent <= 0) {
+      newErrors.aluguel = 'Informe um valor de aluguel válido (maior que 0).';
+    }
+
+    if (area.trim()) {
+      const parsedArea = parseInt(area.replace(/[^0-9]/g, ''), 10);
+      if (isNaN(parsedArea) || parsedArea <= 0) {
+        newErrors.area = 'Informe uma área válida (maior que 0).';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleAddProperty = async () => {
+    if (!validate()) {
+      Alert.alert('Verifique os dados', 'Alguns campos precisam de atenção antes de salvar.');
+      return;
+    }
+
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -101,15 +140,21 @@ const AddPropertyScreen = ({ navigation }) => {
       }
     }
 
+    const parsedQuartos = quartos ? parseInt(quartos.replace(/[^0-9]/g, ''), 10) : null;
+    const parsedBanheiros = banheiros ? parseInt(banheiros.replace(/[^0-9]/g, ''), 10) : null;
+    const parsedTotalComodos = totalComodos ? parseInt(totalComodos.replace(/[^0-9]/g, ''), 10) : null;
+    const parsedArea = area ? parseInt(area.replace(/[^0-9]/g, ''), 10) : null;
+    const parsedAluguel = aluguel ? parseInt(aluguel.replace(/[^0-9]/g, ''), 10) : null;
+
     const { error: insertError } = await supabase.from('properties').insert({
       user_id: user.id,
       address: endereco,
       type: typeValue,
-      bedrooms: parseInt(quartos, 10) || null,
-      bathrooms: parseInt(banheiros, 10) || null,
-      total_rooms: parseInt(totalComodos, 10) || null,
-      sqft: parseInt(area, 10) || null,
-      rent: parseInt(aluguel, 10) || null,
+      bedrooms: parsedQuartos || null,
+      bathrooms: parsedBanheiros || null,
+      total_rooms: parsedTotalComodos || null,
+      sqft: parsedArea || null,
+      rent: parsedAluguel || null,
       image_urls: imageUrls,
     });
 
@@ -143,6 +188,7 @@ const AddPropertyScreen = ({ navigation }) => {
             value={endereco}
             onChangeText={setEndereco}
             />
+            {errors.endereco && <Text style={styles.errorText}>{errors.endereco}</Text>}
         </View>
 
         <View style={[styles.inputGroup, { zIndex: 1000 }]}>
@@ -158,6 +204,7 @@ const AddPropertyScreen = ({ navigation }) => {
                 listMode="MODAL"
                 zIndex={1000}
             />
+            {errors.type && <Text style={styles.errorText}>{errors.type}</Text>}
         </View>
 
         <View style={styles.inputRow}>
@@ -167,7 +214,7 @@ const AddPropertyScreen = ({ navigation }) => {
                 style={styles.input}
                 placeholder="Ex: 3"
                 value={quartos}
-                onChangeText={setQuartos}
+            onChangeText={(text) => setQuartos(text.replace(/[^0-9]/g, ''))}
                 keyboardType="numeric"
             />
             </View>
@@ -177,7 +224,7 @@ const AddPropertyScreen = ({ navigation }) => {
                 style={styles.input}
                 placeholder="Ex: 2"
                 value={banheiros}
-                onChangeText={setBanheiros}
+            onChangeText={(text) => setBanheiros(text.replace(/[^0-9]/g, ''))}
                 keyboardType="numeric"
             />
             </View>
@@ -190,7 +237,7 @@ const AddPropertyScreen = ({ navigation }) => {
                 style={styles.input}
                 placeholder="Ex: 8"
                 value={totalComodos}
-                onChangeText={setTotalComodos}
+                onChangeText={(text) => setTotalComodos(text.replace(/[^0-9]/g, ''))}
                 keyboardType="numeric"
             />
             </View>
@@ -200,9 +247,10 @@ const AddPropertyScreen = ({ navigation }) => {
                 style={styles.input}
                 placeholder="Ex: 150"
                 value={area}
-                onChangeText={setArea}
+                onChangeText={(text) => setArea(text.replace(/[^0-9]/g, ''))}
                 keyboardType="numeric"
             />
+            {errors.area && <Text style={styles.errorText}>{errors.area}</Text>}
             </View>
         </View>
         
@@ -212,9 +260,10 @@ const AddPropertyScreen = ({ navigation }) => {
             style={styles.input}
             placeholder="Ex: 1800"
             value={aluguel}
-            onChangeText={setAluguel}
+            onChangeText={(text) => setAluguel(text.replace(/[^0-9]/g, ''))}
             keyboardType="decimal-pad"
             />
+            {errors.aluguel && <Text style={styles.errorText}>{errors.aluguel}</Text>}
         </View>
 
         {/* Seção de Imagens */}
@@ -232,7 +281,9 @@ const AddPropertyScreen = ({ navigation }) => {
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailContainer}>
             {images.map((image, index) => (
-              <Image key={index} source={{ uri: image.uri }} style={styles.thumbnail} />
+              <View key={index} style={styles.thumbnailWrapper}>
+                <Image source={{ uri: image.uri }} style={styles.thumbnail} />
+              </View>
             ))}
           </ScrollView>
         </View>
@@ -338,6 +389,9 @@ const styles = StyleSheet.create({
     thumbnailContainer: {
       marginTop: 15,
     },
+    thumbnailWrapper: {
+      marginRight: 10,
+    },
     thumbnail: {
       width: 100,
       height: 100,
@@ -345,6 +399,11 @@ const styles = StyleSheet.create({
       marginRight: 10,
       borderWidth: 1,
       borderColor: '#ddd',
+    },
+    errorText: {
+      marginTop: 4,
+      color: '#F44336',
+      fontSize: 12,
     },
   });
 

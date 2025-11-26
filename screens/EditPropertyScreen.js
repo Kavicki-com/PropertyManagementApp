@@ -38,6 +38,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
   const [aluguel, setAluguel] = useState('');
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState([]);
+  const [errors, setErrors] = useState({});
 
   const [typeOpen, setTypeOpen] = useState(false);
   const [typeValue, setTypeValue] = useState('');
@@ -45,11 +46,6 @@ const EditPropertyScreen = ({ route, navigation }) => {
     { label: 'Residencial', value: 'Residencial' },
     { label: 'Comercial', value: 'Comercial' },
   ]);
-
-  const [tenantOpen, setTenantOpen] = useState(false);
-  const [tenantId, setTenantId] = useState(null);
-  const [tenants, setTenants] = useState([]);
-  const [initialTenantId, setInitialTenantId] = useState(null);
 
   useEffect(() => {
     if (property) {
@@ -61,39 +57,15 @@ const EditPropertyScreen = ({ route, navigation }) => {
       setArea(property.sqft?.toString() || '');
       setAluguel(property.rent?.toString() || '');
       setImages(property.image_urls || []);
-
-      const fetchCurrentTenant = async () => {
-        const { data } = await supabase
-          .from('tenants')
-          .select('id')
-          .eq('property_id', property.id)
-          .single();
-        if (data) {
-          setTenantId(data.id);
-          setInitialTenantId(data.id);
-        }
-      };
-      fetchCurrentTenant();
     }
   }, [property]);
 
-  useEffect(() => {
-    const fetchTenants = async () => {
-      const { data, error } = await supabase.from('tenants').select('id, full_name');
-      if (error) {
-        console.error("Error fetching tenants:", error);
-      } else {
-        const formattedTenants = data.map(t => ({ label: t.full_name, value: t.id }));
-        setTenants([
-            { label: 'Tornar vago (sem inquilino)', value: null },
-            ...formattedTenants
-        ]);
-      }
-    };
-    fetchTenants();
-  }, []);
-
   const handleImagePicker = async (useCamera = false) => {
+    if (images.length >= 10) {
+      Alert.alert('Limite de fotos', 'Você pode adicionar no máximo 10 fotos por imóvel.');
+      return;
+    }
+
     const permission = useCamera
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -116,7 +88,40 @@ const EditPropertyScreen = ({ route, navigation }) => {
     setImages(images.filter((_, index) => index !== indexToRemove));
   };
 
+  const validate = () => {
+    const newErrors = {};
+
+    if (!endereco.trim()) {
+      newErrors.endereco = 'Endereço é obrigatório.';
+    }
+    if (!typeValue) {
+      newErrors.type = 'Selecione o tipo de propriedade.';
+    }
+
+    const parsedRent = parseInt(aluguel.replace(/[^0-9]/g, ''), 10);
+    if (!aluguel.trim()) {
+      newErrors.aluguel = 'Informe o valor do aluguel.';
+    } else if (isNaN(parsedRent) || parsedRent <= 0) {
+      newErrors.aluguel = 'Informe um valor de aluguel válido (maior que 0).';
+    }
+
+    if (area.trim()) {
+      const parsedArea = parseInt(area.replace(/[^0-9]/g, ''), 10);
+      if (isNaN(parsedArea) || parsedArea <= 0) {
+        newErrors.area = 'Informe uma área válida (maior que 0).';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleUpdateProperty = async () => {
+    if (!validate()) {
+      Alert.alert('Verifique os dados', 'Alguns campos precisam de atenção antes de salvar.');
+      return;
+    }
+
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -146,16 +151,22 @@ const EditPropertyScreen = ({ route, navigation }) => {
       }
     }
 
+    const parsedQuartos = quartos ? parseInt(quartos.replace(/[^0-9]/g, ''), 10) : null;
+    const parsedBanheiros = banheiros ? parseInt(banheiros.replace(/[^0-9]/g, ''), 10) : null;
+    const parsedTotalComodos = totalComodos ? parseInt(totalComodos.replace(/[^0-9]/g, ''), 10) : null;
+    const parsedArea = area ? parseInt(area.replace(/[^0-9]/g, ''), 10) : null;
+    const parsedAluguel = aluguel ? parseInt(aluguel.replace(/[^0-9]/g, ''), 10) : null;
+
     const { error: propertyError } = await supabase
       .from('properties')
       .update({
         address: endereco,
         type: typeValue,
-        bedrooms: parseInt(quartos, 10) || null,
-        bathrooms: parseInt(banheiros, 10) || null,
-        total_rooms: parseInt(totalComodos, 10) || null,
-        sqft: parseInt(area, 10) || null,
-        rent: parseInt(aluguel, 10) || null,
+        bedrooms: parsedQuartos || null,
+        bathrooms: parsedBanheiros || null,
+        total_rooms: parsedTotalComodos || null,
+        sqft: parsedArea || null,
+        rent: parsedAluguel || null,
         image_urls: finalImageUrls,
       })
       .eq('id', property.id);
@@ -164,15 +175,6 @@ const EditPropertyScreen = ({ route, navigation }) => {
       Alert.alert('Erro ao atualizar propriedade', propertyError.message);
       setLoading(false);
       return;
-    }
-
-    if (initialTenantId && tenantId === null) {
-        await supabase.from('tenants').update({ property_id: null }).eq('id', initialTenantId);
-    } else if (tenantId !== initialTenantId) {
-        if (initialTenantId) {
-            await supabase.from('tenants').update({ property_id: null }).eq('id', initialTenantId);
-        }
-        await supabase.from('tenants').update({ property_id: property.id }).eq('id', tenantId);
     }
 
     Alert.alert('Sucesso', 'Propriedade atualizada!');
@@ -192,25 +194,10 @@ const EditPropertyScreen = ({ route, navigation }) => {
       </View>
       <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
 
-        <View style={[styles.inputGroup, { zIndex: 2000 }]}>
-          <Text style={styles.label}>Inquilino Associado</Text>
-          <DropDownPicker
-            open={tenantOpen}
-            value={tenantId}
-            items={tenants}
-            setOpen={setTenantOpen}
-            setValue={setTenantId}
-            setItems={setTenants}
-            searchable={true}
-            placeholder="Selecione um inquilino"
-            listMode="MODAL"
-            zIndex={2000}
-          />
-        </View>
-
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Endereço</Text>
           <TextInput style={styles.input} value={endereco} onChangeText={setEndereco} />
+          {errors.endereco && <Text style={styles.errorText}>{errors.endereco}</Text>}
         </View>
 
         <View style={[styles.inputGroup, { zIndex: 1000 }]}>
@@ -226,33 +213,60 @@ const EditPropertyScreen = ({ route, navigation }) => {
                 listMode="MODAL"
                 zIndex={1000}
             />
+            {errors.type && <Text style={styles.errorText}>{errors.type}</Text>}
         </View>
 
         <View style={styles.inputRow}>
           <View style={styles.inputGroupHalf}>
             <Text style={styles.label}>Quartos</Text>
-            <TextInput style={styles.input} value={quartos} onChangeText={setQuartos} keyboardType="numeric" />
+            <TextInput
+              style={styles.input}
+              value={quartos}
+              onChangeText={(text) => setQuartos(text.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
+            />
           </View>
           <View style={styles.inputGroupHalf}>
             <Text style={styles.label}>Banheiros</Text>
-            <TextInput style={styles.input} value={banheiros} onChangeText={setBanheiros} keyboardType="numeric" />
+            <TextInput
+              style={styles.input}
+              value={banheiros}
+              onChangeText={(text) => setBanheiros(text.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
+            />
           </View>
         </View>
         
         <View style={styles.inputRow}>
             <View style={styles.inputGroupHalf}>
                 <Text style={styles.label}>Total de Cômodos</Text>
-                <TextInput style={styles.input} value={totalComodos} onChangeText={setTotalComodos} keyboardType="numeric" />
+                <TextInput
+                  style={styles.input}
+                  value={totalComodos}
+                  onChangeText={(text) => setTotalComodos(text.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                />
             </View>
             <View style={styles.inputGroupHalf}>
                 <Text style={styles.label}>Área (m²)</Text>
-                <TextInput style={styles.input} value={area} onChangeText={setArea} keyboardType="numeric" />
+                <TextInput
+                  style={styles.input}
+                  value={area}
+                  onChangeText={(text) => setArea(text.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                />
             </View>
         </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Valor do Aluguel (R$)</Text>
-          <TextInput style={styles.input} value={aluguel} onChangeText={setAluguel} keyboardType="decimal-pad" />
+          <TextInput
+            style={styles.input}
+            value={aluguel}
+            onChangeText={(text) => setAluguel(text.replace(/[^0-9]/g, ''))}
+            keyboardType="decimal-pad"
+          />
+          {errors.aluguel && <Text style={styles.errorText}>{errors.aluguel}</Text>}
         </View>
 
         {/* Seção de Gerenciamento de Imagens */}
@@ -386,6 +400,11 @@ const styles = StyleSheet.create({
         right: -5,
         backgroundColor: 'white',
         borderRadius: 12,
+    },
+    errorText: {
+        marginTop: 4,
+        color: '#F44336',
+        fontSize: 12,
     },
 });
 

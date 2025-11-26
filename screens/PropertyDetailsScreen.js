@@ -1,18 +1,24 @@
 // screens/PropertyDetailsScreen.js
 import React, { useState, useEffect } from 'react';
-import { 
-    View, 
-    Text, 
-    StyleSheet, 
-    ScrollView, 
-    TouchableOpacity, 
-    ActivityIndicator, 
-    Alert, 
-    Image,
-    Modal,
-    SafeAreaView
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  SafeAreaView,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
+import {
+  fetchFinancesByProperty,
+  calculateOverview,
+  fetchTenantBillingSummary,
+} from '../lib/financesService';
+import { fetchActiveContractByProperty } from '../lib/contractsService';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 
@@ -21,6 +27,17 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
 
   const [property, setProperty] = useState(null); 
   const [tenant, setTenant] = useState(null);
+  const [financesSummary, setFinancesSummary] = useState({
+    totalIncome: 0,
+    totalExpenses: 0,
+    net: 0,
+  });
+  const [contract, setContract] = useState(null);
+  const [billingSummary, setBillingSummary] = useState({
+    expected: 0,
+    paid: 0,
+    overdue: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -56,7 +73,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
 
       const { data: tenantData, error: tenantError } = await supabase
         .from('tenants')
-        .select('full_name, phone')
+        .select('id, full_name, phone, property_id')
         .eq('property_id', initialProperty.id)
         .single();
 
@@ -64,6 +81,50 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         console.error('Error fetching tenant:', tenantError);
       } else {
         setTenant(tenantData);
+      }
+
+      // Buscar resumo financeiro desta propriedade
+      const { data: financesData, error: financesError } = await fetchFinancesByProperty(
+        initialProperty.id,
+        { limit: 5 },
+      );
+
+      if (financesError) {
+        console.error('Error fetching finances for property:', financesError);
+      } else if (financesData) {
+        const overview = calculateOverview(financesData);
+        setFinancesSummary({
+          totalIncome: overview.totalIncome,
+          totalExpenses: overview.totalExpenses,
+          net: overview.netProfit,
+        });
+      }
+
+      // Buscar contrato ativo ligado a este imóvel
+      const { data: activeContract, error: contractError } = await fetchActiveContractByProperty(
+        initialProperty.id,
+      );
+
+      if (contractError) {
+        console.error('Erro ao buscar contrato ativo da propriedade:', contractError);
+      }
+
+      setContract(activeContract || null);
+
+      // Calcular status das faturas com base no contrato ativo
+      if (activeContract) {
+        const source = {
+          property_id: activeContract.property_id,
+          tenant_id: activeContract.tenant_id,
+          start_date: activeContract.start_date,
+          due_date: activeContract.due_day,
+          lease_term: activeContract.lease_term,
+        };
+
+        const { summary } = await fetchTenantBillingSummary(source);
+        setBillingSummary(summary);
+      } else {
+        setBillingSummary({ expected: 0, paid: 0, overdue: 0 });
       }
       
       setLoading(false);
@@ -74,31 +135,18 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
     }
   }, [isFocused, initialProperty?.id]);
 
-  // --- CORREÇÃO APLICADA AQUI ---
   const handleDeleteProperty = async () => {
     Alert.alert(
-      "Confirmar Exclusão",
-      "Deseja realmente deletar esta propriedade? Seus registros financeiros serão REMOVIDOS e o inquilino será DESVINCULADO.",
+      "Confirmar exclusão",
+      "Deseja realmente excluir este imóvel? Isso irá remover o imóvel, os contratos associados e os lançamentos financeiros ligados a ele. Esta ação não pode ser desfeita.",
       [
         { text: "Cancelar", style: "cancel" },
         { 
-          text: "Deletar", 
+          text: "Excluir", 
           onPress: async () => {
             setIsDeleting(true);
 
-            // Etapa 1: Deletar os registros financeiros permanentemente
-            const { error: financeError } = await supabase
-              .from('finances')
-              .delete() // <-- Ação: DELETAR
-              .eq('property_id', property.id);
-
-            if (financeError) {
-              Alert.alert('Erro', 'Não foi possível deletar os registros financeiros.');
-              setIsDeleting(false);
-              return;
-            }
-            
-            // Etapa 2: Desvincular o inquilino (não deletar)
+            // 1) Desvincular o(s) inquilino(s) deste imóvel
             const { error: tenantError } = await supabase
               .from('tenants')
               .update({ property_id: null }) // <-- Ação: ATUALIZAR para nulo
@@ -110,7 +158,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
               return;
             }
 
-            // Etapa 3: Deletar as imagens do Storage
+            // 2) Remover imagens do Storage (se houver)
             if (property.image_urls && property.image_urls.length > 0) {
               const bucketName = 'property-images';
               const filePaths = property.image_urls.map(url => url.split(`${bucketName}/`)[1]).filter(Boolean);
@@ -119,13 +167,52 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
               }
             }
 
-            // Etapa 4: Deletar a propriedade
-            const { error: deleteError } = await supabase.from('properties').delete().eq('id', property.id);
+            // 3) Remover lançamentos financeiros ligados a este imóvel
+            const { error: financesError } = await supabase
+              .from('finances')
+              .delete()
+              .eq('property_id', property.id);
+
+            if (financesError) {
+              console.error('Erro ao remover lançamentos financeiros da propriedade:', financesError);
+              Alert.alert(
+                'Erro',
+                `Não foi possível remover os lançamentos financeiros desta propriedade.\n\nDetalhes: ${financesError.message || 'verifique as regras do Supabase.'}`
+              );
+              setIsDeleting(false);
+              return;
+            }
+
+            // 4) Remover contratos ligados a este imóvel
+            const { error: contractsError } = await supabase
+              .from('contracts')
+              .delete()
+              .eq('property_id', property.id);
+
+            if (contractsError) {
+              console.error('Erro ao remover contratos da propriedade:', contractsError);
+              Alert.alert(
+                'Erro',
+                `Não foi possível remover os contratos desta propriedade.\n\nDetalhes: ${contractsError.message || 'verifique as regras do Supabase.'}`
+              );
+              setIsDeleting(false);
+              return;
+            }
+
+            // 5) Finalmente, excluir o imóvel
+            const { error: deleteError } = await supabase
+              .from('properties')
+              .delete()
+              .eq('id', property.id);
             
             if (deleteError) {
-              Alert.alert('Erro', 'Não foi possível deletar a propriedade.');
+              console.error('Erro ao excluir propriedade:', deleteError);
+              Alert.alert(
+                'Erro',
+                `Não foi possível excluir a propriedade.\n\nDetalhes: ${deleteError.message || 'verifique as regras do Supabase.'}`
+              );
             } else {
-              Alert.alert('Sucesso', 'Propriedade deletada.');
+              Alert.alert('Sucesso', 'Propriedade excluída com sucesso.');
               navigation.goBack();
             }
             setIsDeleting(false);
@@ -135,11 +222,73 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       ]
     );
   };
-  // --- FIM DA CORREÇÃO ---
   
   const openImageModal = (imageUrl) => {
     setSelectedImage(imageUrl);
     setModalVisible(true);
+  };
+
+  const handleAddTransaction = () => {
+    navigation.navigate('AddTransaction', {
+      preselectedPropertyId: property.id,
+    });
+  };
+
+  const formatCurrency = (value) => {
+    return `R$${Number(value || 0).toFixed(2)}`;
+  };
+
+  const formatDate = (raw) => {
+    if (!raw) return 'Sem data';
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return 'Sem data';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const handleEndTenancy = () => {
+    if (!tenant?.id) return;
+
+    Alert.alert(
+      'Encerrar locação',
+      'Tem certeza que deseja encerrar a locação deste inquilino para este imóvel?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Encerrar',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('tenants')
+              .update({ property_id: null })
+              .eq('id', tenant.id);
+
+            if (error) {
+              console.error('Erro ao encerrar locação:', error);
+              Alert.alert('Erro', 'Não foi possível encerrar a locação.');
+              return;
+            }
+
+            Alert.alert('Sucesso', 'Locação encerrada e inquilino desvinculado.');
+            setTenant(null);
+          },
+        },
+      ]
+    );
+  };
+
+  const getPaymentStatus = () => {
+    if (!contract) return '-';
+
+    const { expected, paid, overdue } = billingSummary;
+
+    if (overdue > 0) return 'Vencido';
+    if (expected > paid) return 'Aguardando pagamento';
+    if (expected > 0 && expected === paid) return 'Pago';
+
+    return '-';
   };
 
   if (loading || !property) {
@@ -204,20 +353,106 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           <Text style={styles.sectionTitle}>Aluguel & Contrato</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Aluguel Mensal</Text>
-            <Text style={styles.infoValue}>R${property.rent}/mês</Text>
+            <Text style={styles.infoValue}>{formatCurrency(property.rent)}/mês</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Status</Text>
+            <Text style={styles.infoValue}>{tenant ? 'Alugada' : 'Disponível'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Duração do Contrato</Text>
+            <Text style={styles.infoValue}>
+              {contract?.lease_term != null ? `${contract.lease_term} meses` : 'Nenhum contrato ativo'}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Status de pagamento</Text>
+            <Text
+              style={[
+                styles.infoValue,
+                contract && billingSummary.overdue > 0 && { color: '#F44336', fontWeight: '600' },
+              ]}
+            >
+              {getPaymentStatus()}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Resumo Financeiro</Text>
+          <View style={styles.financeRow}>
+            <View style={styles.financeItem}>
+              <Text style={styles.financeLabel}>Entradas</Text>
+              <Text style={[styles.financeValue, styles.income]}>
+                {formatCurrency(financesSummary.totalIncome)}
+              </Text>
+            </View>
+            <View style={styles.financeItem}>
+              <Text style={styles.financeLabel}>Despesas</Text>
+              <Text style={[styles.financeValue, styles.expense]}>
+                {formatCurrency(financesSummary.totalExpenses)}
+              </Text>
+            </View>
+            <View style={styles.financeItem}>
+              <Text style={styles.financeLabel}>Saldo</Text>
+              <Text
+                style={[
+                  styles.financeValue,
+                  financesSummary.net >= 0 ? styles.income : styles.expense,
+                ]}
+              >
+                {formatCurrency(financesSummary.net)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.financeActions}>
+            <TouchableOpacity 
+              style={styles.financeActionButton}
+              onPress={handleAddTransaction}
+            >
+              <Text style={styles.financeActionText}>Novo lançamento</Text>
+            </TouchableOpacity>
           </View>
         </View>
         
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Inquilino(s)</Text>
           {tenant ? (
-              <View style={styles.tenantCard}>
-                  <Text style={styles.tenantName}>{tenant.full_name}</Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('TenantDetails', { tenant })}
+              >
+                <View style={styles.tenantCard}>
+                  <View style={styles.tenantHeaderRow}>
+                    <Text style={styles.tenantName}>{tenant.full_name}</Text>
+                    <TouchableOpacity
+                      style={styles.endTenancyButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleEndTenancy();
+                      }}
+                    >
+                      <MaterialIcons name="close" size={16} color="#F44336" />
+                      <Text style={styles.endTenancyText}>Encerrar locação</Text>
+                    </TouchableOpacity>
+                  </View>
                   <Text style={styles.tenantPhone}>{tenant.phone}</Text>
-              </View>
+                </View>
+              </TouchableOpacity>
           ) : (
               <Text style={styles.noTenantText}>Nenhum inquilino associado.</Text>
           )}
+          <View style={styles.tenantActions}>
+            <TouchableOpacity 
+              style={styles.tenantActionButton}
+              onPress={() => navigation.navigate('LinkTenant', { propertyId: property.id })}
+            >
+              <Text style={styles.tenantActionText}>
+                {tenant ? 'Trocar / editar inquilino' : 'Adicionar inquilino'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.buttonContainer}>
           <TouchableOpacity 
@@ -231,7 +466,11 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             onPress={handleDeleteProperty}
             disabled={isDeleting}
           >
-            {isDeleting ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Deletar Propriedade</Text>}
+            {isDeleting ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.buttonText}>Excluir Propriedade</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -331,6 +570,12 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         padding: 15,
     },
+    tenantHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+    },
     tenantName: {
         fontWeight: 'bold',
         fontSize: 16,
@@ -338,6 +583,36 @@ const styles = StyleSheet.create({
     },
     tenantPhone: {
         color: '#666',
+    },
+    endTenancyButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        backgroundColor: '#ffebee',
+    },
+    endTenancyText: {
+        marginLeft: 4,
+        fontSize: 12,
+        color: '#F44336',
+        fontWeight: '600',
+    },
+    tenantActions: {
+        marginTop: 10,
+    },
+    tenantActionButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#4a86e8',
+        alignItems: 'center',
+    },
+    tenantActionText: {
+        color: '#4a86e8',
+        fontWeight: '600',
+        fontSize: 14,
     },
     noTenantText: {
         textAlign: 'center',
@@ -347,7 +622,6 @@ const styles = StyleSheet.create({
     },
     buttonContainer: {
         flexDirection: 'column',
-        gap: 8,
         justifyContent: 'center',
         paddingHorizontal: 15,
         paddingVertical: 20,
@@ -365,6 +639,15 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         flex: 1,
         alignItems: 'center',
+        marginTop: 10,
+    },
+    secondaryButton: {
+        backgroundColor: '#78909C',
+        padding: 15,
+        borderRadius: 8,
+        flex: 1,
+        alignItems: 'center',
+        marginTop: 10,
     },
     buttonText: { 
         color: 'white',
@@ -385,6 +668,46 @@ const styles = StyleSheet.create({
     fullScreenImage: {
         width: '100%',
         height: '80%',
+    },
+    financeRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 10,
+    },
+    financeItem: {
+        flex: 1,
+        marginHorizontal: 4,
+    },
+    financeLabel: {
+        fontSize: 12,
+        color: '#666',
+        marginBottom: 4,
+    },
+    financeValue: {
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    income: {
+        color: '#4CAF50',
+    },
+    expense: {
+        color: '#F44336',
+    },
+    financeActions: {
+        marginTop: 12,
+    },
+    financeActionButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#4a86e8',
+        alignItems: 'center',
+    },
+    financeActionText: {
+        color: '#4a86e8',
+        fontWeight: '600',
+        fontSize: 14,
     },
 });
 

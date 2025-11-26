@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,13 @@ import {
   Image,
   ActivityIndicator,
   Alert, // Adicionado para melhor feedback de erro
+  TextInput,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
+import { fetchAllProperties } from '../lib/propertiesService';
 import { useIsFocused } from '@react-navigation/native';
 
 const PropertyItem = ({ item, onPress }) => {
@@ -49,20 +53,22 @@ const PropertyItem = ({ item, onPress }) => {
 const PropertiesScreen = ({ navigation }) => {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'Residencial' | 'Comercial'
+  const [sortBy, setSortBy] = useState('addressAsc'); // 'rentAsc' | 'rentDesc' | 'addressAsc'
+  const [showArchived, setShowArchived] = useState(false);
   const isFocused = useIsFocused();
 
   const fetchProperties = async () => {
     setLoading(true);
-    // A consulta agora seleciona explicitamente a coluna 'image_urls' para garantir que ela seja retornada
-    const { data, error } = await supabase
-      .from('properties')
-      .select('*, image_urls, tenants(id)');
+    // Busca todas as propriedades; o filtro de status é aplicado em memória
+    const { data, error } = await fetchAllProperties();
 
     if (error) {
       console.error('Error fetching properties:', error);
       Alert.alert("Erro", "Não foi possível carregar as propriedades.");
     } else {
-      setProperties(data);
+      setProperties(data || []);
     }
     setLoading(false);
   };
@@ -77,37 +83,223 @@ const PropertiesScreen = ({ navigation }) => {
     navigation.navigate('PropertyDetails', { property });
   };
 
-  if (loading && properties.length === 0) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
+  const { activeProperties, archivedProperties } = useMemo(() => {
+    let result = [...properties];
+
+    // Filtro por texto (endereço)
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      result = result.filter((p) =>
+        (p.address || '').toLowerCase().includes(query)
+      );
+    }
+
+    // Filtro por tipo
+    if (typeFilter !== 'all') {
+      result = result.filter((p) => p.type === typeFilter);
+    }
+
+    // Ordenação
+    result.sort((a, b) => {
+      if (sortBy === 'addressAsc') {
+        const addrA = (a.address || '').toLowerCase();
+        const addrB = (b.address || '').toLowerCase();
+        return addrA.localeCompare(addrB);
+      }
+
+      const rentA = a.rent || 0;
+      const rentB = b.rent || 0;
+
+      if (sortBy === 'rentAsc') {
+        return rentA - rentB;
+      }
+
+      // rentDesc
+      return rentB - rentA;
+    });
+
+    const active = result.filter((p) => !p.archived_at);
+    const archived = result.filter((p) => !!p.archived_at);
+
+    return { activeProperties: active, archivedProperties: archived };
+  }, [properties, searchQuery, typeFilter, sortBy]);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>Propriedades</Text>
-      </View>
-      <FlatList
-        data={properties}
-        renderItem={({ item }) => (
-          <PropertyItem item={item} onPress={handlePropertyPress} />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.container}>
+        {loading && properties.length === 0 ? (
+          <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+            <ActivityIndicator size="large" />
+          </View>
+        ) : (
+          <>
+            <View style={styles.headerContainer}>
+              <Text style={styles.header}>Propriedades</Text>
+            </View>
+
+            {/* Barra de busca e filtros */}
+            <View style={styles.filtersContainer}>
+              <View style={styles.searchWrapper}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Buscar por endereço"
+                  placeholderTextColor="#888"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery && searchQuery.trim().length > 0 ? (
+                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <MaterialIcons name="close" size={20} color="#888" />
+                  </TouchableOpacity>
+                ) : (
+                  <MaterialIcons name="search" size={20} color="#888" />
+                )}
+              </View>
+        <View style={styles.filterRow}>
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Tipo</Text>
+            <View style={styles.filterChipsContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.chip,
+                  typeFilter === 'all' && styles.chipActive,
+                ]}
+                onPress={() => setTypeFilter('all')}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    typeFilter === 'all' && styles.chipTextActive,
+                  ]}
+                >
+                  Todos
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.chip,
+                  typeFilter === 'Residencial' && styles.chipActive,
+                ]}
+                onPress={() => setTypeFilter('Residencial')}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    typeFilter === 'Residencial' && styles.chipTextActive,
+                  ]}
+                >
+                  Residencial
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.chip,
+                  typeFilter === 'Comercial' && styles.chipActive,
+                ]}
+                onPress={() => setTypeFilter('Comercial')}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    typeFilter === 'Comercial' && styles.chipTextActive,
+                  ]}
+                >
+                  Comercial
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Ordenar por</Text>
+            <View style={styles.filterChipsContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.chip,
+                  sortBy === 'rentAsc' && styles.chipActive,
+                ]}
+                onPress={() => setSortBy('rentAsc')}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    sortBy === 'rentAsc' && styles.chipTextActive,
+                  ]}
+                >
+                  Aluguel ↑
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.chip,
+                  sortBy === 'rentDesc' && styles.chipActive,
+                ]}
+                onPress={() => setSortBy('rentDesc')}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    sortBy === 'rentDesc' && styles.chipTextActive,
+                  ]}
+                >
+                  Aluguel ↓
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+              </View>
+            </View>
+            <FlatList
+              data={activeProperties}
+              renderItem={({ item }) => (
+                <PropertyItem item={item} onPress={handlePropertyPress} />
+              )}
+              keyExtractor={item => item.id.toString()}
+              contentContainerStyle={styles.listContent}
+              onRefresh={fetchProperties} // Permite "puxar para atualizar"
+              refreshing={loading}
+              keyboardShouldPersistTaps="handled"
+              ListFooterComponent={
+                archivedProperties.length > 0 ? (
+                  <View style={styles.archivedSection}>
+                    <TouchableOpacity
+                      style={styles.archivedToggleButton}
+                      onPress={() => setShowArchived(!showArchived)}
+                    >
+                      <Text style={styles.archivedToggleText}>
+                        {showArchived
+                          ? 'Ocultar imóveis arquivados'
+                          : `Ver imóveis arquivados (${archivedProperties.length})`}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {showArchived && (
+                      <View style={styles.archivedList}>
+                        {archivedProperties.map((item) => (
+                          <PropertyItem
+                            key={item.id}
+                            item={item}
+                            onPress={handlePropertyPress}
+                          />
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                ) : null
+              }
+            />
+            
+            <TouchableOpacity 
+              style={styles.addButton} 
+              onPress={() => navigation.navigate('AddProperty')}
+            >
+              <MaterialIcons name="add" size={30} color="white" />
+            </TouchableOpacity>
+          </>
         )}
-        keyExtractor={item => item.id.toString()}
-        contentContainerStyle={styles.listContent}
-        onRefresh={fetchProperties} // Permite "puxar para atualizar"
-        refreshing={loading}
-      />
-      
-      <TouchableOpacity 
-        style={styles.addButton} 
-        onPress={() => navigation.navigate('AddProperty')}
-      >
-        <MaterialIcons name="add" size={30} color="white" />
-      </TouchableOpacity>
-    </View>
+      </View>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -131,6 +323,67 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 15,
     paddingBottom: 80,
+  },
+  filtersContainer: {
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+    backgroundColor: '#fff',
+  },
+  searchWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: 10,
+    marginBottom: 10,
+    backgroundColor: '#fafafa',
+  },
+  searchInput: {
+    flex: 1,
+    paddingRight: 8,
+    paddingVertical: 6,
+    fontSize: 14,
+  },
+  filterRow: {
+    flexDirection: 'column',
+    gap: 10,
+    marginBottom: 5,
+  },
+  filterGroup: {
+    marginBottom: 6,
+  },
+  filterLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  filterChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#fff',
+  },
+  chipActive: {
+    backgroundColor: '#4a86e8',
+    borderColor: '#4a86e8',
+  },
+  chipText: {
+    fontSize: 12,
+    color: '#555',
+  },
+  chipTextActive: {
+    color: '#fff',
+    fontWeight: '600',
   },
   propertyCard: {
     backgroundColor: '#fff',
@@ -185,6 +438,26 @@ const styles = StyleSheet.create({
   },
   availableText: {
     color: '#1565c0',
+  },
+  archivedSection: {
+    marginTop: 10,
+  },
+  archivedToggleButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 0,
+    borderWidth: 0,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  archivedToggleText: {
+    color: '#666',
+    fontWeight: '500',
+    fontSize: 14,
+    textDecorationLine: 'underline',
+  },
+  archivedList: {
+    marginTop: 10,
   },
   addButton: {
     position: 'absolute',
