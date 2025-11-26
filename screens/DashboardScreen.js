@@ -14,6 +14,7 @@ import { supabase } from '../lib/supabase';
 import { fetchActiveContractsByTenants } from '../lib/contractsService';
 import { useIsFocused } from '@react-navigation/native';
 import { startOfMonth, endOfMonth, format, differenceInDays, setDate } from 'date-fns';
+import { colors, radii, typography } from '../theme';
 
 const DashboardScreen = ({ navigation }) => {
   const [stats, setStats] = useState({
@@ -224,9 +225,7 @@ const DashboardScreen = ({ navigation }) => {
               style={styles.kpiCard}
               onPress={() => navigation.navigate('Finanças')}
             >
-              <View style={[styles.kpiIconContainer, { backgroundColor: '#4a86e8' }]}>
-                <MaterialIcons name="attach-money" size={22} color="#fff" />
-              </View>
+              <MaterialIcons name="attach-money" size={22} color={colors.primary} style={styles.kpiIcon} />
               <Text style={styles.kpiLabel}>Recebido no mês</Text>
               <Text style={styles.kpiValue}>{formatCurrency(stats.rentCollected)}</Text>
             </TouchableOpacity>
@@ -235,9 +234,7 @@ const DashboardScreen = ({ navigation }) => {
               style={styles.kpiCard}
               onPress={() => navigation.navigate('Imóveis')}
             >
-              <View style={[styles.kpiIconContainer, { backgroundColor: '#4CAF50' }]}>
-                <MaterialIcons name="home" size={22} color="#fff" />
-              </View>
+              <MaterialIcons name="home" size={22} color={colors.primary} style={styles.kpiIcon} />
               <Text style={styles.kpiLabel}>Ocupação</Text>
               <Text style={styles.kpiValue}>
                 {Number.isFinite(stats.occupancyRate)
@@ -257,9 +254,7 @@ const DashboardScreen = ({ navigation }) => {
               style={styles.kpiCard}
               onPress={() => navigation.navigate('Inquilinos')}
             >
-              <View style={[styles.kpiIconContainer, { backgroundColor: '#FF9800' }]}>
-                <MaterialIcons name="people" size={22} color="#fff" />
-              </View>
+              <MaterialIcons name="people" size={22} color={colors.primary} style={styles.kpiIcon} />
               <Text style={styles.kpiLabel}>Inquilinos ativos</Text>
               <Text style={styles.kpiValue}>{stats.activeTenants}</Text>
             </TouchableOpacity>
@@ -314,36 +309,28 @@ const DashboardScreen = ({ navigation }) => {
               style={styles.shortcutButton}
               onPress={() => navigation.navigate('AddTransaction')}
             >
-              <View style={[styles.shortcutIcon, { backgroundColor: '#4CAF50' }]}>
-                <MaterialIcons name="playlist-add" size={22} color="#fff" />
-              </View>
+              <MaterialIcons name="playlist-add" size={22} color={colors.primary} style={styles.shortcutIcon} />
               <Text style={styles.shortcutLabel}>Registrar recebimento</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.shortcutButton}
               onPress={() => navigation.navigate('AddProperty')}
             >
-              <View style={[styles.shortcutIcon, { backgroundColor: '#4a86e8' }]}>
-                <MaterialIcons name="home" size={22} color="#fff" />
-              </View>
+              <MaterialIcons name="home" size={22} color={colors.primary} style={styles.shortcutIcon} />
               <Text style={styles.shortcutLabel}>Adicionar imóvel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.shortcutButton}
               onPress={() => navigation.navigate('AddTenant')}
             >
-              <View style={[styles.shortcutIcon, { backgroundColor: '#FF9800' }]}>
-                <MaterialIcons name="person-add" size={22} color="#fff" />
-              </View>
+              <MaterialIcons name="person-add" size={22} color={colors.primary} style={styles.shortcutIcon} />
               <Text style={styles.shortcutLabel}>Adicionar inquilino</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.shortcutButton}
               onPress={() => navigation.navigate('Finanças')}
             >
-              <View style={[styles.shortcutIcon, { backgroundColor: '#9C27B0' }]}>
-                <MaterialIcons name="insert-chart" size={22} color="#fff" />
-              </View>
+              <MaterialIcons name="insert-chart" size={22} color={colors.primary} style={styles.shortcutIcon} />
               <Text style={styles.shortcutLabel}>Ver finanças</Text>
             </TouchableOpacity>
           </View>
@@ -423,19 +410,17 @@ const DashboardScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   headerContainer: {
     padding: 15,
     paddingTop: 50,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: colors.borderSubtle,
   },
   header: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    ...typography.screenTitle,
   },
   scrollContainer: {
     flex: 1,
@@ -445,8 +430,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   section: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
     padding: 15,
     marginBottom: 16,
     shadowColor: '#000',
@@ -456,10 +441,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...typography.sectionTitle,
     marginBottom: 12,
-    color: '#333',
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -479,31 +462,22 @@ const styles = StyleSheet.create({
   kpiCard: {
     flex: 1,
     marginRight: 10,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
     padding: 12,
   },
-  kpiIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
+  kpiIcon: {
+    marginBottom: 6,
   },
   kpiLabel: {
-    fontSize: 13,
-    color: '#666',
+    ...typography.caption,
   },
   kpiValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    ...typography.bodyStrong,
     marginTop: 4,
-    color: '#111827',
   },
   kpiSubLabel: {
-    fontSize: 12,
-    color: '#666',
+    ...typography.caption,
     marginTop: 2,
   },
   shortcutsGrid: {
@@ -515,35 +489,30 @@ const styles = StyleSheet.create({
     width: '48%',
     marginBottom: 12,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: radii.md,
     backgroundColor: '#f9fafb',
+    alignItems: 'center',
   },
   shortcutIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   shortcutLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#111827',
+    color: colors.textPrimary,
+    textAlign: 'center',
   },
   occupancyCard: {
     marginTop: 4,
   },
   occupancyTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+    ...typography.sectionTitle,
     marginBottom: 10,
   },
   occupancyRate: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#4a86e8',
+    fontWeight: '700',
+    color: colors.primary,
     marginBottom: 10,
   },
   occupancyBar: {
@@ -554,12 +523,11 @@ const styles = StyleSheet.create({
   },
   occupancyFill: {
     height: '100%',
-    backgroundColor: '#4a86e8',
+    backgroundColor: colors.primary,
     borderRadius: 5,
   },
   occupancySub: {
-    fontSize: 12,
-    color: '#666',
+    ...typography.caption,
     marginTop: 8,
   },
   upcomingItem: {
@@ -577,17 +545,16 @@ const styles = StyleSheet.create({
   upcomingName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   upcomingMeta: {
-    fontSize: 12,
-    color: '#6b7280',
+    ...typography.caption,
     marginTop: 2,
   },
   upcomingBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: '#fff3cd',
   },
   upcomingBadgeText: {
@@ -602,8 +569,8 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   transactionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
     paddingVertical: 10,
     marginBottom: 5,
     flexDirection: 'row',
@@ -617,34 +584,31 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   transactionDesc: {
-    fontWeight: 'bold',
-    fontSize: 16,
+    ...typography.bodyStrong,
   },
   transactionProperty: {
-    color: '#666',
     fontSize: 14,
+    color: colors.textSecondary,
   },
   transactionAmount: {
-    fontWeight: 'bold',
-    fontSize: 16,
+    ...typography.bodyStrong,
   },
   income: {
-    color: '#4CAF50',
+    color: colors.income,
   },
   expense: {
-    color: '#F44336',
+    color: colors.expense,
   },
   emptyText: {
-    fontSize: 13,
-    color: '#6b7280',
+    ...typography.caption,
   },
   errorBanner: {
-    backgroundColor: '#ffebee',
+    backgroundColor: colors.dangerSoft,
     paddingHorizontal: 15,
     paddingVertical: 10,
   },
   errorBannerText: {
-    color: '#c62828',
+    color: colors.danger,
     fontSize: 13,
     marginBottom: 6,
   },
@@ -652,8 +616,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: '#c62828',
+    borderRadius: radii.pill,
+    backgroundColor: colors.danger,
   },
   errorBannerButtonText: {
     color: '#fff',

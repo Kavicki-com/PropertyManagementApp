@@ -12,6 +12,8 @@ import {
 import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
+import ScreenHeader from '../components/ScreenHeader';
+import { colors, typography, radii } from '../theme';
 
 const EditProfileScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -107,124 +109,143 @@ const EditProfileScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-        <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
+      <ScreenHeader title="Editar perfil" onBack={() => navigation.goBack()} />
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {loading ? (
+          <ActivityIndicator style={styles.loader} />
+        ) : (
+          <View style={styles.formContainer}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Informações pessoais</Text>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nome completo</Text>
+                <TextInput
+                  style={styles.input}
+                  value={fullName}
+                  onChangeText={setFullName}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Telefone</Text>
+                <TextInput
+                  style={styles.input}
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>E-mail</Text>
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Alterar senha</Text>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nova senha</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Deixe em branco para não alterar"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  secureTextEntry
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Confirmar nova senha</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Deixe em branco para não alterar"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={handleUpdateProfile}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.buttonText}>Salvar alterações</Text>
+              )}
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Editar Perfil</Text>
-            <View style={{ width: 24 }} />
-        </View>
-        <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-            {loading ? <ActivityIndicator style={{marginTop: 20}} /> : (
-                <View style={styles.formContainer}>
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Informações Pessoais</Text>
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Nome Completo</Text>
-                        <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
-                    </View>
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Telefone</Text>
-                        <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-                    </View>
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>E-mail</Text>
-                        <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize='none' />
-                    </View>
-                </View>
-
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Alterar Senha</Text>
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Nova Senha</Text>
-                        <TextInput style={styles.input} placeholder="Deixe em branco para não alterar" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
-                    </View>
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Confirmar Nova Senha</Text>
-                        <TextInput style={styles.input} placeholder="Deixe em branco para não alterar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
-                    </View>
-                </View>
-
-                <TouchableOpacity style={styles.saveButton} onPress={handleUpdateProfile} disabled={isSaving}>
-                    {isSaving ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
-                </TouchableOpacity>
-                </View>
-            )}
-        </ScrollView>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-    },
-    scrollContainer: {
-        flex: 1,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: '#fff',
-        paddingHorizontal: 15,
-        paddingTop: 50,
-        paddingBottom: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
-    },
-    backButton: {
-        padding: 5,
-    },
-    headerTitle: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        flex: 1,
-    },
-    formContainer: {
-        padding: 20,
-    },
-    section: {
-        backgroundColor: '#fff',
-        borderRadius: 8,
-        padding: 20,
-        marginBottom: 20,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        marginBottom: 15,
-    },
-    inputGroup: {
-        marginBottom: 15,
-    },
-    label: {
-        marginBottom: 8,
-        fontSize: 14,
-        color: '#333'
-    },
-    input: {
-        height: 50,
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 8,
-        paddingHorizontal: 15,
-        fontSize: 16,
-        backgroundColor: '#fff',
-    },
-    saveButton: {
-        backgroundColor: '#4a86e8',
-        padding: 15,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    buttonText: {
-        color: 'white',
-        fontWeight: 'bold',
-        fontSize: 16,
-    },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 32,
+  },
+  loader: {
+    marginTop: 24,
+  },
+  formContainer: {
+    flex: 1,
+  },
+  section: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: 20,
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    ...typography.sectionTitle,
+    marginBottom: 15,
+  },
+  inputGroup: {
+    marginBottom: 15,
+  },
+  label: {
+    ...typography.label,
+    marginBottom: 8,
+  },
+  input: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.sm,
+    paddingHorizontal: 15,
+    fontSize: 16,
+    backgroundColor: colors.surface,
+  },
+  saveButton: {
+    backgroundColor: colors.primary,
+    padding: 15,
+    borderRadius: radii.md,
+    alignItems: 'center',
+  },
+  buttonText: {
+    ...typography.button,
+    fontSize: 16,
+  },
 });
 
 export default EditProfileScreen;

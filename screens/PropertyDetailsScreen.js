@@ -21,6 +21,7 @@ import {
 import { fetchActiveContractByProperty } from '../lib/contractsService';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { colors, radii, typography } from '../theme';
 
 const PropertyDetailsScreen = ({ route, navigation }) => {
   const { property: initialProperty } = route.params;
@@ -303,7 +304,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
+            <MaterialIcons name="arrow-back-ios" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.header} numberOfLines={1} ellipsizeMode="tail">{property.address}</Text>
       </View>
@@ -467,9 +468,9 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             disabled={isDeleting}
           >
             {isDeleting ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color={colors.expense} />
             ) : (
-              <Text style={styles.buttonText}>Excluir Propriedade</Text>
+              <Text style={[styles.buttonText, styles.deleteButtonText]}>Excluir Propriedade</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -495,7 +496,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: colors.background,
     },
     scrollContainer: {
         flex: 1,
@@ -505,30 +506,27 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 15,
         paddingTop: 50,
-        backgroundColor: '#fff',
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
+        borderBottomColor: colors.borderSubtle,
     },
     backButton: {
         marginRight: 10,
     },
     header: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#333',
+        ...typography.sectionTitle,
         flex: 1,
     },
     section: {
-        backgroundColor: '#fff',
-        borderRadius: 8,
+        backgroundColor: colors.surface,
+        borderRadius: radii.md,
         padding: 15,
         marginHorizontal: 15,
         marginTop: 15,
         marginBottom: 0,
     },
     sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
+        ...typography.sectionTitle,
         marginBottom: 10,
     },
     galleryImage: {
@@ -558,16 +556,14 @@ const styles = StyleSheet.create({
         borderBottomColor: '#eee',
     },
     infoLabel: {
-        color: '#666',
-        fontSize: 16,
+        ...typography.body,
     },
     infoValue: {
-        fontSize: 16,
-        fontWeight: '500',
+        ...typography.bodyStrong,
     },
     tenantCard: {
         backgroundColor: '#f0f7ff',
-        borderRadius: 8,
+        borderRadius: radii.md,
         padding: 15,
     },
     tenantHeaderRow: {
@@ -577,19 +573,18 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     tenantName: {
-        fontWeight: 'bold',
-        fontSize: 16,
+        ...typography.bodyStrong,
         marginBottom: 5,
     },
     tenantPhone: {
-        color: '#666',
+        color: colors.textSecondary,
     },
     endTenancyButton: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 8,
         paddingVertical: 4,
-        borderRadius: 12,
+        borderRadius: radii.pill,
         backgroundColor: '#ffebee',
     },
     endTenancyText: {
@@ -604,19 +599,18 @@ const styles = StyleSheet.create({
     tenantActionButton: {
         paddingVertical: 10,
         paddingHorizontal: 12,
-        borderRadius: 8,
+        borderRadius: radii.pill,
         borderWidth: 1,
-        borderColor: '#4a86e8',
+        borderColor: colors.primary,
         alignItems: 'center',
     },
     tenantActionText: {
-        color: '#4a86e8',
-        fontWeight: '600',
-        fontSize: 14,
+        ...typography.button,
+        color: colors.primary,
     },
     noTenantText: {
         textAlign: 'center',
-        color: '#666',
+        color: colors.textSecondary,
         paddingVertical: 10,
         fontStyle: 'italic',
     },
@@ -627,19 +621,20 @@ const styles = StyleSheet.create({
         paddingVertical: 20,
     },
     editButton: {
-        backgroundColor: '#4a86e8',
+        backgroundColor: colors.primary,
         padding: 15,
-        borderRadius: 8,
+        borderRadius: radii.pill,
         flex: 1,
         alignItems: 'center',
     },
     deleteButton: {
-        backgroundColor: '#F44336',
+        backgroundColor: 'transparent',
         padding: 15,
-        borderRadius: 8,
+        borderRadius: radii.pill,
         flex: 1,
         alignItems: 'center',
         marginTop: 10,
+        borderWidth: 0,
     },
     secondaryButton: {
         backgroundColor: '#78909C',
@@ -650,8 +645,11 @@ const styles = StyleSheet.create({
         marginTop: 10,
     },
     buttonText: { 
+        ...typography.button,
         color: 'white',
-        fontWeight: 'bold',
+    },
+    deleteButtonText: {
+        color: colors.expense,
     },
     modalContainer: {
         flex: 1,
@@ -679,13 +677,11 @@ const styles = StyleSheet.create({
         marginHorizontal: 4,
     },
     financeLabel: {
-        fontSize: 12,
-        color: '#666',
+        ...typography.caption,
         marginBottom: 4,
     },
     financeValue: {
-        fontSize: 16,
-        fontWeight: 'bold',
+        ...typography.bodyStrong,
     },
     income: {
         color: '#4CAF50',
@@ -699,15 +695,14 @@ const styles = StyleSheet.create({
     financeActionButton: {
         paddingVertical: 10,
         paddingHorizontal: 12,
-        borderRadius: 8,
+        borderRadius: radii.pill,
         borderWidth: 1,
-        borderColor: '#4a86e8',
+        borderColor: colors.primary,
         alignItems: 'center',
     },
     financeActionText: {
-        color: '#4a86e8',
-        fontWeight: '600',
-        fontSize: 14,
+        ...typography.button,
+        color: colors.primary,
     },
 });
 

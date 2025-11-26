@@ -15,6 +15,7 @@ import DropDownPicker from 'react-native-dropdown-picker'; // Use the new dropdo
 import { supabase } from '../lib/supabase';
 import { fetchActiveContractByProperty } from '../lib/contractsService';
 import { MaterialIcons } from '@expo/vector-icons';
+import { colors, radii, typography } from '../theme';
 
 const AddTransactionScreen = ({ route, navigation }) => {
   const [description, setDescription] = useState('');
@@ -113,7 +114,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
     <View style={styles.container}>
         <View style={styles.headerContainer}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
+                <MaterialIcons name="arrow-back-ios" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.header}>Adicionar Transação</Text>
             <View style={{ width: 24 }} />
@@ -134,7 +135,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
                 setValue={setPropertyValue}
                 setItems={setPropertyItems}
                 searchable={true}
-                placeholder="Select a property"
+                placeholder="Selecione a propriedade"
                 listMode="MODAL"
                 zIndex={2000}
             />
@@ -191,7 +192,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   scrollContainer: {
     flex: 1,
@@ -203,17 +204,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 15,
     paddingTop: 50,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: colors.borderSubtle,
   },
   backButton: {
       padding: 5,
   },
   header: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
+    ...typography.sectionTitle,
     textAlign: 'left',
     flex: 1,
   },
@@ -221,28 +220,27 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
+    ...typography.label,
     marginBottom: 8,
-    fontWeight: '500',
   },
   input: {
     height: 50,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.borderSubtle,
     borderRadius: 8,
     paddingHorizontal: 15,
     fontSize: 16,
   },
   addButton: {
-    backgroundColor: '#4a86e8',
+    backgroundColor: colors.primary,
     padding: 15,
-    borderRadius: 8,
+    borderRadius: radii.pill,
     alignItems: 'center',
     marginTop: 10,
   },
   addButtonText: {
     color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
+    ...typography.button,
   },
 });
 

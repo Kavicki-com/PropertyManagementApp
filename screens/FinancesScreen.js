@@ -1,11 +1,13 @@
 // screens/FinancesScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { fetchAllFinances, calculateOverview } from '../lib/financesService';
 import { supabase } from '../lib/supabase';
 import RangeDatePicker from '../components/RangeDatePicker';
+import { colors, radii, typography } from '../theme';
+import SearchBar from '../components/SearchBar';
 
 const FinancesScreen = ({ navigation }) => {
   const [transactions, setTransactions] = useState([]);
@@ -208,16 +210,11 @@ const FinancesScreen = ({ navigation }) => {
             </View>
 
             <View style={styles.searchAndDateContainer}>
-              <View style={styles.searchWrapper}>
-                <MaterialIcons name="search" size={18} color="#888" />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Buscar por descrição ou imóvel"
-                  placeholderTextColor="#888"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              </View>
+              <SearchBar
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Buscar por descrição ou imóvel"
+              />
             </View>
 
           </View>
@@ -351,7 +348,7 @@ const FinancesScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   scrollContainer: {
       flex: 1,
@@ -360,21 +357,18 @@ const styles = StyleSheet.create({
   headerContainer: {
     padding: 15,
     paddingTop: 50,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: colors.borderSubtle,
   },
   header: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    ...typography.screenTitle,
   },
   section: {
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...typography.sectionTitle,
     marginBottom: 15,
   },
   overviewRow: {
@@ -384,8 +378,8 @@ const styles = StyleSheet.create({
   },
   overviewCard: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
     paddingVertical: 14,
     paddingHorizontal: 10,
     marginRight: 8,
@@ -407,22 +401,18 @@ const styles = StyleSheet.create({
     marginRight: 0,
   },
   overviewLabel: {
-    fontSize: 16,
-    color: '#666',
+    ...typography.body,
   },
   incomeAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4CAF50',
+    ...typography.bodyStrong,
+    color: colors.income,
   },
   expenseAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#F44336',
+    ...typography.bodyStrong,
+    color: colors.expense,
   },
   profitAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    ...typography.bodyStrong,
     color: '#2196F3',
   },
   filtersRow: {
@@ -432,7 +422,7 @@ const styles = StyleSheet.create({
   filterChip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: '#ddd',
     marginRight: 8,
@@ -443,7 +433,7 @@ const styles = StyleSheet.create({
   },
   filterChipText: {
     fontSize: 13,
-    color: '#555',
+    color: colors.textMuted,
   },
   filterChipTextActive: {
     color: '#fff',
@@ -452,28 +442,11 @@ const styles = StyleSheet.create({
   searchAndDateContainer: {
     marginTop: 12,
   },
-  searchWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: '#fafafa',
-  },
-  searchInput: {
-    flex: 1,
-    paddingLeft: 6,
-    paddingVertical: 4,
-    fontSize: 14,
-  },
   dateFilterRow: {
     marginTop: 12,
   },
   dateFilterLabel: {
-    fontSize: 12,
-    color: '#666',
+    ...typography.caption,
     marginBottom: 4,
   },
   periodField: {
@@ -481,7 +454,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 16,
+    borderRadius: radii.pill,
     paddingHorizontal: 10,
     paddingVertical: 8,
     backgroundColor: '#fff',
@@ -489,8 +462,8 @@ const styles = StyleSheet.create({
   periodFieldText: {
     flex: 1,
     marginLeft: 6,
-    fontSize: 13,
-    color: '#333',
+    ...typography.caption,
+    color: colors.textPrimary,
   },
   periodClearButton: {
     width: 24,
@@ -500,8 +473,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   transactionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
     padding: 15,
     marginBottom: 10,
     flexDirection: 'row',
@@ -541,29 +514,27 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   transactionDesc: {
-    fontWeight: 'bold',
-    fontSize: 16,
+    ...typography.bodyStrong,
   },
   transactionMeta: {
-    color: '#666',
     fontSize: 13,
+    color: colors.textSecondary,
     marginTop: 4,
   },
   transactionAmount: {
-    fontWeight: 'bold',
-    fontSize: 16,
+    ...typography.bodyStrong,
   },
   income: {
-    color: '#4CAF50',
+    color: colors.income,
   },
   expense: {
-    color: '#F44336',
+    color: colors.expense,
   },
   addButton: {
     position: 'absolute',
     bottom: 30,
     right: 30,
-    backgroundColor: '#4a86e8',
+    backgroundColor: colors.primary,
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -578,19 +549,19 @@ const styles = StyleSheet.create({
   errorContainer: {
     padding: 16,
     borderRadius: 8,
-    backgroundColor: '#ffebee',
+    backgroundColor: colors.dangerSoft,
     marginBottom: 16,
   },
   errorText: {
-    color: '#c62828',
+    color: colors.danger,
     marginBottom: 8,
   },
   retryButton: {
     alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#c62828',
+    borderRadius: radii.pill,
+    backgroundColor: colors.danger,
   },
   retryButtonText: {
     color: '#fff',
@@ -601,13 +572,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    ...typography.bodyStrong,
     marginBottom: 4,
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.body,
     marginBottom: 12,
     textAlign: 'center',
     paddingHorizontal: 20,
@@ -615,8 +584,8 @@ const styles = StyleSheet.create({
   emptyButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#4a86e8',
+    borderRadius: radii.pill,
+    backgroundColor: colors.primary,
   },
   emptyButtonText: {
     color: '#fff',

@@ -8,7 +8,6 @@ import {
   Image,
   ActivityIndicator,
   Alert, // Adicionado para melhor feedback de erro
-  TextInput,
   Keyboard,
   TouchableWithoutFeedback,
 } from 'react-native';
@@ -16,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { fetchAllProperties } from '../lib/propertiesService';
 import { useIsFocused } from '@react-navigation/native';
+import SearchBar from '../components/SearchBar';
 
 const PropertyItem = ({ item, onPress }) => {
   const hasTenant = item.tenants && item.tenants.length > 0;
@@ -139,22 +139,11 @@ const PropertiesScreen = ({ navigation }) => {
 
             {/* Barra de busca e filtros */}
             <View style={styles.filtersContainer}>
-              <View style={styles.searchWrapper}>
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Buscar por endereço"
-                  placeholderTextColor="#888"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-                {searchQuery && searchQuery.trim().length > 0 ? (
-                  <TouchableOpacity onPress={() => setSearchQuery('')}>
-                    <MaterialIcons name="close" size={20} color="#888" />
-                  </TouchableOpacity>
-                ) : (
-                  <MaterialIcons name="search" size={20} color="#888" />
-                )}
-              </View>
+              <SearchBar
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Buscar por endereço"
+              />
         <View style={styles.filterRow}>
           <View style={styles.filterGroup}>
             <Text style={styles.filterLabel}>Tipo</Text>
@@ -326,26 +315,10 @@ const styles = StyleSheet.create({
   },
   filtersContainer: {
     paddingHorizontal: 15,
+    paddingTop: 10,
     paddingBottom: 10,
     backgroundColor: '#fff',
-  },
-  searchWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginTop: 10,
-    marginBottom: 10,
-    backgroundColor: '#fafafa',
-  },
-  searchInput: {
-    flex: 1,
-    paddingRight: 8,
-    paddingVertical: 6,
-    fontSize: 14,
+    marginTop: 4,
   },
   filterRow: {
     flexDirection: 'column',

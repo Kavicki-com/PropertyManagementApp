@@ -1,13 +1,14 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { colors, typography } from '../theme';
 
 const ScreenHeader = ({ title, onBack }) => {
   return (
     <View style={styles.headerContainer}>
       {onBack ? (
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
+          <MaterialIcons name="arrow-back-ios" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       ) : (
         <View style={{ width: 24 }} />
@@ -25,17 +26,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 15,
     paddingTop: 50,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: colors.borderSubtle,
   },
   backButton: {
     padding: 5,
   },
   header: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
+    ...typography.screenTitle,
     textAlign: 'left',
     flex: 1,
   },

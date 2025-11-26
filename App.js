@@ -3,10 +3,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from './lib/supabase';
 import { View, ActivityIndicator, Linking as RNLinking } from 'react-native';
 import * as Linking from 'expo-linking';
+import { colors, typography } from './theme';
 
 // Telas
 import LoginScreen from './screens/LoginScreen';
@@ -47,17 +48,21 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: '#4a86e8',
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: 'gray',
-        tabBarLabelStyle: { marginBottom: 5 },
+        tabBarLabelStyle: {
+          ...typography.caption,
+          fontSize: 11,
+          marginBottom: 5,
+        },
         tabBarIcon: ({ color, size }) => {
           let iconName;
-          if (route.name === 'Início') iconName = 'dashboard';
-          else if (route.name === 'Imóveis') iconName = 'home';
-          else if (route.name === 'Inquilinos') iconName = 'people';
-          else if (route.name === 'Finanças') iconName = 'attach-money';
-          else if (route.name === 'Configurações') iconName = 'settings';
-          return <MaterialIcons name={iconName} size={size} color={color} />;
+          if (route.name === 'Início') iconName = 'view-dashboard-outline';
+          else if (route.name === 'Imóveis') iconName = 'home-outline';
+          else if (route.name === 'Inquilinos') iconName = 'account-group-outline';
+          else if (route.name === 'Finanças') iconName = 'finance';
+          else if (route.name === 'Configurações') iconName = 'cog-outline';
+          return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
         },
       })}
     >

@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  TextInput,
   Keyboard,
   TouchableWithoutFeedback,
 } from 'react-native';
@@ -16,6 +15,8 @@ import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 import ScreenHeader from '../components/ScreenHeader';
 import { fetchActiveContractsByTenants } from '../lib/contractsService';
+import { colors, radii, typography } from '../theme';
+import SearchBar from '../components/SearchBar';
 
 // Updated TenantItem to display mais informações
 const TenantItem = ({ item, onPress, onPressPhone }) => (
@@ -254,22 +255,11 @@ const TenantsScreen = ({ navigation }) => {
         <ScreenHeader title="Inquilinos" />
 
         <View style={styles.searchContainer}>
-          <View style={styles.searchWrapper}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar por nome ou telefone"
-              placeholderTextColor="#888"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery && searchQuery.trim().length > 0 ? (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <MaterialIcons name="close" size={20} color="#888" />
-              </TouchableOpacity>
-            ) : (
-              <MaterialIcons name="search" size={20} color="#888" />
-            )}
-          </View>
+          <SearchBar
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Buscar por nome ou telefone"
+          />
         </View>
 
       {loading ? (
@@ -328,15 +318,15 @@ const TenantsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   listContent: {
     padding: 15,
     paddingBottom: 80,
   },
   tenantCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
     padding: 15,
     marginBottom: 15,
     flexDirection: 'row',
@@ -362,8 +352,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   tenantName: {
-    fontWeight: 'bold',
-    fontSize: 17,
+    ...typography.bodyStrong,
     marginBottom: 5,
     color: '#333',
   },
@@ -372,8 +361,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tenantMetaText: {
-    color: '#666',
     fontSize: 14,
+    color: colors.textSecondary,
     marginLeft: 5,
   },
   dueDateContainer: {
@@ -387,28 +376,13 @@ const styles = StyleSheet.create({
   dueDateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#4a86e8',
+    color: colors.primary,
   },
   searchContainer: {
     paddingHorizontal: 15,
     paddingTop: 10,
     paddingBottom: 5,
-  },
-  searchWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: '#fafafa',
-  },
-  searchInput: {
-    flex: 1,
-    paddingRight: 8,
-    paddingVertical: 6,
-    fontSize: 14,
+    marginTop: 8,
   },
   loadingContainer: {
     flex: 1,
@@ -417,7 +391,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 8,
-    color: '#666',
+    color: colors.textSecondary,
   },
   errorContainer: {
     flex: 1,
@@ -426,15 +400,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   errorText: {
-    color: '#F44336',
+    color: colors.expense,
     marginBottom: 12,
     textAlign: 'center',
   },
   retryButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#4a86e8',
+    borderRadius: radii.pill,
+    backgroundColor: colors.primary,
   },
   retryButtonText: {
     color: '#fff',
@@ -448,21 +422,19 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   emptyTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    ...typography.bodyStrong,
     marginBottom: 4,
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.body,
     marginBottom: 12,
     textAlign: 'center',
   },
   emptyButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#4a86e8',
+    borderRadius: radii.pill,
+    backgroundColor: colors.primary,
   },
   emptyButtonText: {
     color: '#fff',
@@ -473,7 +445,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: radii.pill,
     backgroundColor: '#eef7ff',
   },
   invoiceBadgeText: {
@@ -484,7 +456,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 30,
     right: 30,
-    backgroundColor: '#4a86e8',
+    backgroundColor: colors.primary,
     width: 60,
     height: 60,
     borderRadius: 30,

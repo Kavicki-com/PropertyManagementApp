@@ -17,6 +17,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import CustomDatePicker from '../components/CustomDatePicker';
 import { createContract } from '../lib/contractsService';
+import { colors, radii, typography } from '../theme';
 
 const AddContractScreen = ({ route, navigation }) => {
   const { tenantId, contract: existingContract, property } = route.params || {};
@@ -153,7 +154,7 @@ const AddContractScreen = ({ route, navigation }) => {
   <View style={styles.container}>
       <View style={styles.headerContainer}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
+          <MaterialIcons name="arrow-back-ios" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.header}>
           {isEditing ? 'Editar / renovar contrato' : 'Criar contrato de locação'}
@@ -280,7 +281,7 @@ const AddContractScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   scrollContainer: {
     flex: 1,
@@ -292,17 +293,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 15,
     paddingTop: 50,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: colors.borderSubtle,
   },
   backButton: {
     padding: 5,
   },
   header: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    ...typography.sectionTitle,
     textAlign: 'left',
     flex: 1,
   },
@@ -310,14 +309,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
+    ...typography.label,
     marginBottom: 8,
-    fontWeight: '500',
   },
   input: {
     height: 50,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.pill,
     paddingHorizontal: 15,
     fontSize: 16,
   },
@@ -334,8 +333,8 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 50,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.pill,
     paddingHorizontal: 15,
     justifyContent: 'center',
   },
@@ -344,17 +343,16 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   saveButton: {
-    backgroundColor: '#4a86e8',
+    backgroundColor: colors.primary,
     padding: 15,
-    borderRadius: 8,
+    borderRadius: radii.pill,
     alignItems: 'center',
     marginTop: 10,
     marginBottom: 40,
   },
   saveButtonText: {
     color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
+    ...typography.button,
   },
 });
 

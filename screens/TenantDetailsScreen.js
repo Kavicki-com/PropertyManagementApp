@@ -7,6 +7,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { fetchTenantBillingSummary } from '../lib/financesService';
 import { fetchActiveContractByTenant, endContract } from '../lib/contractsService';
+import { colors, radii, typography } from '../theme';
 
 const TenantDetailsScreen = ({ route, navigation }) => {
   const { tenant: initialTenant } = route.params;
@@ -431,13 +432,13 @@ const TenantDetailsScreen = ({ route, navigation }) => {
             
             <View style={styles.buttonContainer}>
                 <TouchableOpacity 
-                style={styles.editButton}
-                onPress={() => navigation.navigate('EditTenant', { tenant: tenant })}
+                  style={styles.editButton}
+                  onPress={() => navigation.navigate('EditTenant', { tenant: tenant })}
                 >
-                <Text style={styles.buttonText}>Editar Inquilino</Text>
+                  <Text style={styles.buttonText}>Editar Inquilino</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteTenant}>
-                <Text style={styles.buttonText}>Deletar Inquilino</Text>
+                  <Text style={[styles.buttonText, styles.deleteButtonText]}>Deletar Inquilino</Text>
                 </TouchableOpacity>
             </View>
         </ScrollView>
@@ -448,7 +449,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
     container: { 
         flex: 1, 
-        backgroundColor: '#f5f5f5',
+        backgroundColor: colors.background,
     },
     scrollContainer: {
         flex: 1,
@@ -457,7 +458,7 @@ const styles = StyleSheet.create({
         flex: 1, 
         justifyContent: 'center', 
         alignItems: 'center', 
-        backgroundColor: '#f5f5f5',
+        backgroundColor: colors.background,
     },
     avatarContainer: {
         alignItems: 'center',
@@ -470,15 +471,14 @@ const styles = StyleSheet.create({
         marginBottom: 15,
     },
     section: { 
-        backgroundColor: '#fff', 
-        borderRadius: 12, 
+        backgroundColor: colors.surface, 
+        borderRadius: radii.md, 
         padding: 15, 
         marginHorizontal: 15,
         marginTop: 20
     },
     sectionTitle: { 
-        fontSize: 18, 
-        fontWeight: 'bold', 
+        ...typography.sectionTitle,
         marginBottom: 15,
     },
     contractPropertyCard: {
@@ -495,21 +495,18 @@ const styles = StyleSheet.create({
         marginRight: 8,
     },
     contractPropertyAddress: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#222',
+        ...typography.bodyStrong,
         marginBottom: 4,
     },
     contractPropertySub: {
-        fontSize: 14,
-        color: '#666',
+        ...typography.body,
     },
     contractPropertyAction: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 10,
         paddingVertical: 6,
-        borderRadius: 16,
+        borderRadius: radii.pill,
         backgroundColor: '#ffebee',
     },
     contractPropertyActionText: {
@@ -538,10 +535,10 @@ const styles = StyleSheet.create({
         borderBottomColor: '#eee',
     },
     infoLabel: { 
-        color: '#666',
+        ...typography.body,
     },
     infoValue: { 
-        fontWeight: '500', 
+        ...typography.bodyStrong,
         flex: 1, 
         textAlign: 'right',
     },
@@ -557,22 +554,25 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     editButton: { 
-        backgroundColor: '#4a86e8', 
+        backgroundColor: colors.primary, 
         padding: 15, 
-        borderRadius: 8, 
+        borderRadius: radii.pill, 
         flex: 1,  
         alignItems: 'center',
     },
     deleteButton: { 
-        backgroundColor: '#F44336', 
+        backgroundColor: 'transparent', 
         padding: 15, 
-        borderRadius: 8, 
+        borderRadius: radii.pill, 
         flex: 1,  
         alignItems: 'center',
     },
     buttonText: { 
+        ...typography.button,
         color: '#fff', 
-        fontWeight: 'bold',
+    },
+    deleteButtonText: {
+        color: colors.expense,
     },
     tenantActions: {
         marginTop: 10,
@@ -580,28 +580,26 @@ const styles = StyleSheet.create({
     tenantActionButton: {
         paddingVertical: 10,
         paddingHorizontal: 12,
-        borderRadius: 8,
+        borderRadius: radii.pill,
         borderWidth: 1,
-        borderColor: '#4a86e8',
+        borderColor: colors.primary,
         alignItems: 'center',
     },
     tenantActionText: {
-        color: '#4a86e8',
-        fontWeight: '600',
-        fontSize: 14,
+        ...typography.button,
+        color: colors.primary,
     },
     primaryContractButton: {
         paddingVertical: 10,
         paddingHorizontal: 12,
-        borderRadius: 8,
-        backgroundColor: '#4a86e8',
+        borderRadius: radii.pill,
+        backgroundColor: colors.primary,
         alignItems: 'center',
         marginTop: 10,
     },
     primaryContractButtonText: {
+        ...typography.button,
         color: '#fff',
-        fontWeight: '600',
-        fontSize: 14,
     },
     timelineTitle: {
         marginTop: 10,
