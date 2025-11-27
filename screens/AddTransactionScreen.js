@@ -135,6 +135,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
                 setValue={setPropertyValue}
                 setItems={setPropertyItems}
                 searchable={true}
+                searchPlaceholder="Buscar propriedade..."
                 placeholder="Selecione a propriedade"
                 listMode="MODAL"
                 zIndex={2000}
@@ -145,17 +146,17 @@ const AddTransactionScreen = ({ route, navigation }) => {
             <Text style={styles.label}>Descrição</Text>
             <TextInput
             style={styles.input}
-            placeholder="e.g., Rent Payment, Maintenance"
+            placeholder="Ex: Aluguel, Reforma, Manutenção"
             value={description}
             onChangeText={setDescription}
             />
         </View>
 
         <View style={styles.inputGroup}>
-            <Text style={styles.label}>Valor ($)</Text>
+            <Text style={styles.label}>Valor (R$)</Text>
             <TextInput
             style={styles.input}
-            placeholder="e.g., 1200"
+            placeholder="Ex: 1200"
             value={amount}
             onChangeText={setAmount}
             keyboardType="numeric"

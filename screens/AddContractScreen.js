@@ -178,6 +178,7 @@ const AddContractScreen = ({ route, navigation }) => {
             setValue={setPropertyId}
             setItems={setProperties}
             searchable={true}
+            searchPlaceholder="Buscar propriedade..."
             placeholder="Selecione uma propriedade"
             listMode="MODAL"
             zIndex={1000}

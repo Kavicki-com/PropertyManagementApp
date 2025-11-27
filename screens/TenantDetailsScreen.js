@@ -435,7 +435,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
                   style={styles.editButton}
                   onPress={() => navigation.navigate('EditTenant', { tenant: tenant })}
                 >
-                  <Text style={styles.buttonText}>Editar Inquilino</Text>
+                  <Text style={styles.editButtonText}>Editar Inquilino</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteTenant}>
                   <Text style={[styles.buttonText, styles.deleteButtonText]}>Deletar Inquilino</Text>
@@ -535,10 +535,12 @@ const styles = StyleSheet.create({
         borderBottomColor: '#eee',
     },
     infoLabel: { 
-        ...typography.body,
+        ...typography.bodyStrong,
+        fontSize: 14,
     },
     infoValue: { 
-        ...typography.bodyStrong,
+        ...typography.body,
+        fontSize: 16,
         flex: 1, 
         textAlign: 'right',
     },
@@ -554,11 +556,12 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     editButton: { 
-        backgroundColor: colors.primary, 
+        backgroundColor: 'transparent', 
         padding: 15, 
-        borderRadius: radii.pill, 
+        borderRadius: 0, 
         flex: 1,  
         alignItems: 'center',
+        borderWidth: 0,
     },
     deleteButton: { 
         backgroundColor: 'transparent', 
@@ -570,6 +573,10 @@ const styles = StyleSheet.create({
     buttonText: { 
         ...typography.button,
         color: '#fff', 
+    },
+    editButtonText: {
+        ...typography.button,
+        color: colors.primary,
     },
     deleteButtonText: {
         color: colors.expense,

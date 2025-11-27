@@ -460,7 +460,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             style={styles.editButton} 
             onPress={() => navigation.navigate('EditProperty', { property: property })}
           >
-            <Text style={styles.buttonText}>Editar Propriedade</Text>
+            <Text style={styles.editButtonText}>Editar Propriedade</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.deleteButton} 
@@ -556,10 +556,12 @@ const styles = StyleSheet.create({
         borderBottomColor: '#eee',
     },
     infoLabel: {
-        ...typography.body,
+        ...typography.bodyStrong,
+        fontSize: 14,
     },
     infoValue: {
-        ...typography.bodyStrong,
+        ...typography.body,
+        fontSize: 16,
     },
     tenantCard: {
         backgroundColor: '#f0f7ff',
@@ -621,11 +623,12 @@ const styles = StyleSheet.create({
         paddingVertical: 20,
     },
     editButton: {
-        backgroundColor: colors.primary,
+        backgroundColor: 'transparent',
         padding: 15,
-        borderRadius: radii.pill,
+        borderRadius: 0,
         flex: 1,
         alignItems: 'center',
+        borderWidth: 0,
     },
     deleteButton: {
         backgroundColor: 'transparent',
@@ -647,6 +650,10 @@ const styles = StyleSheet.create({
     buttonText: { 
         ...typography.button,
         color: 'white',
+    },
+    editButtonText: {
+        ...typography.button,
+        color: colors.primary,
     },
     deleteButtonText: {
         color: colors.expense,

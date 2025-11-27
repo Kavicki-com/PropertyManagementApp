@@ -5,16 +5,14 @@ import { colors, typography } from '../theme';
 
 const ScreenHeader = ({ title, onBack }) => {
   return (
-    <View style={styles.headerContainer}>
+    <View style={[styles.headerContainer, !onBack && styles.headerContainerNoBack]}>
       {onBack ? (
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <MaterialIcons name="arrow-back-ios" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-      ) : (
-        <View style={{ width: 24 }} />
-      )}
-      <Text style={styles.header}>{title}</Text>
-      <View style={{ width: 24 }} />
+      ) : null}
+      <Text style={[styles.header, !onBack && styles.headerNoBack]}>{title}</Text>
+      {onBack ? <View style={{ width: 24 }} /> : null}
     </View>
   );
 };
@@ -30,6 +28,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSubtle,
   },
+  headerContainerNoBack: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+  },
   backButton: {
     padding: 5,
   },
@@ -37,6 +40,9 @@ const styles = StyleSheet.create({
     ...typography.screenTitle,
     textAlign: 'left',
     flex: 1,
+  },
+  headerNoBack: {
+    flex: 0,
   },
 });
 

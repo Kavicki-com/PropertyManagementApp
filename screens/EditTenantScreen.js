@@ -12,7 +12,6 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
-import DropDownPicker from 'react-native-dropdown-picker';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 
@@ -29,11 +28,6 @@ const EditTenantScreen = ({ route, navigation }) => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Property Dropdown state
-  const [open, setOpen] = useState(false);
-  const [propertyId, setPropertyId] = useState(null);
-  const [properties, setProperties] = useState([]);
-
   useEffect(() => {
     // Pre-fill form with tenant data
     if (tenant) {
@@ -45,27 +39,7 @@ const EditTenantScreen = ({ route, navigation }) => {
       setProfession(tenant.profession || '');
       setPhone(tenant.phone || '');
       setEmail(tenant.email || '');
-      setPropertyId(tenant.property_id);
     }
-
-    // Fetch available properties for the dropdown (apenas imóveis ativos)
-    const fetchProperties = async () => {
-      const { data, error } = await supabase
-        .from('properties')
-        .select('id, address, rent')
-        .is('archived_at', null);
-      if (error) {
-        console.error("Error fetching properties:", error);
-      } else {
-        const formattedProperties = data.map(p => ({ 
-            label: p.address, 
-            value: p.id,
-            rent: p.rent 
-        }));
-        setProperties(formattedProperties);
-      }
-    };
-    fetchProperties();
   }, [tenant]);
   
   const handleUpdateTenant = async () => {
@@ -81,7 +55,6 @@ const EditTenantScreen = ({ route, navigation }) => {
         profession,
         phone: phone,
         email: email,
-        property_id: propertyId,
       })
       .eq('id', tenant.id);
 
@@ -164,26 +137,6 @@ const EditTenantScreen = ({ route, navigation }) => {
                     onChangeText={setProfession}
                     placeholder="Ex: Engenheiro, Professora"
                 />
-            </View>
-            
-            <View style={[styles.inputGroup, Platform.OS === 'android' && { zIndex: 1000 }]}>
-              <Text style={styles.label}>Propriedade</Text>
-              <DropDownPicker
-                open={open}
-                value={propertyId}
-                items={properties}
-                setOpen={setOpen}
-                setValue={setPropertyId}
-                setItems={setProperties}
-                searchable={true}
-                placeholder="Selecione uma propriedade"
-                listMode="MODAL"
-                clearable={true}
-                labelProps={{
-                  numberOfLines: 1,
-                  ellipsizeMode: 'tail',
-                }}
-              />
             </View>
 
             <View style={styles.inputGroup}>

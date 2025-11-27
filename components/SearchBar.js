@@ -16,7 +16,6 @@ const SearchBar = ({
   return (
     <View style={[styles.container, containerStyle]}>
       <View style={styles.wrapper}>
-        <MaterialIcons name="search" size={18} color={colors.textSecondary} />
         <TextInput
           style={[styles.input, style]}
           value={value}
@@ -28,10 +27,12 @@ const SearchBar = ({
           autoFocus={autoFocus}
           returnKeyType="search"
         />
-        {trimmed.length > 0 && (
+        {trimmed.length > 0 ? (
           <TouchableOpacity onPress={() => onChangeText('')}>
             <MaterialIcons name="close" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
+        ) : (
+          <MaterialIcons name="search" size={18} color={colors.textSecondary} />
         )}
       </View>
     </View>

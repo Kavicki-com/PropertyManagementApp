@@ -1,5 +1,6 @@
 export const colors = {
   primary: '#4a86e8',
+  primaryDark: '#3844a1',
   primarySoft: '#e3f2fd',
   background: '#f5f5f5',
   surface: '#ffffff',
@@ -65,5 +66,6 @@ export const typography = {
     color: colors.textMuted,
   },
 };
+
 
 

@@ -8,6 +8,9 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
+  Modal,
+  FlatList,
+  Dimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
@@ -16,6 +19,131 @@ import { useIsFocused } from '@react-navigation/native';
 import { startOfMonth, endOfMonth, format, differenceInDays, setDate } from 'date-fns';
 import { colors, radii, typography } from '../theme';
 
+// Componente de gráfico de donut com cores por tipo de imóvel
+const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30 }) => {
+  const totalResidencial = occupancyByType.Residencial?.total || 0;
+  const occupiedResidencial = occupancyByType.Residencial?.occupied || 0;
+  const totalComercial = occupancyByType.Comercial?.total || 0;
+  const occupiedComercial = occupancyByType.Comercial?.occupied || 0;
+  
+  const totalProperties = totalResidencial + totalComercial;
+  const totalOccupied = occupiedResidencial + occupiedComercial;
+  const occupancyRate = totalProperties > 0 ? (totalOccupied / totalProperties) * 100 : 0;
+
+  // Calcular porcentagens de ocupação por tipo
+  const residencialRate = totalResidencial > 0 ? (occupiedResidencial / totalResidencial) * 100 : 0;
+  const comercialRate = totalComercial > 0 ? (occupiedComercial / totalComercial) * 100 : 0;
+
+  // Calcular proporção de cada tipo no total de imóveis
+  const residencialProportion = totalProperties > 0 ? (totalResidencial / totalProperties) * 100 : 0;
+  const comercialProportion = totalProperties > 0 ? (totalComercial / totalProperties) * 100 : 0;
+
+  // Calcular ângulos para cada segmento
+  const residencialAngle = (residencialProportion / 100) * 360;
+  const comercialAngle = (comercialProportion / 100) * 360;
+
+  // Calcular ocupação dentro de cada segmento
+  const residencialOccupiedAngle = (residencialProportion / 100) * (residencialRate / 100) * 360;
+  const comercialOccupiedAngle = (comercialProportion / 100) * (comercialRate / 100) * 360;
+
+  if (totalProperties === 0) {
+    return (
+      <View style={[styles.donutContainer, { width: size, height: size }]}>
+        <View style={styles.donutEmpty}>
+          <Text style={styles.donutEmptyText}>Sem dados</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const radius = size / 2;
+  const innerSize = size - (strokeWidth * 2);
+
+  return (
+    <View style={[styles.donutContainer, { width: size, height: size }]}>
+      {/* Círculo de fundo (disponível) - cinza */}
+      <View
+        style={[
+          styles.donutCircle,
+          {
+            width: size,
+            height: size,
+            borderRadius: radius,
+            borderWidth: strokeWidth,
+            borderColor: '#e5e7eb',
+            position: 'absolute',
+          },
+        ]}
+      />
+      {/* Círculo interno branco para criar o efeito donut */}
+      <View
+        style={[
+          styles.donutCircle,
+          {
+            width: innerSize,
+            height: innerSize,
+            borderRadius: innerSize / 2,
+            backgroundColor: colors.surface,
+            position: 'absolute',
+            top: strokeWidth,
+            left: strokeWidth,
+          },
+        ]}
+      />
+      
+      {/* Segmento Residencial ocupado - azul */}
+      {residencialOccupiedAngle > 0 && (
+        <View
+          style={[
+            styles.donutCircle,
+            {
+              width: size,
+              height: size,
+              borderRadius: radius,
+              borderWidth: strokeWidth,
+              borderColor: colors.primary,
+              borderRightColor: residencialOccupiedAngle < 90 ? 'transparent' : colors.primary,
+              borderBottomColor: residencialOccupiedAngle < 180 ? 'transparent' : colors.primary,
+              borderLeftColor: residencialOccupiedAngle < 270 ? 'transparent' : colors.primary,
+              position: 'absolute',
+              transform: [{ rotate: '-90deg' }],
+            },
+          ]}
+        />
+      )}
+      
+      {/* Segmento Comercial ocupado - cinza (começa após o residencial) */}
+      {comercialOccupiedAngle > 0 && (
+        <View
+          style={[
+            styles.donutCircle,
+            {
+              width: size,
+              height: size,
+              borderRadius: radius,
+              borderWidth: strokeWidth,
+              borderColor: '#9ca3af',
+              borderRightColor: (residencialAngle + comercialOccupiedAngle) < (residencialAngle + 90) ? 'transparent' : '#9ca3af',
+              borderBottomColor: (residencialAngle + comercialOccupiedAngle) < (residencialAngle + 180) ? 'transparent' : '#9ca3af',
+              borderLeftColor: (residencialAngle + comercialOccupiedAngle) < (residencialAngle + 270) ? 'transparent' : '#9ca3af',
+              position: 'absolute',
+              transform: [{ rotate: `${-90 + residencialAngle}deg` }],
+            },
+          ]}
+        />
+      )}
+      
+      {/* Centro do donut */}
+      <View style={styles.donutCenter}>
+        <Text style={styles.donutCenterText}>
+          {occupancyRate.toFixed(0)}%
+        </Text>
+        <Text style={styles.donutCenterLabel}>Ocupado</Text>
+      </View>
+    </View>
+  );
+};
+
 const DashboardScreen = ({ navigation }) => {
   const [stats, setStats] = useState({
     rentCollected: 0,
@@ -23,11 +151,17 @@ const DashboardScreen = ({ navigation }) => {
     propertyCount: 0,
     occupancyRate: 0,
   });
+  const [occupancyByType, setOccupancyByType] = useState({
+    Residencial: { total: 0, occupied: 0 },
+    Comercial: { total: 0, occupied: 0 },
+  });
   const [upcomingRents, setUpcomingRents] = useState([]);
+  const [allUpcomingRents, setAllUpcomingRents] = useState([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [showAllRentsModal, setShowAllRentsModal] = useState(false);
   const isFocused = useIsFocused();
 
   const formatCurrency = (value) => {
@@ -66,9 +200,17 @@ const DashboardScreen = ({ navigation }) => {
         date: dueDateThisMonth,
         propertyAddress: tenant.properties?.address,
         amount: contract.rent_amount,
+        tenant: tenant, // Armazenar o objeto tenant completo para navegação
       });
     });
 
+    // Lista completa de todos os vencimentos (ordenada por data)
+    const allSorted = items
+      .filter(item => item.days >= 0)
+      .sort((a, b) => a.days - b.days);
+    setAllUpcomingRents(allSorted);
+
+    // Lista resumida para o dashboard (próximos 7 dias, máximo 5 itens)
     const sorted = items
       .filter(item => item.days >= 0 && item.days <= 7)
       .sort((a, b) => a.days - b.days)
@@ -108,21 +250,28 @@ const DashboardScreen = ({ navigation }) => {
       .select('*', { count: 'exact', head: true })
       .is('archived_at', null);
 
+    const propertiesPromise = supabase
+      .from('properties')
+      .select('id, type')
+      .is('archived_at', null);
+
     // --- Execute all promises concurrently ---
     const [
       { data: financeData, error: financeError },
       { data: tenantsData, error: tenantsError },
       { data: recentTransactionsData, error: recentTransactionsError },
       { count: propertyCount, error: propertyError },
+      { data: propertiesData, error: propertiesError },
     ] = await Promise.all([
       financePromise,
       tenantsPromise,
       recentTransactionsPromise,
       propertyCountPromise,
+      propertiesPromise,
     ]);
 
 
-    if (financeError || tenantsError || propertyError || recentTransactionsError) {
+    if (financeError || tenantsError || propertyError || recentTransactionsError || propertiesError) {
       console.error(
         'Error fetching dashboard data:',
         financeError || tenantsError || propertyError || recentTransactionsError
@@ -148,6 +297,28 @@ const DashboardScreen = ({ navigation }) => {
       const activeTenants = tenantsData ? tenantsData.length : 0;
       const occupiedProperties = tenantsData ? tenantsData.filter(t => t.property_id).length : 0;
       const occupancyRate = propertyCount > 0 ? (occupiedProperties / propertyCount) * 100 : 0;
+
+      // Calcular ocupação por tipo de imóvel
+      const occupiedPropertyIds = new Set(
+        (tenantsData || []).filter(t => t.property_id).map(t => t.property_id)
+      );
+      
+      const occupancyByTypeData = {
+        Residencial: { total: 0, occupied: 0 },
+        Comercial: { total: 0, occupied: 0 },
+      };
+
+      (propertiesData || []).forEach(property => {
+        const type = property.type || 'Residencial';
+        if (occupancyByTypeData[type]) {
+          occupancyByTypeData[type].total++;
+          if (occupiedPropertyIds.has(property.id)) {
+            occupancyByTypeData[type].occupied++;
+          }
+        }
+      });
+
+      setOccupancyByType(occupancyByTypeData);
 
       setStats({
         rentCollected: totalIncome,
@@ -266,7 +437,7 @@ const DashboardScreen = ({ navigation }) => {
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Próximos vencimentos</Text>
             <TouchableOpacity
-              onPress={() => navigation.navigate('Finanças')}
+              onPress={() => setShowAllRentsModal(true)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Text style={styles.sectionLink}>Ver todos</Text>
@@ -279,7 +450,11 @@ const DashboardScreen = ({ navigation }) => {
             </Text>
           ) : (
             upcomingRents.map((item) => (
-              <View key={item.id} style={styles.upcomingItem}>
+              <TouchableOpacity
+                key={item.id}
+                style={styles.upcomingItem}
+                onPress={() => navigation.navigate('TenantDetails', { tenant: item.tenant })}
+              >
                 <View style={styles.upcomingInfo}>
                   <Text style={styles.upcomingName} numberOfLines={1}>
                     {item.name}
@@ -296,7 +471,7 @@ const DashboardScreen = ({ navigation }) => {
                 <Text style={styles.upcomingAmount}>
                   {formatCurrency(item.amount || 0)}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>
@@ -340,23 +515,42 @@ const DashboardScreen = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Imóveis e ocupação</Text>
           <View style={styles.occupancyCard}>
-            <Text style={styles.occupancyTitle}>Imóveis ocupados</Text>
-            <Text style={styles.occupancyRate}>
-              {Number.isFinite(stats.occupancyRate)
-                ? `${stats.occupancyRate.toFixed(1)}%`
-                : '0%'}
-            </Text>
-            <View style={styles.occupancyBar}>
-              <View
-                style={[
-                  styles.occupancyFill,
-                  { width: `${Math.min(Math.max(stats.occupancyRate, 0), 100)}%` },
-                ]}
-              />
+            <View style={styles.occupancyChartContainer}>
+              <DonutChart occupancyByType={occupancyByType} />
+              <View style={styles.occupancyLegend}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendColor, { backgroundColor: colors.primary }]} />
+                  <View style={styles.legendText}>
+                    <Text style={styles.legendLabel}>Residencial</Text>
+                    <Text style={styles.legendValue}>
+                      {occupancyByType.Residencial?.occupied || 0} / {occupancyByType.Residencial?.total || 0}
+                    </Text>
+                    <Text style={styles.legendPercentage}>
+                      {occupancyByType.Residencial?.total > 0
+                        ? `${((occupancyByType.Residencial.occupied / occupancyByType.Residencial.total) * 100).toFixed(0)}%`
+                        : '0%'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendColor, { backgroundColor: '#9ca3af' }]} />
+                  <View style={styles.legendText}>
+                    <Text style={styles.legendLabel}>Comercial</Text>
+                    <Text style={styles.legendValue}>
+                      {occupancyByType.Comercial?.occupied || 0} / {occupancyByType.Comercial?.total || 0}
+                    </Text>
+                    <Text style={styles.legendPercentage}>
+                      {occupancyByType.Comercial?.total > 0
+                        ? `${((occupancyByType.Comercial.occupied / occupancyByType.Comercial.total) * 100).toFixed(0)}%`
+                        : '0%'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
             </View>
             <Text style={styles.occupancySub}>
               {stats.propertyCount > 0
-                ? `De ${stats.propertyCount} imóveis cadastrados`
+                ? `Total: ${stats.propertyCount} imóveis cadastrados`
                 : 'Cadastre seus imóveis para acompanhar a ocupação.'}
             </Text>
           </View>
@@ -403,6 +597,81 @@ const DashboardScreen = ({ navigation }) => {
           )}
         </View>
       </ScrollView>
+
+      {/* Bottom Sheet - Lista completa de vencimentos */}
+      <Modal
+        visible={showAllRentsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowAllRentsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowAllRentsModal(false)}
+          />
+          <View style={styles.bottomSheet}>
+            <View style={styles.bottomSheetHeader}>
+              <Text style={styles.bottomSheetTitle}>Todos os vencimentos</Text>
+              <TouchableOpacity
+                onPress={() => setShowAllRentsModal(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MaterialIcons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {allUpcomingRents.length === 0 ? (
+              <View style={styles.bottomSheetEmpty}>
+                <Text style={styles.emptyText}>
+                  Nenhum vencimento disponível. Adicione inquilinos e contratos para ver aqui.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={allUpcomingRents}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.bottomSheetItem}
+                    onPress={() => {
+                      setShowAllRentsModal(false);
+                      navigation.navigate('TenantDetails', { tenant: item.tenant });
+                    }}
+                  >
+                    <View style={styles.bottomSheetItemContent}>
+                      <View style={styles.bottomSheetItemInfo}>
+                        <Text style={styles.bottomSheetItemName} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <Text style={styles.bottomSheetItemProperty} numberOfLines={1}>
+                          {item.propertyAddress || 'Sem imóvel vinculado'}
+                        </Text>
+                        <Text style={styles.bottomSheetItemDate}>
+                          Vencimento: {formatDate(item.date)}
+                        </Text>
+                      </View>
+                      <View style={styles.bottomSheetItemRight}>
+                        <View style={styles.bottomSheetBadge}>
+                          <Text style={styles.bottomSheetBadgeText}>
+                            {item.days === 0 ? 'Hoje' : `${item.days}d`}
+                          </Text>
+                        </View>
+                        <Text style={styles.bottomSheetItemAmount}>
+                          {formatCurrency(item.amount || 0)}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                contentContainerStyle={styles.bottomSheetList}
+                showsVerticalScrollIndicator={true}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -504,31 +773,92 @@ const styles = StyleSheet.create({
   },
   occupancyCard: {
     marginTop: 4,
+    alignItems: 'center',
   },
-  occupancyTitle: {
-    ...typography.sectionTitle,
-    marginBottom: 10,
+  occupancyChartContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    flexWrap: 'wrap',
   },
-  occupancyRate: {
+  donutContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 20,
+  },
+  donutChart: {
+    position: 'relative',
+  },
+  donutCircle: {
+    position: 'absolute',
+  },
+  donutSegment: {
+    position: 'absolute',
+  },
+  donutCenter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  donutCenterText: {
     fontSize: 24,
     fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  donutCenterLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  donutEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  donutEmptyText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  occupancyLegend: {
+    flex: 1,
+    minWidth: 150,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  legendColor: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  legendText: {
+    flex: 1,
+  },
+  legendLabel: {
+    ...typography.bodyStrong,
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  legendValue: {
+    ...typography.caption,
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  legendPercentage: {
+    ...typography.bodyStrong,
+    fontSize: 16,
     color: colors.primary,
-    marginBottom: 10,
-  },
-  occupancyBar: {
-    height: 10,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 5,
-    overflow: 'hidden',
-  },
-  occupancyFill: {
-    height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 5,
   },
   occupancySub: {
     ...typography.caption,
     marginTop: 8,
+    textAlign: 'center',
   },
   upcomingItem: {
     flexDirection: 'row',
@@ -638,6 +968,93 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e7eb',
     borderRadius: 10,
     marginBottom: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  bottomSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: Dimensions.get('window').height * 0.85,
+    paddingBottom: 20,
+  },
+  bottomSheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+  },
+  bottomSheetTitle: {
+    ...typography.sectionTitle,
+    fontSize: 18,
+  },
+  bottomSheetList: {
+    padding: 15,
+  },
+  bottomSheetItem: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    marginBottom: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  bottomSheetItemContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  bottomSheetItemInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  bottomSheetItemName: {
+    ...typography.bodyStrong,
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  bottomSheetItemProperty: {
+    ...typography.caption,
+    fontSize: 14,
+    marginBottom: 4,
+    color: colors.textSecondary,
+  },
+  bottomSheetItemDate: {
+    ...typography.caption,
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  bottomSheetItemRight: {
+    alignItems: 'flex-end',
+  },
+  bottomSheetBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    backgroundColor: '#fff3cd',
+    marginBottom: 8,
+  },
+  bottomSheetBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400e',
+  },
+  bottomSheetItemAmount: {
+    ...typography.bodyStrong,
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  bottomSheetEmpty: {
+    padding: 40,
+    alignItems: 'center',
   },
 });
 
