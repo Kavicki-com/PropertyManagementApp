@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import DropDownPicker from 'react-native-dropdown-picker';
+import { SelectList } from 'react-native-dropdown-select-list';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -40,11 +40,10 @@ const EditPropertyScreen = ({ route, navigation }) => {
   const [images, setImages] = useState([]);
   const [errors, setErrors] = useState({});
 
-  const [typeOpen, setTypeOpen] = useState(false);
   const [typeValue, setTypeValue] = useState('');
-  const [typeItems, setTypeItems] = useState([
-    { label: 'Residencial', value: 'Residencial' },
-    { label: 'Comercial', value: 'Comercial' },
+  const [typeItems] = useState([
+    { key: 'Residencial', value: 'Residencial' },
+    { key: 'Comercial', value: 'Comercial' },
   ]);
 
   useEffect(() => {
@@ -192,7 +191,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
         <Text style={styles.header}>Editar Propriedade</Text>
         <View style={{ width: 24 }} /> 
       </View>
-      <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true}>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Endereço</Text>
@@ -200,18 +199,18 @@ const EditPropertyScreen = ({ route, navigation }) => {
           {errors.endereco && <Text style={styles.errorText}>{errors.endereco}</Text>}
         </View>
 
-        <View style={[styles.inputGroup, { zIndex: 1000 }]}>
+        <View style={styles.inputGroup}>
             <Text style={styles.label}>Tipo de Propriedade</Text>
-            <DropDownPicker
-                open={typeOpen}
-                value={typeValue}
-                items={typeItems}
-                setOpen={setTypeOpen}
-                setValue={setTypeValue}
-                setItems={setTypeItems}
-                placeholder="Selecione o tipo"
-                listMode="MODAL"
-                zIndex={1000}
+            <SelectList
+                setSelected={(val) => setTypeValue(val)}
+                data={typeItems}
+                save="key"
+                placeholder="Selecione o tipo de propriedade"
+                defaultOption={typeValue ? typeItems.find(t => t.key === typeValue) : undefined}
+                boxStyles={styles.dropdown}
+                inputStyles={styles.dropdownText}
+                dropdownStyles={styles.dropdownContainer}
+                search={false}
             />
             {errors.type && <Text style={styles.errorText}>{errors.type}</Text>}
         </View>
@@ -360,6 +359,23 @@ const styles = StyleSheet.create({
         alignItems: 'center', 
         marginTop: 10,
         marginBottom: 40,
+    },
+    dropdown: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        minHeight: 50,
+        overflow: 'hidden',
+    },
+    dropdownText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    dropdownContainer: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        backgroundColor: '#fff',
     },
     buttonText: { 
         color: 'white', 

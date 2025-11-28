@@ -10,8 +10,9 @@ import {
   ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
+  Dimensions,
 } from 'react-native';
-import DropDownPicker from 'react-native-dropdown-picker';
+import { SelectList } from 'react-native-dropdown-select-list';
 import { format, differenceInMonths } from 'date-fns';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
@@ -21,8 +22,11 @@ import { colors, radii, typography } from '../theme';
 
 const AddContractScreen = ({ route, navigation }) => {
   const { tenantId, contract: existingContract, property } = route.params || {};
+  const screenWidth = Dimensions.get('window').width;
 
-  const [propertyId, setPropertyId] = useState(property?.id || existingContract?.property_id || null);
+  const [propertyId, setPropertyId] = useState(
+    property?.id || existingContract?.property_id || null
+  );
   const [properties, setProperties] = useState([]);
 
   const [rentAmount, setRentAmount] = useState(
@@ -45,8 +49,6 @@ const AddContractScreen = ({ route, navigation }) => {
   const [contractLength, setContractLength] = useState(existingContract?.lease_term || 0);
   const [loading, setLoading] = useState(false);
 
-  const [open, setOpen] = useState(false);
-
   useEffect(() => {
     const fetchProperties = async () => {
       const { data, error } = await supabase
@@ -58,15 +60,15 @@ const AddContractScreen = ({ route, navigation }) => {
         Alert.alert('Erro', 'Não foi possível carregar as propriedades.');
       } else {
         const formatted = (data || []).map((p) => ({
-          label: p.address,
-          value: p.id,
+          key: p.id,
+          value: p.address,
           rent: p.rent,
         }));
         setProperties(formatted);
 
         // Se não houver propertyId inicial, usar a primeira disponível
         if (!propertyId && formatted.length > 0) {
-          setPropertyId(formatted[0].value);
+          setPropertyId(formatted[0].key);
           if (formatted[0].rent) {
             setRentAmount(String(formatted[0].rent));
           }
@@ -78,13 +80,13 @@ const AddContractScreen = ({ route, navigation }) => {
   }, []);
 
   useEffect(() => {
-    if (propertyId && (!existingContract || !existingContract.rent_amount)) {
-      const selected = properties.find((item) => item.value === propertyId);
+    if (propertyId && properties.length > 0) {
+      const selected = properties.find((item) => item.key === propertyId);
       if (selected && selected.rent) {
         setRentAmount(String(selected.rent));
       }
     }
-  }, [propertyId, properties, existingContract]);
+  }, [propertyId, properties]);
 
   useEffect(() => {
     const months = differenceInMonths(endDate, startDate);
@@ -126,7 +128,7 @@ const AddContractScreen = ({ route, navigation }) => {
     try {
       const { data, error } = await createContract({
         tenantId,
-        propertyId,
+        propertyId: propertyId || null,
         startDate: startDate.toISOString(),
         endDate: endDate ? endDate.toISOString() : null,
         dueDay: dueDate ? parseInt(dueDate, 10) : null,
@@ -167,21 +169,25 @@ const AddContractScreen = ({ route, navigation }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 32 : 0}
       >
-      <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        <View style={[styles.inputGroup, Platform.OS === 'android' && { zIndex: 1000 }]}>
+      <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true}>
+        <View style={styles.inputGroup}>
           <Text style={styles.label}>Propriedade</Text>
-          <DropDownPicker
-            open={open}
-            value={propertyId}
-            items={properties}
-            setOpen={setOpen}
-            setValue={setPropertyId}
-            setItems={setProperties}
-            searchable={true}
-            searchPlaceholder="Buscar propriedade..."
+          <SelectList
+            setSelected={(val) => {
+              setPropertyId(val);
+              const selected = properties.find(p => p.key === val);
+              if (selected && selected.rent) {
+                setRentAmount(String(selected.rent));
+              }
+            }}
+            data={properties}
+            save="key"
             placeholder="Selecione uma propriedade"
-            listMode="MODAL"
-            zIndex={1000}
+            defaultOption={propertyId ? properties.find(p => p.key === propertyId) : undefined}
+            boxStyles={styles.dropdown}
+            inputStyles={styles.dropdownText}
+            dropdownStyles={styles.dropdownContainer}
+            search={false}
           />
         </View>
 
@@ -317,7 +323,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
-    borderRadius: radii.pill,
+    borderRadius: radii.sm,
     paddingHorizontal: 15,
     fontSize: 16,
   },
@@ -335,7 +341,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
-    borderRadius: radii.pill,
+    borderRadius: radii.sm,
     paddingHorizontal: 15,
     justifyContent: 'center',
   },
@@ -354,6 +360,27 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: 'white',
     ...typography.button,
+  },
+  dropdown: {
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.sm,
+    minHeight: 50,
+    overflow: 'hidden',
+    width: '100%',
+    flexShrink: 1,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: colors.textPrimary,
+    flexShrink: 1,
+    maxWidth: '100%',
+  },
+  dropdownContainer: {
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
   },
 });
 

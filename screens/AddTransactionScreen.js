@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import DropDownPicker from 'react-native-dropdown-picker'; // Use the new dropdown picker
+import { SelectList } from 'react-native-dropdown-select-list';
 import { supabase } from '../lib/supabase';
 import { fetchActiveContractByProperty } from '../lib/contractsService';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -22,21 +22,17 @@ const AddTransactionScreen = ({ route, navigation }) => {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // State for Property Dropdown
-  const [propertyOpen, setPropertyOpen] = useState(false);
   const preselectedPropertyId = route?.params?.preselectedPropertyId ?? null;
-  const [propertyValue, setPropertyValue] = useState(preselectedPropertyId);
+  const [propertyValue, setPropertyValue] = useState(preselectedPropertyId || null);
   const [propertyItems, setPropertyItems] = useState([]);
   const preselectedTenantId = route?.params?.preselectedTenantId ?? null;
   
-  // State for Type Dropdown
-  const [typeOpen, setTypeOpen] = useState(false);
   const preselectedType = route?.params?.preselectedType ?? 'income';
   const [typeValue, setTypeValue] = useState(preselectedType);
-  const [typeItems, setTypeItems] = useState([
-    { label: 'Entrada', value: 'income' },
-    { label: 'Despesa', value: 'expense' },
-    { label: 'Aluguel', value: 'rent' },
+  const [typeItems] = useState([
+    { key: 'income', value: 'Entrada' },
+    { key: 'expense', value: 'Despesa' },
+    { key: 'rent', value: 'Aluguel' },
   ]);
 
   useEffect(() => {
@@ -49,8 +45,8 @@ const AddTransactionScreen = ({ route, navigation }) => {
         Alert.alert('Error', 'Could not fetch properties.');
       } else {
         const formattedProperties = data.map(prop => ({
-          label: prop.address,
-          value: prop.id,
+          key: prop.id,
+          value: prop.address,
         }));
         setPropertyItems(formattedProperties);
       }
@@ -78,7 +74,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
 
     if (!tenantIdForInsert && typeValue === 'rent') {
       const { data: activeContract, error: contractError } =
-        await fetchActiveContractByProperty(propertyValue);
+        await fetchActiveContractByProperty(propertyValue || null);
 
       if (contractError) {
         console.error('Erro ao buscar contrato ativo para lançamento de aluguel:', contractError);
@@ -93,7 +89,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
 
     const { error } = await supabase.from('finances').insert({
       user_id: user.id,
-      property_id: propertyValue,
+      property_id: propertyValue || null,
       tenant_id: tenantIdForInsert,
       description: finalDescription,
       amount: parseFloat(amount),
@@ -122,23 +118,22 @@ const AddTransactionScreen = ({ route, navigation }) => {
         <ScrollView 
             style={styles.scrollContainer}
             keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}
         >
 
         {/* Property Dropdown */}
-        <View style={[styles.inputGroup, { zIndex: 2000 }]}>
+        <View style={styles.inputGroup}>
             <Text style={styles.label}>Propriedade</Text>
-            <DropDownPicker
-                open={propertyOpen}
-                value={propertyValue}
-                items={propertyItems}
-                setOpen={setPropertyOpen}
-                setValue={setPropertyValue}
-                setItems={setPropertyItems}
-                searchable={true}
-                searchPlaceholder="Buscar propriedade..."
-                placeholder="Selecione a propriedade"
-                listMode="MODAL"
-                zIndex={2000}
+            <SelectList
+                setSelected={(val) => setPropertyValue(val)}
+                data={propertyItems}
+                save="key"
+                placeholder="Selecione uma propriedade"
+                defaultOption={propertyValue ? propertyItems.find(p => p.key === propertyValue) : undefined}
+                boxStyles={styles.dropdown}
+                inputStyles={styles.dropdownText}
+                dropdownStyles={styles.dropdownContainer}
+                search={false}
             />
         </View>
         
@@ -164,17 +159,18 @@ const AddTransactionScreen = ({ route, navigation }) => {
         </View>
 
         {/* Type Dropdown */}
-        <View style={[styles.inputGroup, { zIndex: 1000 }]}>
+        <View style={styles.inputGroup}>
             <Text style={styles.label}>Tipo</Text>
-            <DropDownPicker
-                open={typeOpen}
-                value={typeValue}
-                items={typeItems}
-                setOpen={setTypeOpen}
-                setValue={setTypeValue}
-                setItems={setTypeItems}
-                listMode="MODAL"
-                zIndex={1000}
+            <SelectList
+                setSelected={(val) => setTypeValue(val)}
+                data={typeItems}
+                save="key"
+                placeholder="Selecione o tipo"
+                defaultOption={typeValue ? typeItems.find(t => t.key === typeValue) : undefined}
+                boxStyles={styles.dropdown}
+                inputStyles={styles.dropdownText}
+                dropdownStyles={styles.dropdownContainer}
+                search={false}
             />
         </View>
 
@@ -228,7 +224,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
-    borderRadius: 8,
+    borderRadius: radii.sm,
     paddingHorizontal: 15,
     fontSize: 16,
   },
@@ -242,6 +238,23 @@ const styles = StyleSheet.create({
   addButtonText: {
     color: 'white',
     ...typography.button,
+  },
+  dropdown: {
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.sm,
+    minHeight: 50,
+    overflow: 'hidden',
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  dropdownContainer: {
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
   },
 });
 
