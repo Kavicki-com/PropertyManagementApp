@@ -30,6 +30,8 @@ import SettingsScreen from './screens/SettingsScreen';
 import LinkTenantScreen from './screens/LinkTenantScreen';
 import LinkPropertyScreen from './screens/LinkPropertyScreen';
 import AddContractScreen from './screens/AddContractScreen';
+import TermsOfServiceScreen from './screens/TermsOfServiceScreen';
+import FAQScreen from './screens/FAQScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -220,6 +222,8 @@ export default function App() {
             <Stack.Screen name="AddContract" component={AddContractScreen} />
             <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+            <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
+            <Stack.Screen name="FAQ" component={FAQScreen} />
           </Stack.Group>
         ) : (
           <Stack.Group>
@@ -227,6 +231,8 @@ export default function App() {
             <Stack.Screen name="SignUp" component={SignUpScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+            <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
+            <Stack.Screen name="FAQ" component={FAQScreen} />
           </Stack.Group>
         )}
       </Stack.Navigator>

@@ -19,6 +19,29 @@ const LoginScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const handleResendConfirmation = async () => {
+    if (!email) {
+      Alert.alert('Erro', 'Por favor, insira seu email primeiro.');
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+    });
+
+    if (error) {
+      Alert.alert('Erro', error.message);
+    } else {
+      Alert.alert(
+        'Email enviado',
+        'Verifique sua caixa de entrada e a pasta de spam. O email pode levar alguns minutos para chegar.'
+      );
+    }
+    setLoading(false);
+  };
+
   const handleLogin = async () => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
@@ -27,7 +50,44 @@ const LoginScreen = ({ navigation }) => {
     });
 
     if (error) {
-      Alert.alert('Error', error.message);
+      // Verifica se é erro de email não confirmado
+      if (error.message.includes('Email not confirmed') || error.message.includes('email not confirmed')) {
+        Alert.alert(
+          'Email não confirmado',
+          'Por favor, verifique seu email e confirme sua conta antes de fazer login. Não recebeu o email?',
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+            },
+            {
+              text: 'Reenviar email',
+              onPress: handleResendConfirmation,
+              style: 'default',
+            },
+          ]
+        );
+      }
+      // Verifica se é erro de credenciais inválidas
+      else if (error.message.includes('Invalid login credentials') || error.message.includes('invalid credentials')) {
+        Alert.alert(
+          'Cadastro não encontrado',
+          'Clique em cadastre-se para continuar',
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+            },
+            {
+              text: 'Cadastre-se',
+              onPress: () => navigation.navigate('SignUp'),
+              style: 'default',
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Erro', error.message);
+      }
     }
     setLoading(false);
   };
@@ -82,6 +142,13 @@ const LoginScreen = ({ navigation }) => {
           <Text style={styles.signUpLink}>Cadastre-se</Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity
+        style={styles.faqButton}
+        onPress={() => navigation.navigate('FAQ')}
+      >
+        <Text style={styles.faqButtonText}>Perguntas Frequentes (FAQ)</Text>
+      </TouchableOpacity>
     </KeyboardAvoidingView>
   );
 };
@@ -146,6 +213,16 @@ const styles = StyleSheet.create({
   signUpLink: {
     color: '#4a86e8',
     fontWeight: 'bold',
+  },
+  faqButton: {
+    marginTop: 20,
+    padding: 12,
+    alignItems: 'center',
+  },
+  faqButtonText: {
+    color: '#4a86e8',
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
 });
 
