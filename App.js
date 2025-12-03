@@ -32,6 +32,7 @@ import LinkPropertyScreen from './screens/LinkPropertyScreen';
 import AddContractScreen from './screens/AddContractScreen';
 import TermsOfServiceScreen from './screens/TermsOfServiceScreen';
 import FAQScreen from './screens/FAQScreen';
+import EmailConfirmationScreen from './screens/EmailConfirmationScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -41,6 +42,7 @@ const linking = {
   config: {
     screens: {
       ResetPassword: 'reset-password',
+      EmailConfirmation: 'confirm-email',
     },
   },
 };
@@ -90,6 +92,7 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('Auth state changed:', event, session ? 'has session' : 'no session');
         setSession(session);
 
         if (event === 'PASSWORD_RECOVERY' && session) {
@@ -98,6 +101,24 @@ export default function App() {
           setTimeout(() => {
             navigationRef.current?.navigate('ResetPassword');
           }, 100);
+        }
+
+        // Se o usuário acabou de confirmar o email (SIGNED_IN após signup)
+        // e não estamos já na tela de confirmação, navega para lá
+        if (event === 'SIGNED_IN' && session) {
+          // Verifica se a rota atual não é EmailConfirmation para evitar loops
+          const currentRoute = navigationRef.current?.getCurrentRoute();
+          if (currentRoute?.name !== 'EmailConfirmation') {
+            console.log('User signed in, checking if should navigate to EmailConfirmation');
+            // Pequeno delay para garantir que a navegação funcione
+            setTimeout(() => {
+              const route = navigationRef.current?.getCurrentRoute();
+              if (route?.name !== 'EmailConfirmation') {
+                console.log('Navigating to EmailConfirmation from SIGNED_IN event');
+                navigationRef.current?.navigate('EmailConfirmation');
+              }
+            }, 200);
+          }
         }
       }
     );
@@ -129,27 +150,118 @@ export default function App() {
   const handleDeepLink = async (url) => {
     if (!url) return;
 
+    console.log('=== DEEP LINK DEBUG ===');
     console.log('Deep link received:', url);
+    console.log('Full URL:', JSON.stringify(url));
 
     // Faz o parse da URL para extrair tokens e tipo de operação.
     // O Supabase está mandando os parâmetros no fragmento (#...), então usamos
     // Linking.parse e, se necessário, fazemos um parse manual.
-    const { queryParams: parsedParams } = Linking.parse(url);
+    const parsed = Linking.parse(url);
+    console.log('Parsed URL:', JSON.stringify(parsed, null, 2));
+    
+    let queryParams = parsed.queryParams || {};
 
-    let queryParams = parsedParams;
-
+    // Se não encontrou parâmetros no queryParams, tenta extrair do hash
     if (!queryParams || Object.keys(queryParams).length === 0) {
       const hashIndex = url.indexOf('#');
       if (hashIndex !== -1 && hashIndex + 1 < url.length) {
         const hash = url.substring(hashIndex + 1);
+        console.log('Extracting from hash:', hash);
         const searchParams = new URLSearchParams(hash);
         queryParams = Object.fromEntries(searchParams.entries());
+        console.log('Query params from hash:', JSON.stringify(queryParams, null, 2));
+      }
+    }
+
+    // Também tenta extrair do path se a URL for do formato exp://host/path?params#hash
+    if ((!queryParams || Object.keys(queryParams).length === 0) && parsed.path) {
+      const pathParts = parsed.path.split('?');
+      if (pathParts.length > 1) {
+        const searchParams = new URLSearchParams(pathParts[1]);
+        queryParams = Object.fromEntries(searchParams.entries());
+        console.log('Query params from path:', JSON.stringify(queryParams, null, 2));
       }
     }
 
     const access_token = queryParams?.access_token;
     const refresh_token = queryParams?.refresh_token;
     const type = queryParams?.type;
+
+    console.log('Extracted values:');
+    console.log('- type:', type);
+    console.log('- access_token:', access_token ? `${access_token.substring(0, 20)}...` : 'missing');
+    console.log('- refresh_token:', refresh_token ? `${refresh_token.substring(0, 20)}...` : 'missing');
+
+    // Se for um link de confirmação de email (signup) do Supabase, cria a sessão
+    if (type === 'signup' && access_token && refresh_token) {
+      console.log('✅ Detected signup confirmation link');
+      console.log('Setting session from signup confirmation link');
+      
+      try {
+        const { error } = await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+
+        if (error) {
+          console.error('❌ Error setting session from signup confirmation link:', error);
+          // Em caso de erro, ainda navega para a tela de confirmação para mostrar mensagem
+          setTimeout(() => {
+            navigationRef.current?.reset({
+              index: 0,
+              routes: [{ name: 'EmailConfirmation' }],
+            });
+          }, 100);
+          return;
+        }
+
+        console.log('✅ Session set successfully');
+        // Após criar a sessão de confirmação, navega para a tela de confirmação.
+        // Usamos reset para garantir que a navegação funcione mesmo se a pilha mudar
+        // quando a sessão for atualizada.
+        console.log('Navigating to EmailConfirmation screen after signup confirmation');
+        setTimeout(() => {
+          navigationRef.current?.reset({
+            index: 0,
+            routes: [{ name: 'EmailConfirmation' }],
+          });
+        }, 100);
+        return;
+      } catch (err) {
+        console.error('❌ Exception setting session:', err);
+        setTimeout(() => {
+          navigationRef.current?.reset({
+            index: 0,
+            routes: [{ name: 'EmailConfirmation' }],
+          });
+        }, 100);
+        return;
+      }
+    } else {
+      console.log('⚠️ Not a signup confirmation link or missing tokens');
+      console.log('Type check:', type === 'signup' ? '✅' : '❌');
+      console.log('Tokens check:', (access_token && refresh_token) ? '✅' : '❌');
+      
+      // Fallback: Se a URL contém "confirm-email" no path, pode ser uma confirmação
+      // mesmo sem os parâmetros (pode ter sido processada pelo Supabase)
+      if (url.includes('confirm-email') || parsed.path?.includes('confirm-email')) {
+        console.log('⚠️ URL contains confirm-email but missing tokens, navigating anyway');
+        // Verifica se já existe uma sessão (usuário pode ter confirmado)
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (currentSession) {
+          console.log('✅ Session exists, navigating to EmailConfirmation');
+          setTimeout(() => {
+            navigationRef.current?.reset({
+              index: 0,
+              routes: [{ name: 'EmailConfirmation' }],
+            });
+          }, 100);
+        } else {
+          console.log('⚠️ No session found, may need to wait for auth state change');
+        }
+      }
+    }
 
     // Se for um link de recuperação de senha do Supabase, cria a sessão
     if (type === 'recovery' && access_token && refresh_token) {
@@ -211,6 +323,7 @@ export default function App() {
           <Stack.Group>
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+            <Stack.Screen name="EmailConfirmation" component={EmailConfirmationScreen} />
             <Stack.Screen name="PropertyDetails" component={PropertyDetailsScreen} />
             <Stack.Screen name="TenantDetails" component={TenantDetailsScreen} />
             <Stack.Screen name="AddProperty" component={AddPropertyScreen} />
@@ -231,6 +344,7 @@ export default function App() {
             <Stack.Screen name="SignUp" component={SignUpScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+            <Stack.Screen name="EmailConfirmation" component={EmailConfirmationScreen} />
             <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
             <Stack.Screen name="FAQ" component={FAQScreen} />
           </Stack.Group>

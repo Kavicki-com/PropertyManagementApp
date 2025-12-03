@@ -15,6 +15,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors, typography, radii } from '../theme';
+import Constants from 'expo-constants';
 
 const SignUpScreen = ({ navigation }) => {
   // Dados básicos
@@ -190,6 +191,36 @@ const SignUpScreen = ({ navigation }) => {
     try {
       // 1. Criar conta de autenticação
       // Garantir que o email de confirmação seja enviado
+      
+      // Detecta se está rodando no Expo Go (desenvolvimento) ou em app nativo
+      const isExpoGo = Constants.appOwnership === 'expo';
+
+      // Em desenvolvimento (Expo Go), tenta obter a URL dinamicamente
+      let devRedirectUrl = 'exp://10.0.1.118:8081/--/confirm-email';
+      
+      // Tenta obter o IP do dispositivo se disponível
+      if (Constants.expoConfig?.hostUri) {
+        const hostUri = Constants.expoConfig.hostUri;
+        devRedirectUrl = `exp://${hostUri}/--/confirm-email`;
+      } else if (Constants.manifest?.debuggerHost) {
+        const debuggerHost = Constants.manifest.debuggerHost;
+        devRedirectUrl = `exp://${debuggerHost}/--/confirm-email`;
+      } else {
+        // Fallback para IP comum em desenvolvimento local
+        // O usuário pode precisar ajustar isso manualmente
+        devRedirectUrl = 'exp://localhost:8081/--/confirm-email';
+      }
+
+      // Em produção (app nativo / TestFlight), usamos o esquema llord:// registrado no app.
+      const prodRedirectUrl = 'llord://confirm-email';
+
+      const redirectUrl = isExpoGo ? devRedirectUrl : prodRedirectUrl;
+
+      console.log('Using email confirmation redirect URL:', redirectUrl);
+      console.log('Is Expo Go:', isExpoGo);
+      console.log('Constants.expoConfig?.hostUri:', Constants.expoConfig?.hostUri);
+      console.log('Constants.manifest?.debuggerHost:', Constants.manifest?.debuggerHost);
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email,
         password: password,
@@ -197,7 +228,7 @@ const SignUpScreen = ({ navigation }) => {
           data: {
             full_name: fullName,
           },
-          emailRedirectTo: undefined, // Não precisa de redirect para app mobile
+          emailRedirectTo: redirectUrl,
         },
       });
 
