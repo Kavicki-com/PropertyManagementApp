@@ -102,24 +102,6 @@ export default function App() {
             navigationRef.current?.navigate('ResetPassword');
           }, 100);
         }
-
-        // Se o usuário acabou de confirmar o email (SIGNED_IN após signup)
-        // e não estamos já na tela de confirmação, navega para lá
-        if (event === 'SIGNED_IN' && session) {
-          // Verifica se a rota atual não é EmailConfirmation para evitar loops
-          const currentRoute = navigationRef.current?.getCurrentRoute();
-          if (currentRoute?.name !== 'EmailConfirmation') {
-            console.log('User signed in, checking if should navigate to EmailConfirmation');
-            // Pequeno delay para garantir que a navegação funcione
-            setTimeout(() => {
-              const route = navigationRef.current?.getCurrentRoute();
-              if (route?.name !== 'EmailConfirmation') {
-                console.log('Navigating to EmailConfirmation from SIGNED_IN event');
-                navigationRef.current?.navigate('EmailConfirmation');
-              }
-            }, 200);
-          }
-        }
       }
     );
 
