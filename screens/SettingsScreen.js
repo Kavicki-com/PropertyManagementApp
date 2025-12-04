@@ -56,11 +56,60 @@ const SettingsScreen = ({ navigation }) => {
     );
   };
 
+  const deleteAccount = async () => {
+    try {
+      // Chama a RPC function para deletar a conta do usuário autenticado
+      const { data, error } = await supabase.rpc('delete_user_account');
+      
+      if (error) {
+        console.error('Erro ao deletar conta:', error);
+        Alert.alert(
+          'Erro',
+          error.message || 'Não foi possível deletar a conta. Verifique se a função RPC está configurada corretamente.'
+        );
+        return;
+      }
+
+      // Verifica se a função retornou sucesso
+      if (data && !data.success) {
+        Alert.alert('Erro', data.error || 'Não foi possível deletar a conta.');
+        return;
+      }
+
+      // Se chegou aqui, a exclusão foi bem-sucedida
+      // Faz logout antes de redirecionar
+      await supabase.auth.signOut();
+      
+      Alert.alert('Sucesso', 'Sua conta foi deletada com sucesso.', [
+        {
+          text: 'OK',
+          onPress: () => {
+            // Redireciona para tela de Login
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          },
+        },
+      ]);
+    } catch (error) {
+      console.error('Erro inesperado ao deletar conta:', error);
+      Alert.alert('Erro', 'Ocorreu um erro inesperado ao tentar deletar a conta.');
+    }
+  };
+
   const handleDeleteAccount = () => {
     Alert.alert(
-        "Ação Perigosa",
-        "A exclusão de conta é uma ação que deve ser tratada com segurança no servidor e não pode ser feita diretamente do aplicativo. Esta função ainda será implementada.",
-        [{ text: "OK" }]
+      "Deletar Conta",
+      "Você tem certeza que deseja deletar sua conta? Esta ação é irreversível e todos os seus dados serão permanentemente removidos.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Deletar",
+          style: "destructive",
+          onPress: deleteAccount,
+        },
+      ]
     );
   };
 
@@ -150,7 +199,6 @@ const SettingsScreen = ({ navigation }) => {
           <SettingsItem
             iconName="delete-forever"
             title="Deletar conta"
-            subtitle="Função ainda não implementada"
             onPress={handleDeleteAccount}
             danger
           />
