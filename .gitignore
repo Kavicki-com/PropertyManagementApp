@@ -14,3 +14,6 @@ npm-debug.*
 # Tools
 .idea/
 .vscode/
+plans/deleteaccount.md
+plans/Plan-notifications.md
+plans/tenants-view.md
