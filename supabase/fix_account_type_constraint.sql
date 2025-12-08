@@ -26,3 +26,6 @@ CHECK (account_type IS NULL OR account_type IN ('individual', 'company', 'adviso
 -- NOTA: A constraint permite NULL, então o campo é opcional.
 -- Se você quiser tornar o campo obrigatório, remova "account_type IS NULL OR" da constraint.
 
+
+
+

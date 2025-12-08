@@ -49,3 +49,6 @@ $$;
 -- Concede permissão para usuários autenticados executarem esta função
 GRANT EXECUTE ON FUNCTION delete_user_account() TO authenticated;
 
+
+
+

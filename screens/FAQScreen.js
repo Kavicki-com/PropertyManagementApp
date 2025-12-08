@@ -212,3 +212,6 @@ const styles = StyleSheet.create({
 
 export default FAQScreen;
 
+
+
+

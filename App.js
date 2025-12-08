@@ -8,6 +8,11 @@ import { supabase } from './lib/supabase';
 import { View, ActivityIndicator, Linking as RNLinking } from 'react-native';
 import * as Linking from 'expo-linking';
 import { colors, typography } from './theme';
+import {
+  initializeNotifications,
+  setupNotificationListeners,
+  checkAndCreateNotifications,
+} from './lib/notificationsService';
 
 // Telas
 import LoginScreen from './screens/LoginScreen';
@@ -91,7 +96,7 @@ export default function App() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         console.log('Auth state changed:', event, session ? 'has session' : 'no session');
         setSession(session);
 
@@ -101,6 +106,15 @@ export default function App() {
           setTimeout(() => {
             navigationRef.current?.navigate('ResetPassword');
           }, 100);
+        }
+
+        // Inicializa notificações quando usuário faz login
+        if (event === 'SIGNED_IN' && session) {
+          setTimeout(async () => {
+            await initializeNotifications(navigationRef.current);
+            // Verifica e cria notificações quando o usuário faz login
+            await checkAndCreateNotifications();
+          }, 1000);
         }
       }
     );
@@ -127,6 +141,36 @@ export default function App() {
       linkingSubscription?.remove();
     };
   }, []);
+
+  // Configura listeners de notificações quando há sessão
+  useEffect(() => {
+    if (!session?.user) {
+      return;
+    }
+
+    // Inicializa notificações quando há sessão
+    let cleanup = null;
+    
+    const setupNotifications = async () => {
+      await initializeNotifications(navigationRef.current);
+      
+      // Configura listeners
+      cleanup = setupNotificationListeners(navigationRef.current);
+      
+      // Verifica e cria notificações ao abrir o app
+      setTimeout(async () => {
+        await checkAndCreateNotifications();
+      }, 2000);
+    };
+
+    setupNotifications();
+
+    return () => {
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, [session]);
 
   // Função para lidar com deep linking
   const handleDeepLink = async (url) => {
