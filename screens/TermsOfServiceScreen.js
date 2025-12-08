@@ -178,3 +178,6 @@ const styles = StyleSheet.create({
 
 export default TermsOfServiceScreen;
 
+
+
+
