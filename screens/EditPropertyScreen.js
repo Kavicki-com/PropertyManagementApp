@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Buffer } from 'buffer';
+import { isValidMoney, parseMoney, filterOnlyNumbers, filterMoney, filterAddress } from '../lib/validation';
 
 const decode = (base64) => {
   const binaryString = Buffer.from(base64, 'base64').toString('binary');
@@ -97,11 +98,10 @@ const EditPropertyScreen = ({ route, navigation }) => {
       newErrors.type = 'Selecione o tipo de propriedade.';
     }
 
-    const parsedRent = parseInt(aluguel.replace(/[^0-9]/g, ''), 10);
     if (!aluguel.trim()) {
       newErrors.aluguel = 'Informe o valor do aluguel.';
-    } else if (isNaN(parsedRent) || parsedRent <= 0) {
-      newErrors.aluguel = 'Informe um valor de aluguel válido (maior que 0).';
+    } else if (!isValidMoney(aluguel, { min: 0.01, max: 9999999.99 })) {
+      newErrors.aluguel = 'Informe um valor de aluguel válido (entre R$ 0,01 e R$ 9.999.999,99).';
     }
 
     if (area.trim()) {
@@ -154,7 +154,14 @@ const EditPropertyScreen = ({ route, navigation }) => {
     const parsedBanheiros = banheiros ? parseInt(banheiros.replace(/[^0-9]/g, ''), 10) : null;
     const parsedTotalComodos = totalComodos ? parseInt(totalComodos.replace(/[^0-9]/g, ''), 10) : null;
     const parsedArea = area ? parseInt(area.replace(/[^0-9]/g, ''), 10) : null;
-    const parsedAluguel = aluguel ? parseInt(aluguel.replace(/[^0-9]/g, ''), 10) : null;
+    const parsedAluguel = aluguel ? parseMoney(aluguel) : null;
+    
+    // Validação final antes de salvar
+    if (parsedAluguel !== null && (isNaN(parsedAluguel) || parsedAluguel <= 0)) {
+      Alert.alert('Erro', 'Valor do aluguel inválido.');
+      setLoading(false);
+      return;
+    }
 
     const { error: propertyError } = await supabase
       .from('properties')
@@ -195,7 +202,12 @@ const EditPropertyScreen = ({ route, navigation }) => {
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Endereço</Text>
-          <TextInput style={styles.input} value={endereco} onChangeText={setEndereco} />
+          <TextInput 
+            style={styles.input} 
+            value={endereco} 
+            onChangeText={(text) => setEndereco(filterAddress(text))} 
+            placeholder="Digite o endereço completo"
+          />
           {errors.endereco && <Text style={styles.errorText}>{errors.endereco}</Text>}
         </View>
 
@@ -221,8 +233,9 @@ const EditPropertyScreen = ({ route, navigation }) => {
             <TextInput
               style={styles.input}
               value={quartos}
-              onChangeText={(text) => setQuartos(text.replace(/[^0-9]/g, ''))}
+              onChangeText={(text) => setQuartos(filterOnlyNumbers(text))}
               keyboardType="numeric"
+              maxLength={2}
             />
           </View>
           <View style={styles.inputGroupHalf}>
@@ -230,8 +243,9 @@ const EditPropertyScreen = ({ route, navigation }) => {
             <TextInput
               style={styles.input}
               value={banheiros}
-              onChangeText={(text) => setBanheiros(text.replace(/[^0-9]/g, ''))}
+              onChangeText={(text) => setBanheiros(filterOnlyNumbers(text))}
               keyboardType="numeric"
+              maxLength={2}
             />
           </View>
         </View>
@@ -242,8 +256,9 @@ const EditPropertyScreen = ({ route, navigation }) => {
                 <TextInput
                   style={styles.input}
                   value={totalComodos}
-                  onChangeText={(text) => setTotalComodos(text.replace(/[^0-9]/g, ''))}
+                  onChangeText={(text) => setTotalComodos(filterOnlyNumbers(text))}
                   keyboardType="numeric"
+                  maxLength={3}
                 />
             </View>
             <View style={styles.inputGroupHalf}>
@@ -251,7 +266,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
                 <TextInput
                   style={styles.input}
                   value={area}
-                  onChangeText={(text) => setArea(text.replace(/[^0-9]/g, ''))}
+                  onChangeText={(text) => setArea(filterOnlyNumbers(text))}
                   keyboardType="numeric"
                 />
             </View>
@@ -262,8 +277,9 @@ const EditPropertyScreen = ({ route, navigation }) => {
           <TextInput
             style={styles.input}
             value={aluguel}
-            onChangeText={(text) => setAluguel(text.replace(/[^0-9]/g, ''))}
+            onChangeText={(text) => setAluguel(filterMoney(text))}
             keyboardType="decimal-pad"
+            placeholder="Ex: 1800,50"
           />
           {errors.aluguel && <Text style={styles.errorText}>{errors.aluguel}</Text>}
         </View>

@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
+import { filterOnlyLetters, filterOnlyNumbers } from '../lib/validation';
 
 const AddTenantScreen = ({ route, navigation }) => {
   const [fullName, setFullName] = useState('');
@@ -86,7 +87,7 @@ const AddTenantScreen = ({ route, navigation }) => {
                 style={styles.input}
                 placeholder="Digite o nome do inquilino"
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={(text) => setFullName(filterOnlyLetters(text))}
                 />
             </View>
 
@@ -96,8 +97,9 @@ const AddTenantScreen = ({ route, navigation }) => {
                 style={styles.input}
                 placeholder="Digite o CPF do inquilino"
                 value={cpf}
-                onChangeText={setCpf}
+                onChangeText={(text) => setCpf(filterOnlyNumbers(text))}
                 keyboardType="numeric"
+                maxLength={11}
                 />
             </View>
 
@@ -107,7 +109,7 @@ const AddTenantScreen = ({ route, navigation }) => {
                 style={styles.input}
                 placeholder="Digite o RG do inquilino"
                 value={rg}
-                onChangeText={setRg}
+                onChangeText={(text) => setRg(filterOnlyNumbers(text))}
                 keyboardType="numeric"
                 />
             </View>
@@ -116,9 +118,9 @@ const AddTenantScreen = ({ route, navigation }) => {
                 <Text style={styles.label}>Nacionalidade</Text>
                 <TextInput
                 style={styles.input}
-                placeholder="Ex: Brasileiro(a)"
+                placeholder="Ex: Brasileiro"
                 value={nationality}
-                onChangeText={setNationality}
+                onChangeText={(text) => setNationality(filterOnlyLetters(text))}
                 />
             </View>
 
@@ -126,9 +128,9 @@ const AddTenantScreen = ({ route, navigation }) => {
                 <Text style={styles.label}>Estado civil</Text>
                 <TextInput
                 style={styles.input}
-                placeholder="Ex: Solteiro(a), Casado(a)"
+                placeholder="Ex: Solteiro, Casado"
                 value={maritalStatus}
-                onChangeText={setMaritalStatus}
+                onChangeText={(text) => setMaritalStatus(filterOnlyLetters(text))}
                 />
             </View>
 
@@ -138,7 +140,7 @@ const AddTenantScreen = ({ route, navigation }) => {
                 style={styles.input}
                 placeholder="Ex: Engenheiro, Professora"
                 value={profession}
-                onChangeText={setProfession}
+                onChangeText={(text) => setProfession(filterOnlyLetters(text))}
                 />
             </View>
 
@@ -148,8 +150,9 @@ const AddTenantScreen = ({ route, navigation }) => {
                 style={styles.input}
                 placeholder="Digite o telefone do inquilino"
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={(text) => setPhone(filterOnlyNumbers(text))}
                 keyboardType="phone-pad"
+                maxLength={11}
                 />
             </View>
 
@@ -161,6 +164,7 @@ const AddTenantScreen = ({ route, navigation }) => {
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
+                autoCapitalize="none"
                 />
             </View>
 

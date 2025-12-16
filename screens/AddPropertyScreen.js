@@ -17,6 +17,7 @@ import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Buffer } from 'buffer';
+import { isValidInteger, isValidMoney, parseMoney, filterOnlyNumbers, filterMoney, filterAddress } from '../lib/validation';
 
 const decode = (base64) => {
   const binaryString = Buffer.from(base64, 'base64').toString('binary');
@@ -79,17 +80,38 @@ const AddPropertyScreen = ({ navigation }) => {
       newErrors.type = 'Selecione o tipo de propriedade.';
     }
 
-    const parsedRent = parseInt(aluguel.replace(/[^0-9]/g, ''), 10);
+    // Validação de aluguel usando parseFloat para preservar decimais
     if (!aluguel.trim()) {
       newErrors.aluguel = 'Informe o valor do aluguel.';
-    } else if (isNaN(parsedRent) || parsedRent <= 0) {
-      newErrors.aluguel = 'Informe um valor de aluguel válido (maior que 0).';
+    } else if (!isValidMoney(aluguel, { min: 0.01, max: 9999999.99 })) {
+      newErrors.aluguel = 'Informe um valor de aluguel válido (entre R$ 0,01 e R$ 9.999.999,99).';
     }
 
+    // Validação de quartos com limites realistas
+    if (quartos.trim()) {
+      if (!isValidInteger(quartos, { min: 0, max: 50 })) {
+        newErrors.quartos = 'Número de quartos inválido (máximo 50).';
+      }
+    }
+
+    // Validação de banheiros com limites realistas
+    if (banheiros.trim()) {
+      if (!isValidInteger(banheiros, { min: 0, max: 30 })) {
+        newErrors.banheiros = 'Número de banheiros inválido (máximo 30).';
+      }
+    }
+
+    // Validação de total de cômodos com limites realistas
+    if (totalComodos.trim()) {
+      if (!isValidInteger(totalComodos, { min: 0, max: 100 })) {
+        newErrors.totalComodos = 'Total de cômodos inválido (máximo 100).';
+      }
+    }
+
+    // Validação de área com limites realistas
     if (area.trim()) {
-      const parsedArea = parseInt(area.replace(/[^0-9]/g, ''), 10);
-      if (isNaN(parsedArea) || parsedArea <= 0) {
-        newErrors.area = 'Informe uma área válida (maior que 0).';
+      if (!isValidInteger(area, { min: 1, max: 100000 })) {
+        newErrors.area = 'Área inválida (entre 1 e 100.000 m²).';
       }
     }
 
@@ -139,11 +161,21 @@ const AddPropertyScreen = ({ navigation }) => {
       }
     }
 
+    // Parse de valores numéricos com validação
     const parsedQuartos = quartos ? parseInt(quartos.replace(/[^0-9]/g, ''), 10) : null;
     const parsedBanheiros = banheiros ? parseInt(banheiros.replace(/[^0-9]/g, ''), 10) : null;
     const parsedTotalComodos = totalComodos ? parseInt(totalComodos.replace(/[^0-9]/g, ''), 10) : null;
     const parsedArea = area ? parseInt(area.replace(/[^0-9]/g, ''), 10) : null;
-    const parsedAluguel = aluguel ? parseInt(aluguel.replace(/[^0-9]/g, ''), 10) : null;
+    
+    // Usa parseFloat para preservar decimais no valor do aluguel
+    const parsedAluguel = aluguel ? parseMoney(aluguel) : null;
+    
+    // Validação final antes de salvar
+    if (parsedAluguel === null || isNaN(parsedAluguel) || parsedAluguel <= 0) {
+      Alert.alert('Erro', 'Valor do aluguel inválido.');
+      setLoading(false);
+      return;
+    }
 
     const { error: insertError } = await supabase.from('properties').insert({
       user_id: user.id,
@@ -185,7 +217,7 @@ const AddPropertyScreen = ({ navigation }) => {
             style={styles.input}
             placeholder="Digite o endereço completo"
             value={endereco}
-            onChangeText={setEndereco}
+            onChangeText={(text) => setEndereco(filterAddress(text))}
             />
             {errors.endereco && <Text style={styles.errorText}>{errors.endereco}</Text>}
         </View>
@@ -210,22 +242,32 @@ const AddPropertyScreen = ({ navigation }) => {
             <View style={styles.inputGroupHalf}>
             <Text style={styles.label}>Quartos</Text>
             <TextInput
-                style={styles.input}
+                style={[styles.input, errors.quartos && styles.inputError]}
                 placeholder="Ex: 3"
                 value={quartos}
-            onChangeText={(text) => setQuartos(text.replace(/[^0-9]/g, ''))}
+            onChangeText={(text) => {
+                setQuartos(filterOnlyNumbers(text));
+                if (errors.quartos) setErrors({ ...errors, quartos: null });
+            }}
                 keyboardType="numeric"
+                maxLength={2}
             />
+            {errors.quartos && <Text style={styles.errorText}>{errors.quartos}</Text>}
             </View>
             <View style={styles.inputGroupHalf}>
             <Text style={styles.label}>Banheiros</Text>
             <TextInput
-                style={styles.input}
+                style={[styles.input, errors.banheiros && styles.inputError]}
                 placeholder="Ex: 2"
                 value={banheiros}
-            onChangeText={(text) => setBanheiros(text.replace(/[^0-9]/g, ''))}
+            onChangeText={(text) => {
+                setBanheiros(filterOnlyNumbers(text));
+                if (errors.banheiros) setErrors({ ...errors, banheiros: null });
+            }}
                 keyboardType="numeric"
+                maxLength={2}
             />
+            {errors.banheiros && <Text style={styles.errorText}>{errors.banheiros}</Text>}
             </View>
         </View>
 
@@ -233,12 +275,17 @@ const AddPropertyScreen = ({ navigation }) => {
             <View style={styles.inputGroupHalf}>
             <Text style={styles.label}>Total de Cômodos</Text>
             <TextInput
-                style={styles.input}
+                style={[styles.input, errors.totalComodos && styles.inputError]}
                 placeholder="Ex: 8"
                 value={totalComodos}
-                onChangeText={(text) => setTotalComodos(text.replace(/[^0-9]/g, ''))}
+                onChangeText={(text) => {
+                    setTotalComodos(filterOnlyNumbers(text));
+                    if (errors.totalComodos) setErrors({ ...errors, totalComodos: null });
+                }}
                 keyboardType="numeric"
+                maxLength={3}
             />
+            {errors.totalComodos && <Text style={styles.errorText}>{errors.totalComodos}</Text>}
             </View>
             <View style={styles.inputGroupHalf}>
             <Text style={styles.label}>Área (m²)</Text>
@@ -246,7 +293,7 @@ const AddPropertyScreen = ({ navigation }) => {
                 style={styles.input}
                 placeholder="Ex: 150"
                 value={area}
-                onChangeText={(text) => setArea(text.replace(/[^0-9]/g, ''))}
+                onChangeText={(text) => setArea(filterOnlyNumbers(text))}
                 keyboardType="numeric"
             />
             {errors.area && <Text style={styles.errorText}>{errors.area}</Text>}
@@ -256,10 +303,13 @@ const AddPropertyScreen = ({ navigation }) => {
         <View style={styles.inputGroup}>
             <Text style={styles.label}>Valor do Aluguel (R$)</Text>
             <TextInput
-            style={styles.input}
-            placeholder="Ex: 1800"
+            style={[styles.input, errors.aluguel && styles.inputError]}
+            placeholder="Ex: 1800,50"
             value={aluguel}
-            onChangeText={(text) => setAluguel(text.replace(/[^0-9]/g, ''))}
+            onChangeText={(text) => {
+                setAluguel(filterMoney(text));
+                if (errors.aluguel) setErrors({ ...errors, aluguel: null });
+            }}
             keyboardType="decimal-pad"
             />
             {errors.aluguel && <Text style={styles.errorText}>{errors.aluguel}</Text>}
@@ -420,6 +470,10 @@ const styles = StyleSheet.create({
       marginTop: 4,
       color: '#F44336',
       fontSize: 12,
+    },
+    inputError: {
+      borderColor: '#F44336',
+      borderWidth: 2,
     },
   });
 

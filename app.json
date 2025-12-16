@@ -65,7 +65,9 @@
     "extra": {
       "eas": {
         "projectId": "d060a5f9-4d18-4a38-b02d-d354c0fd46ea"
-      }
+      },
+      "supabaseUrl": "https://gojfugdhndzhuxehoyvb.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvamZ1Z2RobmR6aHV4ZWhveXZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5NTEwNzgsImV4cCI6MjA3NTUyNzA3OH0.Mz94nXAQw3z1HRADATmaNTzPL_-OrX6P8YXXRvpgHHc"
     },
     "owner": "kavickicom"
   }

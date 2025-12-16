@@ -12,19 +12,31 @@ import {
   Platform,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { validatePassword, getPasswordStrength } from '../lib/validation';
 
 const ResetPasswordScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const handlePasswordUpdate = async () => {
-    if (password !== confirmPassword) {
-      Alert.alert('Erro', 'As senhas não coincidem.');
-      return;
+    const newErrors = {};
+    
+    // Validação de senha com requisitos de segurança
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      newErrors.password = passwordValidation.errors.join('. ');
     }
-    if (password.length < 6) {
-      Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres.');
+    
+    if (password !== confirmPassword) {
+      newErrors.confirmPassword = 'As senhas não coincidem.';
+    }
+    
+    setErrors(newErrors);
+    
+    if (Object.keys(newErrors).length > 0) {
+      Alert.alert('Erro de Validação', Object.values(newErrors).join('\n'));
       return;
     }
 
@@ -56,23 +68,67 @@ const ResetPasswordScreen = ({ navigation }) => {
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Nova Senha</Text>
           <TextInput
-            style={styles.input}
-            placeholder="Digite sua nova senha"
+            style={[styles.input, errors.password && styles.inputError]}
+            placeholder="Mín. 8 caracteres + 1 especial (!@#$...)"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (errors.password) setErrors({ ...errors, password: null });
+            }}
             secureTextEntry
           />
+          {/* Indicador de força da senha */}
+          {password.length > 0 && (
+            <View style={styles.passwordStrengthContainer}>
+              <View style={styles.passwordStrengthBar}>
+                <View
+                  style={[
+                    styles.passwordStrengthFill,
+                    {
+                      width: `${Math.min(100, (getPasswordStrength(password).score / 8) * 100)}%`,
+                      backgroundColor:
+                        getPasswordStrength(password).strength === 'weak'
+                          ? '#F44336'
+                          : getPasswordStrength(password).strength === 'medium'
+                          ? '#FF9800'
+                          : '#4CAF50',
+                    },
+                  ]}
+                />
+              </View>
+              <Text
+                style={[
+                  styles.passwordStrengthText,
+                  {
+                    color:
+                      getPasswordStrength(password).strength === 'weak'
+                        ? '#F44336'
+                        : getPasswordStrength(password).strength === 'medium'
+                        ? '#FF9800'
+                        : '#4CAF50',
+                  },
+                ]}
+              >
+                {getPasswordStrength(password).label}
+              </Text>
+            </View>
+          )}
+          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
         </View>
 
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Confirmar Nova Senha</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.confirmPassword && styles.inputError]}
             placeholder="Confirme sua nova senha"
             value={confirmPassword}
-            onChangeText={setConfirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: null });
+            }}
             secureTextEntry
           />
+          {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
         </View>
 
         <TouchableOpacity style={styles.updateButton} onPress={handlePasswordUpdate} disabled={loading}>
@@ -119,6 +175,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     fontSize: 16,
     backgroundColor: '#fff',
+  },
+  inputError: {
+    borderColor: '#F44336',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#F44336',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  passwordStrengthContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  passwordStrengthBar: {
+    flex: 1,
+    height: 4,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  passwordStrengthFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  passwordStrengthText: {
+    fontSize: 12,
+    fontWeight: '600',
+    minWidth: 50,
   },
   updateButton: {
     backgroundColor: '#4a86e8',
