@@ -331,6 +331,7 @@ const AddPropertyScreen = ({ navigation }) => {
                 setNumber(filterAddressNumber(text));
                 if (errors.number) setErrors({ ...errors, number: null });
               }}
+              keyboardType="numeric"
               maxLength={10}
             />
             {errors.number && <Text style={styles.errorText}>{errors.number}</Text>}
