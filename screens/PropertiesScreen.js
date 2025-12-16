@@ -17,15 +17,23 @@ import { fetchAllProperties } from '../lib/propertiesService';
 import { useIsFocused } from '@react-navigation/native';
 import SearchBar from '../components/SearchBar';
 
+// Função para formatar endereço na listagem
+const formatPropertyAddress = (item) => {
+  if (item.street) {
+    let address = item.street;
+    if (item.number) address += `, ${item.number}`;
+    if (item.neighborhood) address += ` - ${item.neighborhood}`;
+    return address;
+  }
+  return item.address || 'Endereço não informado';
+};
+
 const PropertyItem = ({ item, onPress }) => {
   const hasTenant = item.tenants && item.tenants.length > 0;
   const status = hasTenant ? 'Alugada' : 'Disponível';
   const statusStyle = hasTenant ? styles.rented : styles.available;
   const statusTextStyle = hasTenant ? styles.rentedText : styles.availableText;
 
-  // --- CORREÇÃO APLICADA AQUI ---
-  // Define a fonte da imagem: usa a primeira URL da lista se existir,
-  // caso contrário, usa a imagem placeholder local.
   const imageSource = (item.image_urls && item.image_urls.length > 0)
     ? { uri: item.image_urls[0] }
     : require('../assets/property-placeholder.jpg');
@@ -33,11 +41,11 @@ const PropertyItem = ({ item, onPress }) => {
   return (
     <TouchableOpacity style={styles.propertyCard} onPress={() => onPress(item)}>
       <Image 
-        source={imageSource} // A imagem agora é dinâmica
+        source={imageSource}
         style={styles.propertyImage} 
       />
       <View style={styles.propertyInfo}>
-        <Text style={styles.propertyAddress}>{item.address}</Text>
+        <Text style={styles.propertyAddress} numberOfLines={2}>{formatPropertyAddress(item)}</Text>
         <View style={styles.propertyMeta}>
           <Text style={styles.propertyType}>{item.type}</Text>
           <View style={[styles.statusBadge, statusStyle]}>
@@ -48,7 +56,6 @@ const PropertyItem = ({ item, onPress }) => {
     </TouchableOpacity>
   );
 };
-// --- FIM DA CORREÇÃO ---
 
 const PropertiesScreen = ({ navigation }) => {
   const [properties, setProperties] = useState([]);
@@ -86,12 +93,19 @@ const PropertiesScreen = ({ navigation }) => {
   const { activeProperties, archivedProperties } = useMemo(() => {
     let result = [...properties];
 
-    // Filtro por texto (endereço)
+    // Filtro por texto (endereço - busca em todos os campos)
     if (searchQuery.trim()) {
       const query = searchQuery.trim().toLowerCase();
-      result = result.filter((p) =>
-        (p.address || '').toLowerCase().includes(query)
-      );
+      result = result.filter((p) => {
+        const searchableFields = [
+          p.address,
+          p.street,
+          p.neighborhood,
+          p.city,
+          p.cep,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return searchableFields.includes(query);
+      });
     }
 
     // Filtro por tipo

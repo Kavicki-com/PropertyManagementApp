@@ -306,7 +306,11 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <MaterialIcons name="arrow-back-ios" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.header} numberOfLines={1} ellipsizeMode="tail">{property.address}</Text>
+        <Text style={styles.header} numberOfLines={1} ellipsizeMode="tail">
+          {property.street 
+            ? `${property.street}${property.number ? `, ${property.number}` : ''}`
+            : property.address}
+        </Text>
       </View>
       <ScrollView style={styles.scrollContainer}>
         <View style={styles.section}>
@@ -327,6 +331,47 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Endereço</Text>
+          {property.street ? (
+            <>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Rua/Avenida</Text>
+                <Text style={styles.infoValue}>
+                  {property.street}{property.number ? `, ${property.number}` : ''}
+                </Text>
+              </View>
+              {property.complement && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Complemento</Text>
+                  <Text style={styles.infoValue}>{property.complement}</Text>
+                </View>
+              )}
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Bairro</Text>
+                <Text style={styles.infoValue}>{property.neighborhood || 'N/A'}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Cidade/Estado</Text>
+                <Text style={styles.infoValue}>
+                  {property.city || 'N/A'}{property.state ? ` - ${property.state}` : ''}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>CEP</Text>
+                <Text style={styles.infoValue}>
+                  {property.cep ? `${property.cep.slice(0, 5)}-${property.cep.slice(5)}` : 'N/A'}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Endereço</Text>
+              <Text style={styles.infoValue}>{property.address || 'N/A'}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Detalhes da Propriedade</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Tipo</Text>
@@ -334,15 +379,15 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Quartos</Text>
-            <Text style={styles.infoValue}>{property.bedrooms}</Text>
+            <Text style={styles.infoValue}>{property.bedrooms || 'N/A'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Banheiros</Text>
-            <Text style={styles.infoValue}>{property.bathrooms}</Text>
+            <Text style={styles.infoValue}>{property.bathrooms || 'N/A'}</Text>
           </View>
            <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Área (m²)</Text>
-            <Text style={styles.infoValue}>{property.sqft}</Text>
+            <Text style={styles.infoValue}>{property.sqft || 'N/A'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Total de Cômodos</Text>
