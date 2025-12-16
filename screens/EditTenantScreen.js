@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
+import { filterOnlyLetters, filterOnlyNumbers } from '../lib/validation';
 
 const EditTenantScreen = ({ route, navigation }) => {
   const { tenant } = route.params;
@@ -84,7 +85,12 @@ const EditTenantScreen = ({ route, navigation }) => {
         <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Nome Completo</Text>
-                <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
+                <TextInput 
+                    style={styles.input} 
+                    value={fullName} 
+                    onChangeText={(text) => setFullName(filterOnlyLetters(text))}
+                    placeholder="Digite o nome do inquilino"
+                />
             </View>
 
             <View style={styles.inputGroup}>
@@ -92,9 +98,10 @@ const EditTenantScreen = ({ route, navigation }) => {
                 <TextInput 
                     style={styles.input} 
                     value={cpf} 
-                    onChangeText={setCpf} 
+                    onChangeText={(text) => setCpf(filterOnlyNumbers(text))} 
                     keyboardType="numeric"
                     placeholder="Digite o CPF do inquilino"
+                    maxLength={11}
                 />
             </View>
 
@@ -103,7 +110,7 @@ const EditTenantScreen = ({ route, navigation }) => {
                 <TextInput 
                     style={styles.input} 
                     value={rg} 
-                    onChangeText={setRg}
+                    onChangeText={(text) => setRg(filterOnlyNumbers(text))}
                     keyboardType="numeric"
                     placeholder="Digite o RG do inquilino"
                 />
@@ -114,8 +121,8 @@ const EditTenantScreen = ({ route, navigation }) => {
                 <TextInput 
                     style={styles.input} 
                     value={nationality} 
-                    onChangeText={setNationality}
-                    placeholder="Ex: Brasileiro(a)"
+                    onChangeText={(text) => setNationality(filterOnlyLetters(text))}
+                    placeholder="Ex: Brasileiro"
                 />
             </View>
 
@@ -124,8 +131,8 @@ const EditTenantScreen = ({ route, navigation }) => {
                 <TextInput 
                     style={styles.input} 
                     value={maritalStatus} 
-                    onChangeText={setMaritalStatus}
-                    placeholder="Ex: Solteiro(a), Casado(a)"
+                    onChangeText={(text) => setMaritalStatus(filterOnlyLetters(text))}
+                    placeholder="Ex: Solteiro, Casado"
                 />
             </View>
 
@@ -134,19 +141,31 @@ const EditTenantScreen = ({ route, navigation }) => {
                 <TextInput 
                     style={styles.input} 
                     value={profession} 
-                    onChangeText={setProfession}
+                    onChangeText={(text) => setProfession(filterOnlyLetters(text))}
                     placeholder="Ex: Engenheiro, Professora"
                 />
             </View>
 
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Telefone</Text>
-                <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+                <TextInput 
+                    style={styles.input} 
+                    value={phone} 
+                    onChangeText={(text) => setPhone(filterOnlyNumbers(text))} 
+                    keyboardType="phone-pad"
+                    maxLength={11}
+                />
             </View>
 
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Email</Text>
-                <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" />
+                <TextInput 
+                    style={styles.input} 
+                    value={email} 
+                    onChangeText={setEmail} 
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                />
             </View>
 
             <TouchableOpacity style={styles.updateButton} onPress={handleUpdateTenant} disabled={loading}>

@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors, typography, radii } from '../theme';
 import Constants from 'expo-constants';
+import { isValidCPF, isValidEmail, isValidPhone, validatePassword, getPasswordStrength, filterOnlyLetters, filterOnlyNumbers } from '../lib/validation';
 
 const SignUpScreen = ({ navigation }) => {
   // Dados básicos
@@ -94,16 +95,10 @@ const SignUpScreen = ({ navigation }) => {
     
     // Por padrão, tenta inglês primeiro (mais comum)
     if (!frontendValue) {
-      console.warn('mapAccountTypeToDB recebeu valor null/undefined');
       return null;
     }
     
     const mapped = mappingEnglish[frontendValue] || mappingPortuguese[frontendValue] || mappingPortugueseNoUnderscore[frontendValue] || frontendValue;
-    console.log('Mapeando account_type:', frontendValue, '->', mapped);
-    
-    if (mapped === frontendValue && !mappingEnglish[frontendValue] && !mappingPortuguese[frontendValue] && !mappingPortugueseNoUnderscore[frontendValue]) {
-      console.warn('Valor não mapeado encontrado:', frontendValue);
-    }
     
     return mapped;
   };
@@ -131,24 +126,27 @@ const SignUpScreen = ({ navigation }) => {
     }
     if (!email.trim()) {
       newErrors.email = 'Email é obrigatório';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = 'Email inválido';
+    } else if (!isValidEmail(email)) {
+      newErrors.email = 'Email inválido. Verifique o formato (exemplo@dominio.com)';
     }
+    
+    // Validação de senha com requisitos de segurança
     if (!password) {
       newErrors.password = 'Senha é obrigatória';
-    } else if (password.length < 6) {
-      newErrors.password = 'Senha deve ter pelo menos 6 caracteres';
+    } else {
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.isValid) {
+        newErrors.password = passwordValidation.errors.join('. ');
+      }
     }
+    
     if (password !== confirmPassword) {
       newErrors.confirmPassword = 'As senhas não coincidem';
     }
     if (!cpf.trim()) {
       newErrors.cpf = 'CPF é obrigatório';
-    } else {
-      const cpfNumbers = cpf.replace(/\D/g, '');
-      if (cpfNumbers.length !== 11) {
-        newErrors.cpf = 'CPF deve ter 11 dígitos';
-      }
+    } else if (!isValidCPF(cpf)) {
+      newErrors.cpf = 'CPF inválido. Verifique os dígitos.';
     }
     if (!rg.trim()) {
       newErrors.rg = 'RG é obrigatório';
@@ -164,11 +162,8 @@ const SignUpScreen = ({ navigation }) => {
     }
     if (!phone.trim()) {
       newErrors.phone = 'Telefone é obrigatório';
-    } else {
-      const phoneNumbers = phone.replace(/\D/g, '');
-      if (phoneNumbers.length < 10 || phoneNumbers.length > 11) {
-        newErrors.phone = 'Telefone inválido';
-      }
+    } else if (!isValidPhone(phone)) {
+      newErrors.phone = 'Telefone inválido. Use formato (00) 00000-0000';
     }
     if (!accountType) {
       newErrors.accountType = 'Tipo de conta é obrigatório';
@@ -216,10 +211,7 @@ const SignUpScreen = ({ navigation }) => {
 
       const redirectUrl = isExpoGo ? devRedirectUrl : prodRedirectUrl;
 
-      console.log('Using email confirmation redirect URL:', redirectUrl);
-      console.log('Is Expo Go:', isExpoGo);
-      console.log('Constants.expoConfig?.hostUri:', Constants.expoConfig?.hostUri);
-      console.log('Constants.manifest?.debuggerHost:', Constants.manifest?.debuggerHost);
+      // Logs de debug removidos por segurança (não expor informações sensíveis)
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email,
@@ -270,37 +262,16 @@ const SignUpScreen = ({ navigation }) => {
 
       // Aguarda um pouco para garantir que a sessão está disponível
       // Isso é importante para que auth.uid() funcione nas políticas RLS
-      if (!authData.session) {
-        console.log('Aguardando confirmação de email...');
-        // Se não há sessão, o email precisa ser confirmado primeiro
-        // Mas ainda podemos tentar criar o perfil se o trigger do Supabase criar automaticamente
-      } else {
-        console.log('Sessão disponível, user ID:', authData.user.id);
-      }
+      // Logs de debug removidos por segurança (não expor dados sensíveis)
 
       // 2. Criar ou atualizar perfil com dados adicionais
-      console.log('=== INÍCIO DEPURAÇÃO CADASTRO ===');
-      console.log('User ID:', authData.user.id);
-      console.log('Session disponível:', !!authData.session);
-      console.log('Dados a salvar:', {
-        full_name: fullName,
-        phone: phone.replace(/\D/g, ''),
-        cpf: cpf.replace(/\D/g, ''),
-        rg: rg,
-        nationality: nationality,
-        marital_status: maritalStatus,
-        profession: profession,
-        account_type: accountType,
-      });
+      // Logs de debug removidos por segurança (não expor CPF, telefone, etc.)
 
       // 2. Criar perfil usando função do Supabase que bypassa RLS
       // Esta função usa SECURITY DEFINER para contornar problemas de RLS durante o cadastro
-      console.log('Tentando criar perfil usando função do Supabase...');
       
       // Mapeia account_type se existir
       const mappedAccountType = accountType ? mapAccountTypeToDB(accountType) : null;
-      console.log('accountType original:', accountType);
-      console.log('accountType mapeado:', mappedAccountType);
       
       // Prepara os parâmetros da função
       const profileParams = {
@@ -320,8 +291,7 @@ const SignUpScreen = ({ navigation }) => {
       const { error: functionError } = await supabase.rpc('create_user_profile', profileParams);
 
       if (functionError) {
-        console.error('❌ ERRO ao criar perfil via função:', functionError);
-        console.error('Valor de account_type enviado:', accountType ? mapAccountTypeToDB(accountType) : null);
+        // Logs de erro mantidos apenas para debugging técnico (sem dados sensíveis)
         
         // Se for erro de constraint de account_type, mostra mensagem específica
         if (functionError.code === '23514' && functionError.message && functionError.message.includes('account_type_check')) {
@@ -335,8 +305,6 @@ const SignUpScreen = ({ navigation }) => {
         
         // Se a função não existir, tenta método alternativo
         if (functionError.message && functionError.message.includes('function') && functionError.message.includes('does not exist')) {
-          console.log('Função não existe, tentando método alternativo...');
-          
           // Método alternativo: tenta inserir apenas campos básicos
           const basicProfileData = {
             id: authData.user.id,
@@ -349,13 +317,11 @@ const SignUpScreen = ({ navigation }) => {
             .upsert(basicProfileData, { onConflict: 'id' });
 
           if (basicError) {
-            console.error('❌ ERRO ao salvar campos básicos:', basicError);
             Alert.alert(
               'Aviso',
               'Conta criada com sucesso! Mas houve um problema ao salvar dados do perfil.\n\nExecute o script create_profile_function.sql no Supabase para resolver este problema.\n\nErro: ' + basicError.message
             );
           } else {
-            console.log('✅ Campos básicos salvos (método alternativo)');
             // Tenta atualizar campos adicionais depois
             try {
               const extendedData = {
@@ -374,7 +340,7 @@ const SignUpScreen = ({ navigation }) => {
                 .update(extendedData)
                 .eq('id', authData.user.id);
             } catch (extendedErr) {
-              console.log('Campos adicionais não puderam ser salvos ainda:', extendedErr);
+              // Erro silencioso - campos adicionais podem ser salvos depois
             }
           }
         } else {
@@ -383,11 +349,7 @@ const SignUpScreen = ({ navigation }) => {
             'Conta criada, mas houve um problema ao salvar dados do perfil. Erro: ' + functionError.message
           );
         }
-      } else {
-        console.log('✅ Perfil criado com sucesso usando função do Supabase!');
       }
-
-      console.log('=== FIM DEPURAÇÃO CADASTRO ===');
 
       if (authData.session) {
         // Se a sessão foi retornada, navegar para a tela principal
@@ -459,7 +421,7 @@ const SignUpScreen = ({ navigation }) => {
               placeholder="Digite seu nome completo"
               value={fullName}
               onChangeText={(text) => {
-                setFullName(text);
+                setFullName(filterOnlyLetters(text));
                 if (errors.fullName) setErrors({ ...errors, fullName: null });
               }}
             />
@@ -486,7 +448,7 @@ const SignUpScreen = ({ navigation }) => {
             <Text style={styles.label}>Senha *</Text>
             <TextInput
               style={[styles.input, errors.password && styles.inputError]}
-              placeholder="Digite sua senha (mín. 6 caracteres)"
+              placeholder="Mín. 8 caracteres + 1 especial (!@#$...)"
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
@@ -494,6 +456,42 @@ const SignUpScreen = ({ navigation }) => {
               }}
               secureTextEntry
             />
+            {/* Indicador de força da senha */}
+            {password.length > 0 && (
+              <View style={styles.passwordStrengthContainer}>
+                <View style={styles.passwordStrengthBar}>
+                  <View
+                    style={[
+                      styles.passwordStrengthFill,
+                      {
+                        width: `${Math.min(100, (getPasswordStrength(password).score / 8) * 100)}%`,
+                        backgroundColor:
+                          getPasswordStrength(password).strength === 'weak'
+                            ? '#F44336'
+                            : getPasswordStrength(password).strength === 'medium'
+                            ? '#FF9800'
+                            : '#4CAF50',
+                      },
+                    ]}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.passwordStrengthText,
+                    {
+                      color:
+                        getPasswordStrength(password).strength === 'weak'
+                          ? '#F44336'
+                          : getPasswordStrength(password).strength === 'medium'
+                          ? '#FF9800'
+                          : '#4CAF50',
+                    },
+                  ]}
+                >
+                  {getPasswordStrength(password).label}
+                </Text>
+              </View>
+            )}
             {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
           </View>
 
@@ -523,7 +521,7 @@ const SignUpScreen = ({ navigation }) => {
               placeholder="000.000.000-00"
               value={cpf}
               onChangeText={(text) => {
-                setCpf(formatCPF(text));
+                setCpf(formatCPF(filterOnlyNumbers(text)));
                 if (errors.cpf) setErrors({ ...errors, cpf: null });
               }}
               keyboardType="numeric"
@@ -539,7 +537,7 @@ const SignUpScreen = ({ navigation }) => {
               placeholder="Digite seu RG"
               value={rg}
               onChangeText={(text) => {
-                setRg(text);
+                setRg(filterOnlyNumbers(text));
                 if (errors.rg) setErrors({ ...errors, rg: null });
               }}
               keyboardType="numeric"
@@ -551,10 +549,10 @@ const SignUpScreen = ({ navigation }) => {
             <Text style={styles.label}>Nacionalidade *</Text>
             <TextInput
               style={[styles.input, errors.nationality && styles.inputError]}
-              placeholder="Ex: Brasileiro(a)"
+              placeholder="Ex: Brasileiro"
               value={nationality}
               onChangeText={(text) => {
-                setNationality(text);
+                setNationality(filterOnlyLetters(text));
                 if (errors.nationality) setErrors({ ...errors, nationality: null });
               }}
             />
@@ -565,10 +563,10 @@ const SignUpScreen = ({ navigation }) => {
             <Text style={styles.label}>Estado Civil *</Text>
             <TextInput
               style={[styles.input, errors.maritalStatus && styles.inputError]}
-              placeholder="Ex: Solteiro(a), Casado(a)"
+              placeholder="Ex: Solteiro, Casado"
               value={maritalStatus}
               onChangeText={(text) => {
-                setMaritalStatus(text);
+                setMaritalStatus(filterOnlyLetters(text));
                 if (errors.maritalStatus) setErrors({ ...errors, maritalStatus: null });
               }}
             />
@@ -582,7 +580,7 @@ const SignUpScreen = ({ navigation }) => {
               placeholder="Ex: Engenheiro, Professora"
               value={profession}
               onChangeText={(text) => {
-                setProfession(text);
+                setProfession(filterOnlyLetters(text));
                 if (errors.profession) setErrors({ ...errors, profession: null });
               }}
             />
@@ -596,7 +594,7 @@ const SignUpScreen = ({ navigation }) => {
               placeholder="(00) 00000-0000"
               value={phone}
               onChangeText={(text) => {
-                setPhone(formatPhone(text));
+                setPhone(formatPhone(filterOnlyNumbers(text)));
                 if (errors.phone) setErrors({ ...errors, phone: null });
               }}
               keyboardType="phone-pad"
@@ -768,6 +766,28 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 12,
     marginTop: 4,
+  },
+  passwordStrengthContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  passwordStrengthBar: {
+    flex: 1,
+    height: 4,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  passwordStrengthFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  passwordStrengthText: {
+    fontSize: 12,
+    fontWeight: '600',
+    minWidth: 50,
   },
   termsContainer: {
     marginTop: 8,

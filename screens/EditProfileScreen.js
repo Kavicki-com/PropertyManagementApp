@@ -14,6 +14,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, typography, radii } from '../theme';
+import { validatePassword, getPasswordStrength } from '../lib/validation';
 
 const EditProfileScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -216,16 +217,20 @@ const EditProfileScreen = ({ navigation }) => {
 
     // 3. Update Password if a new one is provided
     if (newPassword) {
+      // Validação de senha com requisitos de segurança
+      const passwordValidation = validatePassword(newPassword);
+      if (!passwordValidation.isValid) {
+        Alert.alert('Erro', passwordValidation.errors.join('\n'));
+        setIsSaving(false);
+        return;
+      }
+      
       if (newPassword !== confirmPassword) {
         Alert.alert('Erro', 'As senhas não coincidem.');
         setIsSaving(false);
         return;
       }
-      if (newPassword.length < 6) {
-        Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres.');
-        setIsSaving(false);
-        return;
-      }
+      
       const { error: passwordError } = await supabase.auth.updateUser({ password: newPassword });
       if (passwordError) {
         Alert.alert('Erro ao atualizar senha', passwordError.message);
@@ -370,6 +375,9 @@ const EditProfileScreen = ({ navigation }) => {
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Alterar senha</Text>
+              <Text style={styles.passwordHint}>
+                Requisitos: mín. 8 caracteres + 1 caractere especial (!@#$...)
+              </Text>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Nova senha</Text>
                 <TextInput
@@ -379,6 +387,42 @@ const EditProfileScreen = ({ navigation }) => {
                   onChangeText={setNewPassword}
                   secureTextEntry
                 />
+                {/* Indicador de força da senha */}
+                {newPassword.length > 0 && (
+                  <View style={styles.passwordStrengthContainer}>
+                    <View style={styles.passwordStrengthBar}>
+                      <View
+                        style={[
+                          styles.passwordStrengthFill,
+                          {
+                            width: `${Math.min(100, (getPasswordStrength(newPassword).score / 8) * 100)}%`,
+                            backgroundColor:
+                              getPasswordStrength(newPassword).strength === 'weak'
+                                ? '#F44336'
+                                : getPasswordStrength(newPassword).strength === 'medium'
+                                ? '#FF9800'
+                                : '#4CAF50',
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.passwordStrengthText,
+                        {
+                          color:
+                            getPasswordStrength(newPassword).strength === 'weak'
+                              ? '#F44336'
+                              : getPasswordStrength(newPassword).strength === 'medium'
+                              ? '#FF9800'
+                              : '#4CAF50',
+                        },
+                      ]}
+                    >
+                      {getPasswordStrength(newPassword).label}
+                    </Text>
+                  </View>
+                )}
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Confirmar nova senha</Text>
@@ -453,6 +497,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     fontSize: 16,
     backgroundColor: colors.surface,
+  },
+  passwordHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  passwordStrengthContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  passwordStrengthBar: {
+    flex: 1,
+    height: 4,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  passwordStrengthFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  passwordStrengthText: {
+    fontSize: 12,
+    fontWeight: '600',
+    minWidth: 50,
   },
   saveButton: {
     backgroundColor: colors.primary,

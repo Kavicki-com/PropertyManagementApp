@@ -18,6 +18,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import CustomDatePicker from '../components/CustomDatePicker';
 import { createContract } from '../lib/contractsService';
+import { parseMoney, filterOnlyNumbers, filterMoney } from '../lib/validation';
 import { colors, radii, typography } from '../theme';
 
 const AddContractScreen = ({ route, navigation }) => {
@@ -132,8 +133,8 @@ const AddContractScreen = ({ route, navigation }) => {
         startDate: startDate.toISOString(),
         endDate: endDate ? endDate.toISOString() : null,
         dueDay: dueDate ? parseInt(dueDate, 10) : null,
-        rentAmount: rentAmount ? parseInt(rentAmount, 10) : null,
-        deposit: deposit ? parseInt(deposit, 10) : null,
+        rentAmount: rentAmount ? parseMoney(rentAmount) : null,
+        deposit: deposit ? parseMoney(deposit) : null,
         leaseTerm: contractLength,
       });
 
@@ -225,7 +226,7 @@ const AddContractScreen = ({ route, navigation }) => {
             style={styles.input}
             placeholder="Ex: 1800"
             value={rentAmount}
-            onChangeText={(text) => setRentAmount(text.replace(/[^0-9]/g, ''))}
+            onChangeText={(text) => setRentAmount(filterMoney(text))}
             keyboardType="decimal-pad"
           />
         </View>
@@ -236,8 +237,9 @@ const AddContractScreen = ({ route, navigation }) => {
             style={styles.input}
             placeholder="Ex: 5"
             value={dueDate}
-            onChangeText={(text) => setDueDate(text.replace(/[^0-9]/g, ''))}
+            onChangeText={(text) => setDueDate(filterOnlyNumbers(text))}
             keyboardType="numeric"
+            maxLength={2}
           />
         </View>
 
@@ -247,7 +249,7 @@ const AddContractScreen = ({ route, navigation }) => {
             style={styles.input}
             placeholder="Insira o valor de depósito"
             value={deposit}
-            onChangeText={(text) => setDeposit(text.replace(/[^0-9]/g, ''))}
+            onChangeText={(text) => setDeposit(filterMoney(text))}
             keyboardType="decimal-pad"
           />
         </View>
