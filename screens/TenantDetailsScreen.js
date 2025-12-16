@@ -362,12 +362,13 @@ const TenantDetailsScreen = ({ route, navigation }) => {
                             styles.timelinePill,
                             item.status === 'paid' && styles.timelinePillPaid,
                             item.status === 'overdue' && styles.timelinePillOverdue,
+                            item.status === 'due_soon' && styles.timelinePillDueSoon,
                           ]}
                         >
                           <Text
                             style={[
                               styles.timelinePillText,
-                              (item.status === 'paid' || item.status === 'overdue') &&
+                              (item.status === 'paid' || item.status === 'overdue' || item.status === 'due_soon') &&
                                 styles.timelinePillTextEmphasis,
                             ]}
                           >
@@ -384,6 +385,10 @@ const TenantDetailsScreen = ({ route, navigation }) => {
                       <View style={styles.timelineLegendItem}>
                         <View style={[styles.legendDot, styles.legendDotOverdue]} />
                         <Text style={styles.legendText}>Em atraso</Text>
+                      </View>
+                      <View style={styles.timelineLegendItem}>
+                        <View style={[styles.legendDot, styles.legendDotDueSoon]} />
+                        <Text style={styles.legendText}>À vencer</Text>
                       </View>
                       <View style={styles.timelineLegendItem}>
                         <View style={[styles.legendDot, styles.legendDotFuture]} />
@@ -638,6 +643,10 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFEBEE',
         borderColor: '#F44336',
     },
+    timelinePillDueSoon: {
+        backgroundColor: '#FFF3E0',
+        borderColor: '#FF9800',
+    },
     timelinePillText: {
         fontSize: 12,
         color: '#666',
@@ -670,6 +679,10 @@ const styles = StyleSheet.create({
     legendDotOverdue: {
         backgroundColor: '#F44336',
         borderColor: '#F44336',
+    },
+    legendDotDueSoon: {
+        backgroundColor: '#FF9800',
+        borderColor: '#FF9800',
     },
     legendDotFuture: {
         backgroundColor: '#ddd',
