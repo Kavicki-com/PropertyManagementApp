@@ -139,35 +139,83 @@ const TenantsScreen = ({ navigation }) => {
 
       // 4) Calcular indicador de faturas (esperadas x registradas) por inquilino
       const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalizar para início do dia
+
+      // Função auxiliar para calcular a data de vencimento de uma mensalidade
+      const calculateDueDate = (startDate, dueDay, monthIndex) => {
+        const dueDate = new Date(startDate);
+        dueDate.setMonth(startDate.getMonth() + (monthIndex - 1));
+        
+        // Ajustar para o dia de vencimento correto
+        const lastDayOfMonth = new Date(dueDate.getFullYear(), dueDate.getMonth() + 1, 0).getDate();
+        const dayToSet = Math.min(dueDay, lastDayOfMonth);
+        dueDate.setDate(dayToSet);
+        dueDate.setHours(0, 0, 0, 0);
+        
+        return dueDate;
+      };
 
       const tenantsWithInvoices = (tenantsData || []).map((tenant) => {
         const contract = contractsByTenant?.[tenant.id] || null;
         let overdue_invoices = 0;
         let due_date_display = tenant.due_date || null;
 
-        if (contract && contract.start_date && contract.lease_term && tenant.property_id) {
+        if (contract && contract.start_date && contract.lease_term && contract.due_day && tenant.property_id) {
           const start = new Date(contract.start_date);
-
-          const monthsDiff =
-            (today.getFullYear() - start.getFullYear()) * 12 +
-            (today.getMonth() - start.getMonth());
-
+          start.setHours(0, 0, 0, 0);
+          
           const contractTotal = contract.lease_term || 0;
+          const dueDay = contract.due_day;
 
-          if (contractTotal > 0) {
-            // Faturas que já deveriam ter acontecido até hoje, limitado ao total do contrato
-            const dueSoFar = Math.min(
-              contractTotal,
-              Math.max(0, monthsDiff + 1),
-            );
+          if (contractTotal > 0 && dueDay) {
+            const propertyFinances = (financesByProperty[tenant.property_id] || [])
+              .filter((f) => f.type === 'income')
+              .map((f) => {
+                const paymentDate = new Date(f.date);
+                paymentDate.setHours(0, 0, 0, 0);
+                return { ...f, paymentDate };
+              });
 
-            const propertyFinances = financesByProperty[tenant.property_id] || [];
+            // Rastrear quais pagamentos já foram associados a uma mensalidade
+            const usedPayments = new Set();
 
-            // Considera toda receita do imóvel como fatura paga
-            const paidInvoices = propertyFinances.filter((f) => f.type === 'income').length;
+            // Função para verificar se há pagamento para uma mensalidade
+            const hasPaymentForMonth = (dueDate) => {
+              if (propertyFinances.length === 0) return false;
+              
+              // Janela de pagamento: de 10 dias antes até 5 dias depois do vencimento
+              const paymentWindowStart = new Date(dueDate);
+              paymentWindowStart.setDate(paymentWindowStart.getDate() - 10);
+              
+              const paymentWindowEnd = new Date(dueDate);
+              paymentWindowEnd.setDate(paymentWindowEnd.getDate() + 5);
+              
+              // Encontrar o primeiro pagamento não usado dentro da janela
+              const matchingPayment = propertyFinances.find((payment) => {
+                if (usedPayments.has(payment.id)) return false;
+                return payment.paymentDate >= paymentWindowStart && payment.paymentDate <= paymentWindowEnd;
+              });
+              
+              if (matchingPayment) {
+                usedPayments.add(matchingPayment.id);
+                return true;
+              }
+              
+              return false;
+            };
 
-            // Em atraso = só o que já deveria ter acontecido até hoje, não o contrato inteiro
-            overdue_invoices = Math.max(0, dueSoFar - paidInvoices);
+            // Processar cada mensalidade do contrato
+            for (let monthIndex = 1; monthIndex <= contractTotal; monthIndex++) {
+              const dueDate = calculateDueDate(start, dueDay, monthIndex);
+              
+              // Verificar se a mensalidade já venceu
+              if (dueDate < today) {
+                // Mensalidade vencida - verificar se foi paga
+                if (!hasPaymentForMonth(dueDate)) {
+                  overdue_invoices++;
+                }
+              }
+            }
           }
 
           // Atualiza o dia de vencimento exibido a partir do contrato ativo
