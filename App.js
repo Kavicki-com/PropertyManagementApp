@@ -38,6 +38,7 @@ import AddContractScreen from './screens/AddContractScreen';
 import TermsOfServiceScreen from './screens/TermsOfServiceScreen';
 import FAQScreen from './screens/FAQScreen';
 import EmailConfirmationScreen from './screens/EmailConfirmationScreen';
+import SubscriptionScreen from './screens/SubscriptionScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -361,6 +362,7 @@ export default function App() {
             <Stack.Screen name="AddContract" component={AddContractScreen} />
             <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+            <Stack.Screen name="Subscription" component={SubscriptionScreen} />
             <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
             <Stack.Screen name="FAQ" component={FAQScreen} />
           </Stack.Group>

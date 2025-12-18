@@ -16,11 +16,15 @@ import { supabase } from '../lib/supabase';
 import { fetchActiveContractByProperty } from '../lib/contractsService';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors, radii, typography } from '../theme';
+import { canAddFinancialTransaction, getUserSubscription, getActivePropertiesCount, getRequiredPlan } from '../lib/subscriptionService';
+import UpgradeModal from '../components/UpgradeModal';
 
 const AddTransactionScreen = ({ route, navigation }) => {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
 
   const preselectedPropertyId = route?.params?.preselectedPropertyId ?? null;
   const [propertyValue, setPropertyValue] = useState(preselectedPropertyId || null);
@@ -65,6 +69,25 @@ const AddTransactionScreen = ({ route, navigation }) => {
     if (!user) {
       Alert.alert('Error', 'You must be logged in.');
       setLoading(false);
+      return;
+    }
+
+    // Validar se pode adicionar lançamento financeiro
+    const canAdd = await canAddFinancialTransaction(user.id);
+    if (!canAdd) {
+      setLoading(false);
+      const propertyCount = await getActivePropertiesCount(user.id);
+      const subscription = await getUserSubscription(user.id);
+      const currentPlan = subscription?.subscription_plan || 'free';
+      // Se o plano atual é basic, sempre sugere premium
+      const requiredPlan = currentPlan === 'basic' ? 'premium' : 'basic';
+      
+      setSubscriptionInfo({
+        currentPlan,
+        propertyCount,
+        requiredPlan,
+      });
+      setShowUpgradeModal(true);
       return;
     }
 
@@ -182,6 +205,19 @@ const AddTransactionScreen = ({ route, navigation }) => {
             )}
         </TouchableOpacity>
         </ScrollView>
+
+        <UpgradeModal
+          visible={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          onUpgrade={() => {
+            setShowUpgradeModal(false);
+            navigation.navigate('Subscription');
+          }}
+          currentPlan={subscriptionInfo?.currentPlan || 'free'}
+          propertyCount={subscriptionInfo?.propertyCount || 0}
+          requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+          customMessage="O plano Gratuito não permite lançamentos financeiros. Faça upgrade para o plano Básico ou Premium para registrar recebimentos e despesas."
+        />
     </View>
   );
 };

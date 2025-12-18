@@ -15,6 +15,8 @@ import {
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import { filterOnlyLetters, filterOnlyNumbers } from '../lib/validation';
+import { canAddTenant, getUserSubscription, getActiveTenantsCount, getRequiredPlan } from '../lib/subscriptionService';
+import UpgradeModal from '../components/UpgradeModal';
 
 const AddTenantScreen = ({ route, navigation }) => {
   const [fullName, setFullName] = useState('');
@@ -26,6 +28,8 @@ const AddTenantScreen = ({ route, navigation }) => {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
 
   const handleAddTenant = async () => {
     setLoading(true);
@@ -35,6 +39,25 @@ const AddTenantScreen = ({ route, navigation }) => {
       if (!user) {
         Alert.alert('Erro', 'Você precisa estar logado para adicionar um inquilino.');
         setLoading(false);
+        return;
+      }
+
+      // Validar se pode adicionar inquilino
+      const canAdd = await canAddTenant(user.id);
+      if (!canAdd) {
+        setLoading(false);
+        const tenantCount = await getActiveTenantsCount(user.id);
+        const subscription = await getUserSubscription(user.id);
+        const currentPlan = subscription?.subscription_plan || 'free';
+        // Se o plano atual é basic, sempre sugere premium
+        const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(tenantCount + 1);
+        
+        setSubscriptionInfo({
+          currentPlan,
+          propertyCount: tenantCount,
+          requiredPlan,
+        });
+        setShowUpgradeModal(true);
         return;
       }
 
@@ -178,6 +201,18 @@ const AddTenantScreen = ({ route, navigation }) => {
 
         </ScrollView>
         </KeyboardAvoidingView>
+
+        <UpgradeModal
+          visible={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          onUpgrade={() => {
+            setShowUpgradeModal(false);
+            navigation.navigate('Subscription');
+          }}
+          currentPlan={subscriptionInfo?.currentPlan || 'free'}
+          propertyCount={subscriptionInfo?.propertyCount || 0}
+          requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+        />
     </View>
   );
 };

@@ -1,0 +1,648 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { supabase } from '../lib/supabase';
+import { 
+  getUserSubscription, 
+  getActivePropertiesCount,
+  getActiveTenantsCount, 
+  getSubscriptionLimits,
+  checkSubscriptionStatus,
+  getRequiredPlan,
+} from '../lib/subscriptionService';
+import { 
+  getAvailableProducts, 
+  purchaseSubscription, 
+  restorePurchases,
+  handlePurchaseSuccess,
+  handlePurchaseError,
+  getProductIdForPlan,
+} from '../lib/iapService';
+import ScreenHeader from '../components/ScreenHeader';
+import { colors, typography, radii } from '../theme';
+
+const SubscriptionScreen = ({ navigation }) => {
+  const [loading, setLoading] = useState(true);
+  const [subscription, setSubscription] = useState(null);
+  const [propertyCount, setPropertyCount] = useState(0);
+  const [products, setProducts] = useState([]);
+  const [purchasing, setPurchasing] = useState(false);
+
+  useEffect(() => {
+    loadSubscriptionData();
+  }, []);
+
+  const loadSubscriptionData = async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não autenticado');
+        navigation.goBack();
+        return;
+      }
+
+      const [subscriptionData, count, productsData] = await Promise.all([
+        getUserSubscription(user.id),
+        getActivePropertiesCount(user.id),
+        getAvailableProducts(),
+      ]);
+
+      setSubscription(subscriptionData);
+      setPropertyCount(count);
+      
+      if (productsData.success) {
+        setProducts(productsData.products || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados de assinatura:', error);
+      Alert.alert('Erro', 'Não foi possível carregar os dados de assinatura.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePurchase = async (plan) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      Alert.alert('Erro', 'Usuário não autenticado');
+      return;
+    }
+
+    // Se for downgrade para free, não precisa de IAP
+    if (plan === 'free') {
+      handleDowngrade();
+      return;
+    }
+
+    setPurchasing(true);
+    try {
+      const productId = getProductIdForPlan(plan);
+      if (!productId) {
+        Alert.alert('Erro', 'Produto não encontrado');
+        setPurchasing(false);
+        return;
+      }
+
+      const result = await purchaseSubscription(productId);
+      
+      if (result.success && result.purchase) {
+        const updateResult = await handlePurchaseSuccess(result.purchase, user.id);
+        if (updateResult.success) {
+          Alert.alert(
+            'Sucesso', 
+            'Assinatura ativada com sucesso! Todos os seus imóveis e inquilinos existentes já estão disponíveis no novo limite.'
+          );
+          // Recarregar dados para aplicar novas regras
+          // IMPORTANTE: getBlockedProperties e getBlockedTenants recalcularão automaticamente
+          // baseado no novo plano, incluindo TODOS os imóveis/inquilinos existentes na contagem
+          await loadSubscriptionData();
+          // Forçar atualização das telas que podem ter bloqueios
+          navigation.goBack();
+        } else {
+          Alert.alert('Erro', 'Compra realizada mas houve erro ao atualizar assinatura.');
+        }
+      } else {
+        const errorResult = handlePurchaseError(result.error);
+        Alert.alert('Erro', errorResult.message);
+      }
+    } catch (error) {
+      console.error('Erro ao processar compra:', error);
+      Alert.alert('Erro', 'Não foi possível processar a compra.');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  const handleDowngrade = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      Alert.alert('Erro', 'Usuário não autenticado');
+      return;
+    }
+
+    // Verificar se há mais imóveis/inquilinos do que o plano free permite
+    const [propertyCount, tenantCount] = await Promise.all([
+      getActivePropertiesCount(user.id),
+      getActiveTenantsCount(user.id),
+    ]);
+
+    const freeLimit = 2;
+    const willBlockProperties = propertyCount > freeLimit;
+    const willBlockTenants = tenantCount > freeLimit;
+
+    if (willBlockProperties || willBlockTenants) {
+      let message = 'Ao fazer downgrade para o plano Gratuito:\n\n';
+      if (willBlockProperties) {
+        message += `• Você terá acesso apenas aos primeiros ${freeLimit} imóveis (${propertyCount - freeLimit} serão bloqueados)\n`;
+      }
+      if (willBlockTenants) {
+        message += `• Você terá acesso apenas aos primeiros ${freeLimit} inquilinos (${tenantCount - freeLimit} serão bloqueados)\n`;
+      }
+      message += '\nOs itens bloqueados ficarão disponíveis novamente quando você fizer upgrade. Deseja continuar?';
+      
+      Alert.alert('Atenção', message, [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Continuar',
+          style: 'destructive',
+          onPress: async () => {
+            await performDowngrade(user.id);
+          },
+        },
+      ]);
+    } else {
+      Alert.alert(
+        'Confirmar Downgrade',
+        'Tem certeza que deseja fazer downgrade para o plano Gratuito?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Confirmar',
+            style: 'destructive',
+            onPress: async () => {
+              await performDowngrade(user.id);
+            },
+          },
+        ]
+      );
+    }
+  };
+
+  const performDowngrade = async (userId) => {
+    setPurchasing(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          subscription_plan: 'free',
+          subscription_status: 'active',
+          subscription_expires_at: null,
+          subscription_iap_transaction_id: null,
+          subscription_trial_ends_at: null,
+          subscription_grace_period_ends_at: null,
+        })
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Erro ao fazer downgrade:', error);
+        Alert.alert('Erro', 'Não foi possível fazer o downgrade.');
+        return;
+      }
+
+      Alert.alert(
+        'Sucesso',
+        'Downgrade realizado com sucesso! Você agora está no plano Gratuito.'
+      );
+      await loadSubscriptionData();
+      navigation.goBack();
+    } catch (error) {
+      console.error('Erro ao fazer downgrade:', error);
+      Alert.alert('Erro', 'Não foi possível fazer o downgrade.');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setPurchasing(true);
+    try {
+      const result = await restorePurchases();
+      if (result.success) {
+        Alert.alert('Sucesso', 'Compras restauradas com sucesso!');
+        await loadSubscriptionData();
+      } else {
+        Alert.alert('Erro', 'Não foi possível restaurar as compras.');
+      }
+    } catch (error) {
+      console.error('Erro ao restaurar compras:', error);
+      Alert.alert('Erro', 'Não foi possível restaurar as compras.');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
+  };
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      active: { color: colors.primary, text: 'Ativo' },
+      expired: { color: colors.expense, text: 'Expirado' },
+      cancelled: { color: colors.textSecondary, text: 'Cancelado' },
+      trial: { color: colors.primary, text: 'Teste' },
+    };
+
+    const config = statusConfig[status] || statusConfig.active;
+    return (
+      <View style={[styles.badge, { backgroundColor: `${config.color}20` }]}>
+        <Text style={[styles.badgeText, { color: config.color }]}>{config.text}</Text>
+      </View>
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ScreenHeader title="Assinatura" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
+  const currentPlan = subscription?.subscription_plan || 'free';
+  const limits = getSubscriptionLimits(currentPlan);
+  const status = subscription?.subscription_status || 'active';
+
+  return (
+    <View style={styles.container}>
+      <ScreenHeader title="Assinatura" />
+      <ScrollView style={styles.scrollContainer}>
+        {/* Plano Atual */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Plano Atual</Text>
+          <View style={styles.currentPlanCard}>
+            <View style={styles.planHeader}>
+              <Text style={styles.planName}>
+                {currentPlan === 'free' ? 'Gratuito' : currentPlan === 'basic' ? 'Básico' : 'Premium'}
+              </Text>
+              {getStatusBadge(status)}
+            </View>
+            <View style={styles.usageContainer}>
+              <Text style={styles.usageText}>
+                {propertyCount} / {typeof limits.maxProperties === 'number' ? limits.maxProperties : '∞'} imóveis
+              </Text>
+              {typeof limits.maxProperties === 'number' && (
+                <View style={styles.progressBar}>
+                  <View 
+                    style={[
+                      styles.progressFill, 
+                      { width: `${Math.min((propertyCount / limits.maxProperties) * 100, 100)}%` }
+                    ]} 
+                  />
+                </View>
+              )}
+            </View>
+            {subscription?.subscription_expires_at && (
+              <Text style={styles.expiresText}>
+                Expira em: {formatDate(subscription.subscription_expires_at)}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Planos Disponíveis */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Planos Disponíveis</Text>
+          
+          {/* Plano Gratuito */}
+          <View style={[styles.planCard, currentPlan === 'free' && styles.currentPlanCard]}>
+            <View style={styles.planCardHeader}>
+              <Text style={styles.planCardName}>Gratuito</Text>
+              <Text style={styles.planCardPrice}>R$ 0,00</Text>
+            </View>
+            <Text style={styles.planCardDescription}>Ideal para começar</Text>
+            <View style={styles.planFeatures}>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Até 2 imóveis</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Até 2 inquilinos</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Gestão de contratos</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>1 documento de inquilino</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="close" size={20} color={colors.textSecondary} />
+                <Text style={[styles.featureText, styles.featureDisabled]}>Lançamentos financeiros</Text>
+              </View>
+            </View>
+            {currentPlan === 'free' ? (
+              <View style={styles.currentButton}>
+                <Text style={styles.currentButtonText}>Plano Atual</Text>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={styles.downgradeButton}
+                onPress={handleDowngrade}
+                disabled={purchasing}
+              >
+                {purchasing ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <Text style={styles.downgradeButtonText}>Fazer Downgrade</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {/* Plano Básico */}
+          <View style={[styles.planCard, currentPlan === 'basic' && styles.currentPlanCard]}>
+            <View style={styles.planCardHeader}>
+              <Text style={styles.planCardName}>Básico</Text>
+              <Text style={styles.planCardPrice}>R$ 19,90/mês</Text>
+            </View>
+            <Text style={styles.planCardDescription}>Para pequenos portfólios</Text>
+            <View style={styles.planFeatures}>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Até 10 imóveis</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Até 10 inquilinos</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Gestão de contratos</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Documentos dos inquilinos</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Lançamentos financeiros</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Relatórios e dashboard</Text>
+              </View>
+            </View>
+            {currentPlan === 'basic' ? (
+              <View style={styles.currentButton}>
+                <Text style={styles.currentButtonText}>Plano Atual</Text>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={styles.upgradeButton}
+                onPress={() => handlePurchase('basic')}
+                disabled={purchasing}
+              >
+                {purchasing ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.upgradeButtonText}>Assinar</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Plano Premium */}
+          <View style={[styles.planCard, currentPlan === 'premium' && styles.currentPlanCard]}>
+            <View style={styles.planCardHeader}>
+              <Text style={styles.planCardName}>Premium</Text>
+              <Text style={styles.planCardPrice}>R$ 39,90/mês</Text>
+            </View>
+            <Text style={styles.planCardDescription}>Para grandes portfólios</Text>
+            <View style={styles.planFeatures}>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Ilimitado imóveis</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Ilimitado inquilinos</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Gestão de contratos</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Documentos dos inquilinos</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Lançamentos financeiros</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Relatórios e dashboard</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <Text style={styles.featureText}>Suporte prioritário</Text>
+              </View>
+            </View>
+            {currentPlan === 'premium' ? (
+              <View style={styles.currentButton}>
+                <Text style={styles.currentButtonText}>Plano Atual</Text>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={styles.upgradeButton}
+                onPress={() => handlePurchase('premium')}
+                disabled={purchasing}
+              >
+                {purchasing ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.upgradeButtonText}>Assinar</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Restaurar Compras */}
+        <View style={styles.section}>
+          <TouchableOpacity 
+            style={styles.restoreButton}
+            onPress={handleRestore}
+            disabled={purchasing}
+          >
+            <MaterialIcons name="restore" size={20} color={colors.primary} />
+            <Text style={styles.restoreButtonText}>Restaurar Compras</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    ...typography.sectionTitle,
+    marginBottom: 12,
+  },
+  currentPlanCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  planHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  planName: {
+    ...typography.sectionTitle,
+    fontSize: 20,
+  },
+  badge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+  },
+  badgeText: {
+    ...typography.caption,
+    fontWeight: '600',
+  },
+  usageContainer: {
+    marginBottom: 8,
+  },
+  usageText: {
+    ...typography.body,
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: colors.background,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+  },
+  expiresText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 8,
+  },
+  planCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  planCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  planCardName: {
+    ...typography.sectionTitle,
+    fontSize: 18,
+  },
+  planCardPrice: {
+    ...typography.bodyStrong,
+    fontSize: 18,
+    color: colors.primary,
+  },
+  planCardDescription: {
+    ...typography.body,
+    marginBottom: 12,
+    color: colors.textSecondary,
+  },
+  planFeatures: {
+    marginBottom: 16,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  featureText: {
+    ...typography.body,
+    marginLeft: 8,
+  },
+  upgradeButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+  },
+  upgradeButtonText: {
+    ...typography.button,
+    color: '#fff',
+  },
+  currentButton: {
+    backgroundColor: colors.background,
+    paddingVertical: 12,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  currentButtonText: {
+    ...typography.button,
+    color: colors.textSecondary,
+  },
+  downgradeButton: {
+    backgroundColor: 'transparent',
+    paddingVertical: 12,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.textSecondary,
+  },
+  downgradeButtonText: {
+    ...typography.button,
+    color: colors.textSecondary,
+  },
+  featureDisabled: {
+    color: colors.textSecondary,
+    textDecorationLine: 'line-through',
+  },
+  restoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  restoreButtonText: {
+    ...typography.button,
+    color: colors.primary,
+    marginLeft: 8,
+  },
+});
+
+export default SubscriptionScreen;
+

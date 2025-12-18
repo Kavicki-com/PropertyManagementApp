@@ -18,10 +18,16 @@ import { fetchActiveContractsByTenants } from '../lib/contractsService';
 import { fetchTenantBillingSummary } from '../lib/financesService';
 import { colors, radii, typography } from '../theme';
 import SearchBar from '../components/SearchBar';
+import { getBlockedTenants, getUserSubscription, getActiveTenantsCount, getRequiredPlan, canAddTenant } from '../lib/subscriptionService';
+import UpgradeModal from '../components/UpgradeModal';
 
 // Updated TenantItem to display mais informações
-const TenantItem = ({ item, onPress, onPressPhone }) => (
-  <TouchableOpacity style={styles.tenantCard} onPress={() => onPress(item)}>
+const TenantItem = ({ item, onPress, onPressPhone, isBlocked }) => (
+  <TouchableOpacity 
+    style={[styles.tenantCard, isBlocked && styles.tenantCardBlocked]} 
+    onPress={() => onPress(item)}
+    activeOpacity={isBlocked ? 0.5 : 0.7}
+  >
     <Image
       source={require('../assets/avatar-placeholder.png')}
       style={styles.avatar}
@@ -74,6 +80,9 @@ const TenantsScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('name'); // 'name' | 'due_date'
+  const [blockedTenantIds, setBlockedTenantIds] = useState([]);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const isFocused = useIsFocused();
 
   const fetchTenants = async (options = {}) => {
@@ -144,6 +153,13 @@ const TenantsScreen = ({ navigation }) => {
       );
 
       setTenants(tenantsWithInvoices);
+
+      // Buscar inquilinos bloqueados
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const blockedIds = await getBlockedTenants(user.id);
+        setBlockedTenantIds(blockedIds);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -176,8 +192,57 @@ const TenantsScreen = ({ navigation }) => {
     fetchTenants({ search: searchQuery });
   };
 
-  const handleTenantPress = (tenant) => {
-    navigation.navigate('TenantDetails', { tenant });
+  const handleAddTenant = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      Alert.alert('Erro', 'Usuário não autenticado');
+      return;
+    }
+
+    // Verificar se pode adicionar mais inquilinos
+    const canAdd = await canAddTenant(user.id);
+    if (!canAdd) {
+      const tenantCount = await getActiveTenantsCount(user.id);
+      const subscription = await getUserSubscription(user.id);
+      const currentPlan = subscription?.subscription_plan || 'free';
+      // Se o plano atual é basic, sempre sugere premium
+      const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(tenantCount + 1);
+      
+      setSubscriptionInfo({
+        currentPlan,
+        propertyCount: tenantCount,
+        requiredPlan,
+      });
+      setShowUpgradeModal(true);
+      return;
+    }
+
+    // Se pode adicionar, navega normalmente
+    navigation.navigate('AddTenant');
+  };
+
+  const handleTenantPress = async (tenant) => {
+    // Verificar se o inquilino está bloqueado
+    if (blockedTenantIds.includes(tenant.id)) {
+      // Buscar informações de assinatura para o modal
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const tenantCount = await getActiveTenantsCount(user.id);
+        const subscription = await getUserSubscription(user.id);
+        const currentPlan = subscription?.subscription_plan || 'free';
+        // Se o plano atual é basic, sempre sugere premium
+        const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(tenantCount);
+        
+        setSubscriptionInfo({
+          currentPlan,
+          propertyCount: tenantCount,
+          requiredPlan,
+        });
+        setShowUpgradeModal(true);
+      }
+    } else {
+      navigation.navigate('TenantDetails', { tenant });
+    }
   };
 
   const filteredTenants = useMemo(() => {
@@ -206,8 +271,13 @@ const TenantsScreen = ({ navigation }) => {
       return 0;
     });
 
-    return result;
-  }, [tenants, searchQuery, sortBy]);
+    // Separar inquilinos bloqueados e não bloqueados
+    const nonBlocked = result.filter((t) => !blockedTenantIds.includes(t.id));
+    const blocked = result.filter((t) => blockedTenantIds.includes(t.id));
+
+    // Ordenar: não bloqueados primeiro, bloqueados no final
+    return [...nonBlocked, ...blocked];
+  }, [tenants, searchQuery, sortBy, blockedTenantIds]);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -241,6 +311,7 @@ const TenantsScreen = ({ navigation }) => {
               <TenantItem
                 item={item}
                 onPress={handleTenantPress}
+                isBlocked={blockedTenantIds.includes(item.id)}
               />
             )}
             keyExtractor={(item) => item.id}
@@ -253,7 +324,7 @@ const TenantsScreen = ({ navigation }) => {
                 </Text>
                 <TouchableOpacity
                   style={styles.emptyButton}
-                  onPress={() => navigation.navigate('AddTenant')}
+                  onPress={handleAddTenant}
                 >
                   <Text style={styles.emptyButtonText}>Adicionar inquilino</Text>
                 </TouchableOpacity>
@@ -266,10 +337,22 @@ const TenantsScreen = ({ navigation }) => {
 
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => navigation.navigate('AddTenant')}
+          onPress={handleAddTenant}
         >
           <MaterialIcons name="add" size={30} color="white" />
         </TouchableOpacity>
+
+        <UpgradeModal
+          visible={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          onUpgrade={() => {
+            setShowUpgradeModal(false);
+            navigation.navigate('Subscription');
+          }}
+          currentPlan={subscriptionInfo?.currentPlan || 'free'}
+          propertyCount={subscriptionInfo?.propertyCount || 0}
+          requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+        />
       </View>
     </TouchableWithoutFeedback>
   );
@@ -283,6 +366,9 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 15,
     paddingBottom: 80,
+  },
+  tenantCardBlocked: {
+    opacity: 0.5,
   },
   tenantCard: {
     backgroundColor: colors.surface,

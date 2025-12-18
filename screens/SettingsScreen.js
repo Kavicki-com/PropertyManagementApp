@@ -5,11 +5,14 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, typography, radii } from '../theme';
+import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits } from '../lib/subscriptionService';
 
 const SettingsScreen = ({ navigation }) => {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [subscription, setSubscription] = useState(null);
+  const [propertyCount, setPropertyCount] = useState(0);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -25,6 +28,14 @@ const SettingsScreen = ({ navigation }) => {
         if (profile && profile.full_name) {
           setUserName(profile.full_name);
         }
+
+        // Carregar dados de assinatura
+        const [subscriptionData, count] = await Promise.all([
+          getUserSubscription(user.id),
+          getActivePropertiesCount(user.id),
+        ]);
+        setSubscription(subscriptionData);
+        setPropertyCount(count);
       }
     };
     fetchUser();
@@ -241,6 +252,16 @@ const SettingsScreen = ({ navigation }) => {
                 onValueChange={setNotificationsEnabled}
               />
             )}
+          />
+          <SettingsItem
+            iconName="card-membership"
+            title="Assinatura"
+            subtitle={
+              subscription 
+                ? `${subscription.subscription_plan === 'free' ? 'Gratuito' : subscription.subscription_plan === 'basic' ? 'Básico' : 'Premium'} • ${propertyCount} imóveis`
+                : 'Gerenciar assinatura'
+            }
+            onPress={() => navigation.navigate('Subscription')}
           />
         </SettingsSection>
 
