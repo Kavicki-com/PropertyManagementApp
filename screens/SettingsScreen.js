@@ -1,6 +1,6 @@
 // screens/SettingsScreen.js 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch, Image, Linking } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import ScreenHeader from '../components/ScreenHeader';
@@ -113,6 +113,56 @@ const SettingsScreen = ({ navigation }) => {
     );
   };
 
+  const handleEmailSupport = async () => {
+    const email = 'suporte@exemplo.com';
+    const url = `mailto:${email}`;
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Erro', 'Não foi possível abrir o cliente de email.');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível abrir o cliente de email.');
+    }
+  };
+
+  const handleWebsiteSupport = async () => {
+    const url = 'https://suporte.exemplo.com';
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Erro', 'Não foi possível abrir o navegador.');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível abrir o navegador.');
+    }
+  };
+
+  const handleWhatsAppSupport = async () => {
+    const phoneNumber = '5511999999999';
+    const url = `whatsapp://send?phone=${phoneNumber}`;
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        // Fallback para WhatsApp Web se o app não estiver instalado
+        const webUrl = `https://wa.me/${phoneNumber}`;
+        await Linking.openURL(webUrl);
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível abrir o WhatsApp.');
+    }
+  };
+
+  const handleFAQ = () => {
+    navigation.navigate('FAQ');
+  };
+
   const SettingsItem = ({ iconName, iconColor, title, subtitle, onPress, rightElement, danger }) => {
     return (
       <TouchableOpacity
@@ -124,7 +174,7 @@ const SettingsScreen = ({ navigation }) => {
         <MaterialIcons
           name={iconName}
           size={24}
-          color={danger ? colors.danger : iconColor || colors.textSecondary}
+          color={danger ? colors.danger : iconColor || colors.primary}
         />
         <View style={styles.itemTextContainer}>
           <Text style={[styles.itemTitle, danger && styles.itemTitleDanger]}>{title}</Text>
@@ -194,19 +244,42 @@ const SettingsScreen = ({ navigation }) => {
           />
         </SettingsSection>
 
-        {/* Account Actions */}
-        <SettingsSection title="Ações da conta">
+        {/* Support Section */}
+        <SettingsSection title="Suporte">
           <SettingsItem
-            iconName="delete-forever"
-            title="Deletar conta"
-            onPress={handleDeleteAccount}
-            danger
+            iconName="help-outline"
+            title="FAQ"
+            subtitle="Perguntas frequentes"
+            onPress={handleFAQ}
+          />
+          <SettingsItem
+            iconName="email"
+            title="Email de suporte"
+            onPress={handleEmailSupport}
+          />
+          <SettingsItem
+            iconName="language"
+            title="Website de suporte"
+            onPress={handleWebsiteSupport}
+          />
+          <SettingsItem
+            iconName="support-agent"
+            title="WhatsApp"
+            onPress={handleWhatsAppSupport}
           />
         </SettingsSection>
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
           <Text style={styles.logoutButtonText}>Sair</Text>
+        </TouchableOpacity>
+
+        {/* Divider */}
+        <View style={styles.divider} />
+
+        {/* Delete Account Button */}
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteAccount} activeOpacity={0.8}>
+          <Text style={styles.deleteButtonText}>Deletar conta</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -320,7 +393,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   logoutButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: 'transparent',
     paddingVertical: 14,
     borderRadius: radii.pill,
     alignItems: 'center',
@@ -328,6 +401,24 @@ const styles = StyleSheet.create({
   },
   logoutButtonText: {
     ...typography.button,
+    color: colors.primary,
+  },
+  deleteButton: {
+    backgroundColor: 'transparent',
+    paddingVertical: 14,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    fontWeight: 'normal',
+    color: colors.danger,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.borderSubtle || '#e5e7eb',
+    marginVertical: 8,
   },
 });
 
