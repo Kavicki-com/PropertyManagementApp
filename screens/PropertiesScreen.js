@@ -16,6 +16,8 @@ import { supabase } from '../lib/supabase';
 import { fetchAllProperties } from '../lib/propertiesService';
 import { useIsFocused } from '@react-navigation/native';
 import SearchBar from '../components/SearchBar';
+import { getBlockedProperties, getUserSubscription, getActivePropertiesCount, getRequiredPlan, canAddProperty } from '../lib/subscriptionService';
+import UpgradeModal from '../components/UpgradeModal';
 
 // Função para formatar endereço na listagem
 const formatPropertyAddress = (item) => {
@@ -28,7 +30,7 @@ const formatPropertyAddress = (item) => {
   return item.address || 'Endereço não informado';
 };
 
-const PropertyItem = ({ item, onPress }) => {
+const PropertyItem = ({ item, onPress, isBlocked }) => {
   const hasTenant = item.tenants && item.tenants.length > 0;
   const status = hasTenant ? 'Alugada' : 'Disponível';
   const statusStyle = hasTenant ? styles.rented : styles.available;
@@ -39,7 +41,11 @@ const PropertyItem = ({ item, onPress }) => {
     : require('../assets/property-placeholder.jpg');
 
   return (
-    <TouchableOpacity style={styles.propertyCard} onPress={() => onPress(item)}>
+    <TouchableOpacity 
+      style={[styles.propertyCard, isBlocked && styles.propertyCardBlocked]} 
+      onPress={() => onPress(item)}
+      activeOpacity={isBlocked ? 0.5 : 0.7}
+    >
       <Image 
         source={imageSource}
         style={styles.propertyImage} 
@@ -64,6 +70,9 @@ const PropertiesScreen = ({ navigation }) => {
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'Residencial' | 'Comercial'
   const [sortBy, setSortBy] = useState('addressAsc'); // 'rentAsc' | 'rentDesc' | 'addressAsc'
   const [showArchived, setShowArchived] = useState(false);
+  const [blockedPropertyIds, setBlockedPropertyIds] = useState([]);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const isFocused = useIsFocused();
 
   const fetchProperties = async () => {
@@ -76,6 +85,13 @@ const PropertiesScreen = ({ navigation }) => {
       Alert.alert("Erro", "Não foi possível carregar as propriedades.");
     } else {
       setProperties(data || []);
+      
+      // Buscar propriedades bloqueadas
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const blockedIds = await getBlockedProperties(user.id);
+        setBlockedPropertyIds(blockedIds);
+      }
     }
     setLoading(false);
   };
@@ -86,8 +102,57 @@ const PropertiesScreen = ({ navigation }) => {
     }
   }, [isFocused]);
 
-  const handlePropertyPress = (property) => {
-    navigation.navigate('PropertyDetails', { property });
+  const handleAddProperty = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      Alert.alert('Erro', 'Usuário não autenticado');
+      return;
+    }
+
+    // Verificar se pode adicionar mais imóveis
+    const canAdd = await canAddProperty(user.id);
+    if (!canAdd) {
+      const propertyCount = await getActivePropertiesCount(user.id);
+      const subscription = await getUserSubscription(user.id);
+      const currentPlan = subscription?.subscription_plan || 'free';
+      // Se o plano atual é basic, sempre sugere premium
+      const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount + 1);
+      
+      setSubscriptionInfo({
+        currentPlan,
+        propertyCount,
+        requiredPlan,
+      });
+      setShowUpgradeModal(true);
+      return;
+    }
+
+    // Se pode adicionar, navega normalmente
+    navigation.navigate('AddProperty');
+  };
+
+  const handlePropertyPress = async (property) => {
+    // Verificar se a propriedade está bloqueada
+    if (blockedPropertyIds.includes(property.id)) {
+      // Buscar informações de assinatura para o modal
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const propertyCount = await getActivePropertiesCount(user.id);
+        const subscription = await getUserSubscription(user.id);
+        const currentPlan = subscription?.subscription_plan || 'free';
+        // Se o plano atual é basic, sempre sugere premium
+        const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount);
+        
+        setSubscriptionInfo({
+          currentPlan,
+          propertyCount,
+          requiredPlan,
+        });
+        setShowUpgradeModal(true);
+      }
+    } else {
+      navigation.navigate('PropertyDetails', { property });
+    }
   };
 
   const { activeProperties, archivedProperties } = useMemo(() => {
@@ -135,8 +200,15 @@ const PropertiesScreen = ({ navigation }) => {
     const active = result.filter((p) => !p.archived_at);
     const archived = result.filter((p) => !!p.archived_at);
 
-    return { activeProperties: active, archivedProperties: archived };
-  }, [properties, searchQuery, typeFilter, sortBy]);
+    // Separar propriedades bloqueadas e não bloqueadas
+    const nonBlocked = active.filter((p) => !blockedPropertyIds.includes(p.id));
+    const blocked = active.filter((p) => blockedPropertyIds.includes(p.id));
+
+    // Ordenar: não bloqueadas primeiro, bloqueadas no final
+    const sortedActive = [...nonBlocked, ...blocked];
+
+    return { activeProperties: sortedActive, archivedProperties: archived };
+  }, [properties, searchQuery, typeFilter, sortBy, blockedPropertyIds]);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -256,7 +328,11 @@ const PropertiesScreen = ({ navigation }) => {
             <FlatList
               data={activeProperties}
               renderItem={({ item }) => (
-                <PropertyItem item={item} onPress={handlePropertyPress} />
+                <PropertyItem 
+                  item={item} 
+                  onPress={handlePropertyPress}
+                  isBlocked={blockedPropertyIds.includes(item.id)}
+                />
               )}
               keyExtractor={item => item.id.toString()}
               contentContainerStyle={styles.listContent}
@@ -295,12 +371,24 @@ const PropertiesScreen = ({ navigation }) => {
             
             <TouchableOpacity 
               style={styles.addButton} 
-              onPress={() => navigation.navigate('AddProperty')}
+              onPress={handleAddProperty}
             >
               <MaterialIcons name="add" size={30} color="white" />
             </TouchableOpacity>
           </>
         )}
+
+        <UpgradeModal
+          visible={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          onUpgrade={() => {
+            setShowUpgradeModal(false);
+            navigation.navigate('Subscription');
+          }}
+          currentPlan={subscriptionInfo?.currentPlan || 'free'}
+          propertyCount={subscriptionInfo?.propertyCount || 0}
+          requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+        />
       </View>
     </TouchableWithoutFeedback>
   );
@@ -382,6 +470,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  propertyCardBlocked: {
+    opacity: 0.5,
   },
   propertyImage: {
     width: '100%',

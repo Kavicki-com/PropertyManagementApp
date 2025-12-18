@@ -13,6 +13,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
 import { fetchTenantDocuments, uploadTenantDocument, deleteTenantDocument, DOCUMENT_TYPES } from '../lib/tenantDocumentsService';
 import { filterOnlyNumbers } from '../lib/validation';
+import { canViewTenantDetails, getUserSubscription, getActiveTenantsCount, getRequiredPlan, canAddDocument, getTotalDocumentsCount } from '../lib/subscriptionService';
+import UpgradeModal from '../components/UpgradeModal';
 
 const TenantDetailsScreen = ({ route, navigation }) => {
   const { tenant: initialTenant } = route.params;
@@ -38,6 +40,9 @@ const TenantDetailsScreen = ({ route, navigation }) => {
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [documentLoading, setDocumentLoading] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const documentTypeRef = useRef(null);
   const isFocused = useIsFocused();
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
@@ -54,6 +59,32 @@ const TenantDetailsScreen = ({ route, navigation }) => {
       if (!initialTenant?.id) return;
 
       setLoading(true);
+
+      // Verificar se o inquilino está bloqueado
+      // IMPORTANTE: Re-verifica quando a tela é focada novamente (ex: após upgrade de plano)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const canView = await canViewTenantDetails(user.id, initialTenant.id);
+        if (!canView) {
+          setIsBlocked(true);
+          const tenantCount = await getActiveTenantsCount(user.id);
+          const subscription = await getUserSubscription(user.id);
+          const currentPlan = subscription?.subscription_plan || 'free';
+          // Se o plano atual é basic, sempre sugere premium
+          const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(tenantCount);
+          
+          setSubscriptionInfo({
+            currentPlan,
+            tenantCount,
+            requiredPlan,
+          });
+          setLoading(false);
+          return;
+        } else {
+          // Se antes estava bloqueado e agora pode ver, desbloqueia
+          setIsBlocked(false);
+        }
+      }
       
       const { data: tenantData, error: tenantError } = await supabase
         .from('tenants')
@@ -244,6 +275,48 @@ const TenantDetailsScreen = ({ route, navigation }) => {
 
   if (loading || !tenant) {
     return <View style={styles.loadingContainer}><ActivityIndicator size="large" /></View>;
+  }
+
+  // Tela de bloqueio quando inquilino está bloqueado
+  if (isBlocked) {
+    return (
+      <View style={styles.container}>
+        <ScreenHeader
+          title={tenant.full_name}
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.blockedContainer}>
+          <MaterialIcons name="lock" size={64} color={colors.textSecondary} />
+          <Text style={styles.blockedTitle}>Acesso Bloqueado</Text>
+          <Text style={styles.blockedMessage}>
+            Este inquilino requer upgrade de plano para ser acessado.
+          </Text>
+          <Text style={styles.blockedSubMessage}>
+            Você está usando {subscriptionInfo?.tenantCount || 0} {subscriptionInfo?.tenantCount === 1 ? 'inquilino' : 'inquilinos'}.
+            Faça upgrade para acessar todos os seus inquilinos.
+          </Text>
+          <TouchableOpacity 
+            style={styles.upgradeButtonBlocked}
+            onPress={() => setShowUpgradeModal(true)}
+          >
+            <Text style={styles.upgradeButtonTextBlocked}>Fazer Upgrade</Text>
+          </TouchableOpacity>
+        </View>
+
+        <UpgradeModal
+          visible={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          onUpgrade={() => {
+            setShowUpgradeModal(false);
+            navigation.navigate('Subscription');
+          }}
+          currentPlan={subscriptionInfo?.currentPlan || 'free'}
+          propertyCount={subscriptionInfo?.propertyCount || subscriptionInfo?.tenantCount || 0}
+          requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+          customMessage={subscriptionInfo?.customMessage}
+        />
+      </View>
+    );
   }
 
   const handleOpenProperty = () => {
@@ -498,6 +571,30 @@ const TenantDetailsScreen = ({ route, navigation }) => {
     if (!typeToUse) {
       Alert.alert('Erro', 'Tipo de documento não selecionado.');
       return;
+    }
+
+    // Verificar se pode adicionar mais documentos
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const canAdd = await canAddDocument(user.id);
+      if (!canAdd) {
+        const documentCount = await getTotalDocumentsCount(user.id);
+        const subscription = await getUserSubscription(user.id);
+        const currentPlan = subscription?.subscription_plan || 'free';
+        // Se o plano atual é basic, sempre sugere premium
+        const requiredPlan = currentPlan === 'basic' ? 'premium' : 'basic';
+        
+        setSubscriptionInfo({
+          currentPlan,
+          propertyCount: documentCount,
+          requiredPlan,
+          customMessage: `Você já possui ${documentCount} ${documentCount === 1 ? 'documento' : 'documentos'}. O plano Gratuito permite apenas 1 documento. Faça upgrade para adicionar mais documentos.`,
+        });
+        setShowUpgradeModal(true);
+        setSelectedDocumentType(null);
+        setCustomDocumentName('');
+        return;
+      }
     }
 
     setUploadingDocument(true);
@@ -1163,6 +1260,38 @@ const TenantDetailsScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  blockedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  blockedTitle: {
+    ...typography.sectionTitle,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  blockedMessage: {
+    ...typography.body,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  blockedSubMessage: {
+    ...typography.body,
+    textAlign: 'center',
+    color: colors.textSecondary,
+    marginBottom: 24,
+  },
+  upgradeButtonBlocked: {
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: radii.pill,
+  },
+  upgradeButtonTextBlocked: {
+    ...typography.button,
+    color: colors.surface,
+  },
     container: { 
         flex: 1, 
         backgroundColor: colors.background,

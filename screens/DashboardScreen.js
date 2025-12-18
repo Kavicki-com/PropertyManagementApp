@@ -18,6 +18,7 @@ import { fetchActiveContractsByTenants } from '../lib/contractsService';
 import { useIsFocused } from '@react-navigation/native';
 import { startOfMonth, endOfMonth, format, differenceInDays, setDate } from 'date-fns';
 import { colors, radii, typography } from '../theme';
+import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits, checkSubscriptionStatus, getBlockedProperties } from '../lib/subscriptionService';
 
 // Componente de gráfico de donut com cores por tipo de imóvel
 const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30 }) => {
@@ -162,6 +163,9 @@ const DashboardScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [showAllRentsModal, setShowAllRentsModal] = useState(false);
+  const [subscription, setSubscription] = useState(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [blockedPropertiesCount, setBlockedPropertiesCount] = useState(0);
   const isFocused = useIsFocused();
 
   const formatCurrency = (value) => {
@@ -338,6 +342,19 @@ const DashboardScreen = ({ navigation }) => {
       } else {
         setRecentTransactions([]);
       }
+
+      // Carregar dados de assinatura
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const [subscriptionData, status, blockedProperties] = await Promise.all([
+          getUserSubscription(user.id),
+          checkSubscriptionStatus(user.id),
+          getBlockedProperties(user.id),
+        ]);
+        setSubscription(subscriptionData);
+        setSubscriptionStatus(status);
+        setBlockedPropertiesCount(blockedProperties.length);
+      }
     }
 
     setLoading(false);
@@ -391,6 +408,46 @@ const DashboardScreen = ({ navigation }) => {
         {/* Bloco 1 – KPIs principais */}
         <View style={styles.sectionPlain}>
           <Text style={styles.sectionTitle}>Visão geral</Text>
+          
+          {/* Card de Assinatura */}
+          {subscription && (
+            <TouchableOpacity
+              style={styles.subscriptionCard}
+              onPress={() => navigation.navigate('Subscription')}
+            >
+              <View style={styles.subscriptionHeader}>
+                <MaterialIcons name="card-membership" size={20} color={colors.primary} />
+                <Text style={styles.subscriptionTitle}>Assinatura</Text>
+                {subscriptionStatus?.active && (
+                  <View style={[styles.subscriptionBadge, { backgroundColor: `${colors.primary}20` }]}>
+                    <Text style={[styles.subscriptionBadgeText, { color: colors.primary }]}>Ativo</Text>
+                  </View>
+                )}
+                {!subscriptionStatus?.active && subscriptionStatus?.reason && (
+                  <View style={[styles.subscriptionBadge, { backgroundColor: `${colors.expense}20` }]}>
+                    <Text style={[styles.subscriptionBadgeText, { color: colors.expense }]}>
+                      {subscriptionStatus.reason === 'Assinatura expirada' ? 'Expirado' : 'Inativo'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.subscriptionPlan}>
+                {subscription.subscription_plan === 'free' ? 'Gratuito' : 
+                 subscription.subscription_plan === 'basic' ? 'Básico' : 'Premium'}
+              </Text>
+              {subscription.subscription_expires_at && subscriptionStatus?.active && (
+                <Text style={styles.subscriptionExpires}>
+                  Expira em {new Date(subscription.subscription_expires_at).toLocaleDateString('pt-BR')}
+                </Text>
+              )}
+              {blockedPropertiesCount > 0 && (
+                <Text style={styles.subscriptionWarning}>
+                  {blockedPropertiesCount} {blockedPropertiesCount === 1 ? 'imóvel bloqueado' : 'imóveis bloqueados'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
+
           <View style={styles.kpiRow}>
             <TouchableOpacity
               style={styles.kpiCard}
@@ -1055,6 +1112,49 @@ const styles = StyleSheet.create({
   bottomSheetEmpty: {
     padding: 40,
     alignItems: 'center',
+  },
+  subscriptionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  subscriptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  subscriptionTitle: {
+    ...typography.bodyStrong,
+    marginLeft: 8,
+    flex: 1,
+  },
+  subscriptionBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+  },
+  subscriptionBadgeText: {
+    ...typography.caption,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  subscriptionPlan: {
+    ...typography.bodyStrong,
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  subscriptionExpires: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  subscriptionWarning: {
+    ...typography.caption,
+    color: colors.expense,
+    marginTop: 4,
+    fontWeight: '600',
   },
 });
 

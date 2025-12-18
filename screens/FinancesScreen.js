@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabase';
 import RangeDatePicker from '../components/RangeDatePicker';
 import { colors, radii, typography } from '../theme';
 import SearchBar from '../components/SearchBar';
+import { canAddFinancialTransaction, getUserSubscription, getActivePropertiesCount } from '../lib/subscriptionService';
+import UpgradeModal from '../components/UpgradeModal';
 
 const FinancesScreen = ({ navigation }) => {
   const [transactions, setTransactions] = useState([]);
@@ -20,6 +22,8 @@ const FinancesScreen = ({ navigation }) => {
   const [customEndDate, setCustomEndDate] = useState(null); // Date | null
   const isFocused = useIsFocused();
   const [showRangePicker, setShowRangePicker] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
 
   const getDateRangeFromPeriod = () => {
     if (!customStartDate && !customEndDate) {
@@ -91,6 +95,35 @@ const FinancesScreen = ({ navigation }) => {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
     return `${day}/${month}/${year}`;
+  };
+
+  const handleAddTransaction = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      Alert.alert('Erro', 'Você precisa estar logado.');
+      return;
+    }
+
+    // Validar se pode adicionar lançamento financeiro
+    const canAdd = await canAddFinancialTransaction(user.id);
+    if (!canAdd) {
+      const propertyCount = await getActivePropertiesCount(user.id);
+      const subscription = await getUserSubscription(user.id);
+      const currentPlan = subscription?.subscription_plan || 'free';
+      // Se o plano atual é basic, sempre sugere premium
+      const requiredPlan = currentPlan === 'basic' ? 'premium' : 'basic';
+      
+      setSubscriptionInfo({
+        currentPlan,
+        propertyCount,
+        requiredPlan,
+      });
+      setShowUpgradeModal(true);
+      return;
+    }
+
+    // Se pode adicionar, navega normalmente
+    navigation.navigate('AddTransaction');
   };
 
   const handleDeleteTransaction = (transaction) => {
@@ -238,7 +271,7 @@ const FinancesScreen = ({ navigation }) => {
                 </Text>
                 <TouchableOpacity
                   style={styles.emptyButton}
-                  onPress={() => navigation.navigate('AddTransaction')}
+                  onPress={handleAddTransaction}
                 >
                   <Text style={styles.emptyButtonText}>Adicionar lançamento</Text>
                 </TouchableOpacity>
@@ -337,10 +370,23 @@ const FinancesScreen = ({ navigation }) => {
         />
         <TouchableOpacity 
             style={styles.addButton} 
-            onPress={() => navigation.navigate('AddTransaction')}
+            onPress={handleAddTransaction}
         >
             <MaterialIcons name="add" size={30} color="white" />
         </TouchableOpacity>
+
+        <UpgradeModal
+          visible={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          onUpgrade={() => {
+            setShowUpgradeModal(false);
+            navigation.navigate('Subscription');
+          }}
+          currentPlan={subscriptionInfo?.currentPlan || 'free'}
+          propertyCount={subscriptionInfo?.propertyCount || 0}
+          requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+          customMessage="O plano Gratuito não permite lançamentos financeiros. Faça upgrade para o plano Básico ou Premium para registrar recebimentos e despesas."
+        />
     </View>
   );
 };

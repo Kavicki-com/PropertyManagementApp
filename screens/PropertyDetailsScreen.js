@@ -22,6 +22,8 @@ import { fetchActiveContractByProperty } from '../lib/contractsService';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors, radii, typography } from '../theme';
+import { canViewPropertyDetails, getUserSubscription, getActivePropertiesCount, getRequiredPlan } from '../lib/subscriptionService';
+import UpgradeModal from '../components/UpgradeModal';
 
 const PropertyDetailsScreen = ({ route, navigation }) => {
   const { property: initialProperty } = route.params;
@@ -43,6 +45,9 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const isFocused = useIsFocused();
 
   useEffect(() => {
@@ -54,6 +59,32 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       }
 
       setLoading(true);
+
+      // Verificar se a propriedade está bloqueada
+      // IMPORTANTE: Re-verifica quando a tela é focada novamente (ex: após upgrade de plano)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const canView = await canViewPropertyDetails(user.id, initialProperty.id);
+        if (!canView) {
+          setIsBlocked(true);
+          const propertyCount = await getActivePropertiesCount(user.id);
+          const subscription = await getUserSubscription(user.id);
+          const currentPlan = subscription?.subscription_plan || 'free';
+          // Se o plano atual é basic, sempre sugere premium
+          const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount);
+          
+          setSubscriptionInfo({
+            currentPlan,
+            propertyCount,
+            requiredPlan,
+          });
+          setLoading(false);
+          return;
+        } else {
+          // Se antes estava bloqueado e agora pode ver, desbloqueia
+          setIsBlocked(false);
+        }
+      }
       
       const { data: propertyData, error: propertyError } = await supabase
         .from('properties')
@@ -296,6 +327,53 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  // Tela de bloqueio quando propriedade está bloqueada
+  if (isBlocked) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.headerContainer}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <MaterialIcons name="arrow-back-ios" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.header} numberOfLines={1} ellipsizeMode="tail">
+            {property.street 
+              ? `${property.street}${property.number ? `, ${property.number}` : ''}`
+              : property.address}
+          </Text>
+        </View>
+        <View style={styles.blockedContainer}>
+          <MaterialIcons name="lock" size={64} color={colors.textSecondary} />
+          <Text style={styles.blockedTitle}>Acesso Bloqueado</Text>
+          <Text style={styles.blockedMessage}>
+            Esta propriedade requer upgrade de plano para ser acessada.
+          </Text>
+          <Text style={styles.blockedSubMessage}>
+            Você está usando {subscriptionInfo?.propertyCount || 0} {subscriptionInfo?.propertyCount === 1 ? 'imóvel' : 'imóveis'}.
+            Faça upgrade para acessar todos os seus imóveis.
+          </Text>
+          <TouchableOpacity 
+            style={styles.upgradeButtonBlocked}
+            onPress={() => setShowUpgradeModal(true)}
+          >
+            <Text style={styles.upgradeButtonTextBlocked}>Fazer Upgrade</Text>
+          </TouchableOpacity>
+        </View>
+
+        <UpgradeModal
+          visible={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          onUpgrade={() => {
+            setShowUpgradeModal(false);
+            navigation.navigate('Subscription');
+          }}
+          currentPlan={subscriptionInfo?.currentPlan || 'free'}
+          propertyCount={subscriptionInfo?.propertyCount || 0}
+          requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+        />
       </View>
     );
   }
@@ -755,6 +833,38 @@ const styles = StyleSheet.create({
     financeActionText: {
         ...typography.button,
         color: colors.primary,
+    },
+    blockedContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 40,
+    },
+    blockedTitle: {
+        ...typography.sectionTitle,
+        marginTop: 20,
+        marginBottom: 12,
+    },
+    blockedMessage: {
+        ...typography.body,
+        textAlign: 'center',
+        marginBottom: 8,
+    },
+    blockedSubMessage: {
+        ...typography.caption,
+        textAlign: 'center',
+        marginBottom: 24,
+        color: colors.textSecondary,
+    },
+    upgradeButtonBlocked: {
+        backgroundColor: colors.primary,
+        paddingVertical: 14,
+        paddingHorizontal: 32,
+        borderRadius: radii.pill,
+    },
+    upgradeButtonTextBlocked: {
+        ...typography.button,
+        color: '#fff',
     },
 });
 

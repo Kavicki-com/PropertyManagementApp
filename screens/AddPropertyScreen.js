@@ -32,6 +32,8 @@ import {
   isValidUF,
 } from '../lib/validation';
 import { fetchAddressByCep } from '../lib/cepService';
+import { canAddProperty, getActivePropertiesCount, getUserSubscription, getRequiredPlan } from '../lib/subscriptionService';
+import UpgradeModal from '../components/UpgradeModal';
 
 const decode = (base64) => {
   const binaryString = Buffer.from(base64, 'base64').toString('binary');
@@ -63,6 +65,8 @@ const AddPropertyScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState([]);
   const [errors, setErrors] = useState({});
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
 
   const [typeValue, setTypeValue] = useState(null);
   const [typeItems] = useState([
@@ -250,6 +254,25 @@ const AddPropertyScreen = ({ navigation }) => {
     if (!user) {
       Alert.alert('Erro', 'Você precisa estar logado para adicionar uma propriedade.');
       setLoading(false);
+      return;
+    }
+
+    // Validar limite de imóveis antes de continuar
+    const canAdd = await canAddProperty(user.id);
+    if (!canAdd) {
+      setLoading(false);
+      const propertyCount = await getActivePropertiesCount(user.id);
+      const subscription = await getUserSubscription(user.id);
+      const currentPlan = subscription?.subscription_plan || 'free';
+      // Se o plano atual é basic, sempre sugere premium
+      const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount + 1);
+      
+      setSubscriptionInfo({
+        currentPlan,
+        propertyCount,
+        requiredPlan,
+      });
+      setShowUpgradeModal(true);
       return;
     }
 
@@ -564,6 +587,18 @@ const AddPropertyScreen = ({ navigation }) => {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      <UpgradeModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        onUpgrade={() => {
+          setShowUpgradeModal(false);
+          navigation.navigate('Subscription');
+        }}
+        currentPlan={subscriptionInfo?.currentPlan || 'free'}
+        propertyCount={subscriptionInfo?.propertyCount || 0}
+        requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+      />
     </View>
   );
 };
