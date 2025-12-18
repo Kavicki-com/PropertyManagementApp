@@ -51,12 +51,18 @@ const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount,
             </Text>
 
             <View style={styles.planComparison}>
-              <View style={[styles.planCard, currentPlan === 'free' && styles.planCardNoBackground]}>
+              <View style={[
+                styles.planCard, 
+                (currentPlan === 'free' || currentPlan === 'basic') && styles.planCardNoBackground
+              ]}>
                 <Text style={styles.planName}>{planNames[currentPlan]}</Text>
                 <Text style={styles.planLimit}>
                   Até {planLimits[currentPlan]} {typeof planLimits[currentPlan] === 'number' ? 'imóveis' : ''}
                 </Text>
-                <Text style={[styles.planPrice, currentPlan === 'basic' && styles.planPriceGreen]}>
+                <Text style={[
+                  styles.planPrice, 
+                  currentPlan === 'basic' && styles.planPriceDefault
+                ]}>
                   {planPrices[currentPlan]}
                 </Text>
                 <View style={[styles.badge, styles.currentBadge]}>
@@ -73,7 +79,7 @@ const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount,
                     ? `Até ${planLimits[requiredPlan]} imóveis`
                     : planLimits[requiredPlan]}
                 </Text>
-                <Text style={[styles.planPrice, requiredPlan === 'basic' && styles.planPriceGreen]}>
+                <Text style={[styles.planPrice, (requiredPlan === 'basic' || requiredPlan === 'premium') && styles.planPriceGreen]}>
                   {planPrices[requiredPlan]}
                 </Text>
                 <View style={[styles.badge, styles.recommendedBadge]}>
@@ -203,6 +209,9 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginBottom: 10,
     textAlign: 'center',
+  },
+  planPriceDefault: {
+    color: colors.textPrimary,
   },
   planPriceGreen: {
     color: '#4CAF50',

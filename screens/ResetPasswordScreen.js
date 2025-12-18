@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { validatePassword, getPasswordStrength } from '../lib/validation';
+import { radii } from '../theme';
 
 const ResetPasswordScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
@@ -210,7 +211,7 @@ const styles = StyleSheet.create({
   updateButton: {
     backgroundColor: '#4a86e8',
     padding: 15,
-    borderRadius: 8,
+    borderRadius: radii.pill,
     alignItems: 'center',
     marginTop: 10,
   },

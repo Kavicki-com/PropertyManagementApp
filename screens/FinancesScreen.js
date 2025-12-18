@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
   periodClearButton: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     width: 60,
     height: 60,
-    borderRadius: 30,
+    borderRadius: radii.pill,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

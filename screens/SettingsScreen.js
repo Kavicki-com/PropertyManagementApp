@@ -398,6 +398,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
+    borderRadius: radii.pill,
   },
   itemTextContainer: {
     flex: 1,

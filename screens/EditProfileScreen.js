@@ -529,7 +529,7 @@ const styles = StyleSheet.create({
   saveButton: {
     backgroundColor: colors.primary,
     padding: 15,
-    borderRadius: radii.md,
+    borderRadius: radii.pill,
     alignItems: 'center',
   },
   buttonText: {

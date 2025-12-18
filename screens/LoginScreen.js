@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { radii } from '../theme';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -194,7 +195,7 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: '#4a86e8',
     padding: 15,
-    borderRadius: 8,
+    borderRadius: radii.pill,
     alignItems: 'center',
     marginBottom: 20,
   },

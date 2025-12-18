@@ -15,6 +15,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import { filterOnlyLetters, filterOnlyNumbers } from '../lib/validation';
+import { radii } from '../theme';
 
 const EditTenantScreen = ({ route, navigation }) => {
   const { tenant } = route.params;
@@ -246,7 +247,7 @@ const styles = StyleSheet.create({
     updateButton: { 
         backgroundColor: '#4a86e8', 
         padding: 15, 
-        borderRadius: 8, 
+        borderRadius: radii.pill, 
         alignItems: 'center', 
         marginTop: 10,
     },

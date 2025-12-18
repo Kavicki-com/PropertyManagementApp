@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
+import { radii } from '../theme';
 
 const ForgotPasswordScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -152,7 +153,7 @@ const styles = StyleSheet.create({
   sendButton: {
     backgroundColor: '#4a86e8',
     padding: 15,
-    borderRadius: 8,
+    borderRadius: radii.pill,
     alignItems: 'center',
   },
   sendButtonText: {

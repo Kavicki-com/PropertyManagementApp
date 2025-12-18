@@ -30,6 +30,7 @@ import {
   isValidUF,
 } from '../lib/validation';
 import { fetchAddressByCep } from '../lib/cepService';
+import { radii } from '../theme';
 
 const decode = (base64) => {
   const binaryString = Buffer.from(base64, 'base64').toString('binary');
@@ -663,7 +664,7 @@ const styles = StyleSheet.create({
   updateButton: {
     backgroundColor: '#4a86e8',
     padding: 15,
-    borderRadius: 8,
+    borderRadius: radii.pill,
     alignItems: 'center',
     marginTop: 10,
     marginBottom: 40,
@@ -682,7 +683,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f0f0f0',
     padding: 12,
-    borderRadius: 8,
+    borderRadius: radii.pill,
     flex: 1,
     justifyContent: 'center',
     marginHorizontal: 5,
@@ -711,7 +712,7 @@ const styles = StyleSheet.create({
     top: -8,
     right: -8,
     backgroundColor: 'white',
-    borderRadius: 12,
+    borderRadius: radii.pill,
   },
 });
 
