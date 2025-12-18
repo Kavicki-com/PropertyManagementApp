@@ -94,26 +94,62 @@ const AddPropertyScreen = ({ navigation }) => {
   };
 
   const handleImagePicker = async (useCamera = false) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:96',message:'handleImagePicker chamado',data:{useCamera,imagesCount:images.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (images.length >= 10) {
       Alert.alert('Limite de fotos', 'Você pode adicionar no máximo 10 fotos por imóvel.');
       return;
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:102',message:'Solicitando permissão',data:{useCamera},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     const permission = useCamera
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:108',message:'Permissão recebida',data:{status:permission.status,granted:permission.status==='granted'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (permission.status !== 'granted') {
       Alert.alert('Permissão necessária', 'Você precisa permitir o acesso para adicionar fotos.');
       return;
     }
 
-    const result = useCamera
-      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 })
-      : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7 });
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:113',message:'Abrindo ImagePicker',data:{useCamera},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    try {
+      const result = useCamera
+        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 })
+        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7 });
 
-    if (!result.canceled) {
-      setImages([...images, result.assets[0]]);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:119',message:'Resultado do ImagePicker',data:{hasResult:!!result,canceled:result?.canceled,hasAssets:!!result?.assets,assetsLength:result?.assets?.length,firstAssetUri:result?.assets?.[0]?.uri},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      if (!result) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:132',message:'ERRO: result é null ou undefined',data:{useCamera},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        Alert.alert('Erro', 'Não foi possível abrir o seletor de imagens.');
+        return;
+      }
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setImages([...images, result.assets[0]]);
+      } else if (!result.canceled && (!result.assets || result.assets.length === 0)) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:139',message:'ERRO: assets vazio ou undefined',data:{result},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        Alert.alert('Erro', 'Não foi possível obter a imagem selecionada.');
+      }
+    } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:128',message:'ERRO capturado no ImagePicker',data:{errorMessage:error.message,errorStack:error.stack,useCamera},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      Alert.alert('Erro', `Não foi possível abrir ${useCamera ? 'a câmera' : 'a galeria'}.`);
     }
   };
 
@@ -492,11 +528,21 @@ const AddPropertyScreen = ({ navigation }) => {
 
         <View style={styles.inputGroup}>
           <View style={styles.imagePickerContainer}>
-            <TouchableOpacity style={styles.imagePickerButton} onPress={() => handleImagePicker(true)}>
+            <TouchableOpacity style={styles.imagePickerButton} onPress={() => {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:531',message:'Botão Câmera pressionado',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
+              handleImagePicker(true);
+            }}>
               <MaterialIcons name="photo-camera" size={24} color="#4a86e8" />
               <Text style={styles.imagePickerText}>Câmera</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.imagePickerButton} onPress={() => handleImagePicker(false)}>
+            <TouchableOpacity style={styles.imagePickerButton} onPress={() => {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:535',message:'Botão Galeria pressionado',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
+              handleImagePicker(false);
+            }}>
               <MaterialIcons name="photo-library" size={24} color="#4a86e8" />
               <Text style={styles.imagePickerText}>Galeria</Text>
             </TouchableOpacity>
