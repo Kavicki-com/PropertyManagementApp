@@ -1,13 +1,18 @@
 // screens/TenantDetailsScreen.js
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator, Modal, TextInput, InteractionManager, Animated, Dimensions } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { useIsFocused } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { fetchTenantBillingSummary } from '../lib/financesService';
 import { fetchActiveContractByTenant, endContract } from '../lib/contractsService';
 import { colors, radii, typography } from '../theme';
+import * as ImagePicker from 'expo-image-picker';
+import * as Linking from 'expo-linking';
+import { fetchTenantDocuments, uploadTenantDocument, deleteTenantDocument, DOCUMENT_TYPES } from '../lib/tenantDocumentsService';
+import { filterOnlyNumbers } from '../lib/validation';
 
 const TenantDetailsScreen = ({ route, navigation }) => {
   const { tenant: initialTenant } = route.params;
@@ -23,7 +28,26 @@ const TenantDetailsScreen = ({ route, navigation }) => {
   const [billingLoading, setBillingLoading] = useState(false);
   const [contract, setContract] = useState(null);
   const [contractLoading, setContractLoading] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [showDocumentTypeModal, setShowDocumentTypeModal] = useState(false);
+  const [showCustomNameModal, setShowCustomNameModal] = useState(false);
+  const [customDocumentName, setCustomDocumentName] = useState('');
+  const [selectedDocumentType, setSelectedDocumentType] = useState(null);
+  const [showDocumentViewer, setShowDocumentViewer] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState(null);
+  const [documentLoading, setDocumentLoading] = useState(false);
+  const documentTypeRef = useRef(null);
   const isFocused = useIsFocused();
+  const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+
+  // Resetar animação quando o modal fecha
+  useEffect(() => {
+    if (!showDocumentTypeModal) {
+      slideAnim.setValue(Dimensions.get('window').height);
+    }
+  }, [showDocumentTypeModal]);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -107,6 +131,25 @@ const TenantDetailsScreen = ({ route, navigation }) => {
 
     loadBilling();
   }, [contract, isFocused]);
+
+  useEffect(() => {
+    const loadDocuments = async () => {
+      if (!tenant?.id) return;
+      setDocumentsLoading(true);
+      try {
+        const { data, error } = await fetchTenantDocuments(tenant.id);
+        if (error) {
+          console.error('Erro ao carregar documentos:', error);
+        } else {
+          setDocuments(data || []);
+        }
+      } finally {
+        setDocumentsLoading(false);
+      }
+    };
+
+    loadDocuments();
+  }, [tenant?.id, isFocused]);
 
   const handleDeleteTenant = async () => {
     Alert.alert(
@@ -208,6 +251,331 @@ const TenantDetailsScreen = ({ route, navigation }) => {
     navigation.navigate('PropertyDetails', { property: tenant.properties });
   };
 
+  // Funções de comunicação
+  const handleCall = () => {
+    if (!tenant.phone) {
+      Alert.alert('Aviso', 'Telefone não informado.');
+      return;
+    }
+    const phoneNumber = filterOnlyNumbers(tenant.phone);
+    Linking.openURL(`tel:${phoneNumber}`);
+  };
+
+  const handleWhatsApp = () => {
+    if (!tenant.phone) {
+      Alert.alert('Aviso', 'Telefone não informado.');
+      return;
+    }
+    const phoneNumber = filterOnlyNumbers(tenant.phone);
+    // Formato: 5511999999999 (código do país + DDD + número)
+    // Se não começar com 55, adiciona (assumindo Brasil)
+    const formattedNumber = phoneNumber.startsWith('55') ? phoneNumber : `55${phoneNumber}`;
+    Linking.openURL(`https://wa.me/${formattedNumber}`);
+  };
+
+  // Funções de documentos
+  const checkDocumentExists = (documentType, customName = null) => {
+    if (documentType === 'outros' && customName) {
+      // Para documentos "outros", verificar por custom_name
+      return documents.some(
+        doc => doc.document_type === 'outros' && 
+        doc.custom_name && 
+        doc.custom_name.toLowerCase().trim() === customName.toLowerCase().trim()
+      );
+    } else {
+      // Para outros tipos, verificar por document_type
+      return documents.some(doc => doc.document_type === documentType);
+    }
+  };
+
+  // Conta quantos documentos "outros" já existem no total
+  const countOtherDocuments = () => {
+    return documents.filter(doc => doc.document_type === 'outros').length;
+  };
+
+  const handleSelectDocumentType = (documentType) => {
+    console.log('handleSelectDocumentType chamado com:', documentType);
+    
+    // Para documentos "outros", verificar se já existem 3 ou mais
+    if (documentType === 'outros') {
+      const count = countOtherDocuments();
+      if (count >= 3) {
+        Alert.alert(
+          'Limite atingido',
+          'Já existem 3 documentos na categoria "Outros". Exclua um documento existente antes de adicionar um novo.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    } else {
+      // Para outros tipos, verificar se já existe um documento deste tipo
+      if (checkDocumentExists(documentType)) {
+        const documentTypeLabel = DOCUMENT_TYPES.find(t => t.key === documentType)?.label || documentType;
+        Alert.alert(
+          'Documento já existe',
+          `Já existe um documento do tipo "${documentTypeLabel}" cadastrado. Exclua o documento existente antes de adicionar um novo.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+    
+    // Salvar no ref para garantir que não seja perdido
+    documentTypeRef.current = documentType;
+    setSelectedDocumentType(documentType);
+    handleCloseDocumentTypeModal();
+    
+    if (documentType === 'outros') {
+      // Se for "outros", mostra modal para nome customizado
+      // Pequeno delay para garantir que o modal anterior feche
+      setTimeout(() => {
+        setShowCustomNameModal(true);
+      }, 300);
+    } else {
+      // Usar InteractionManager para garantir que o modal feche antes de abrir o picker
+      InteractionManager.runAfterInteractions(() => {
+        console.log('Chamando handleDocumentPicker com:', documentType);
+        handleDocumentPicker(documentType);
+      });
+    }
+  };
+
+  const handleConfirmCustomName = () => {
+    if (customDocumentName && customDocumentName.trim()) {
+      const trimmedName = customDocumentName.trim();
+      
+      // Verificar quantos documentos "outros" já existem no total
+      const count = countOtherDocuments();
+      
+      // Permitir até 3 documentos na categoria "outros" no total
+      if (count >= 3) {
+        Alert.alert(
+          'Limite atingido',
+          'Já existem 3 documentos na categoria "Outros". Exclua um documento existente antes de adicionar um novo.',
+          [{ text: 'OK' }]
+        );
+        setCustomDocumentName('');
+        return;
+      }
+      
+      setCustomDocumentName(trimmedName);
+      documentTypeRef.current = 'outros';
+      setSelectedDocumentType('outros');
+      setShowCustomNameModal(false);
+      // Usar InteractionManager para garantir que o modal feche antes de abrir o picker
+      InteractionManager.runAfterInteractions(() => {
+        handleDocumentPicker('outros');
+      });
+    } else {
+      Alert.alert('Aviso', 'Por favor, informe o nome do documento.');
+    }
+  };
+
+  const handleAddDocument = () => {
+    setShowDocumentTypeModal(true);
+    // Animar o bottom sheet para cima
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  };
+
+  const handleCloseDocumentTypeModal = () => {
+    // Animar o bottom sheet para baixo
+    Animated.timing(slideAnim, {
+      toValue: Dimensions.get('window').height,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowDocumentTypeModal(false);
+    });
+  };
+
+  const handleDocumentPicker = (documentType = null) => {
+    // Usar o parâmetro, ref ou o estado (nesta ordem de prioridade)
+    const typeToUse = documentType || documentTypeRef.current || selectedDocumentType;
+    
+    // Verificar se o tipo foi selecionado
+    if (!typeToUse) {
+      console.warn('Tipo de documento não selecionado');
+      Alert.alert('Erro', 'Tipo de documento não selecionado. Tente novamente.');
+      return;
+    }
+    
+    // Garantir que o ref esteja atualizado
+    documentTypeRef.current = typeToUse;
+    
+    // Abrir ActionSheet nativo para escolher entre câmera e galeria
+    Alert.alert(
+      'Escolha a origem',
+      'Como deseja adicionar o documento?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+          onPress: () => {
+            setSelectedDocumentType(null);
+            documentTypeRef.current = null;
+          },
+        },
+        {
+          text: 'Tirar foto',
+          onPress: () => handleImageSourceSelection(true),
+        },
+        {
+          text: 'Escolher da galeria',
+          onPress: () => handleImageSourceSelection(false),
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleImageSourceSelection = async (useCamera) => {
+    try {
+      const typeToUse = documentTypeRef.current || selectedDocumentType;
+      
+      if (!typeToUse) {
+        Alert.alert('Erro', 'Tipo de documento não selecionado. Tente novamente.');
+        return;
+      }
+      
+      // Solicitar permissão apropriada
+      const permission = useCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (permission.status !== 'granted') {
+        Alert.alert('Permissão necessária', 'Você precisa permitir o acesso para adicionar documentos.');
+        setSelectedDocumentType(null);
+        documentTypeRef.current = null;
+        return;
+      }
+
+      // Abrir câmera ou galeria
+      const result = useCamera
+        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.8 })
+        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.8 });
+
+      if (!result) {
+        Alert.alert('Erro', 'Não foi possível abrir o seletor de imagens.');
+        setSelectedDocumentType(null);
+        documentTypeRef.current = null;
+        return;
+      }
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const fileData = {
+          fileName: asset.fileName || `documento_${Date.now()}.jpg`,
+          mimeType: asset.mimeType || 'image/jpeg',
+          fileSize: asset.fileSize || 0,
+          base64: asset.base64,
+        };
+
+        await uploadDocument(fileData, typeToUse);
+      } else if (!result.canceled && (!result.assets || result.assets.length === 0)) {
+        Alert.alert('Erro', 'Não foi possível obter a imagem selecionada.');
+        setSelectedDocumentType(null);
+        documentTypeRef.current = null;
+      } else {
+        // Se o usuário cancelou, limpar o tipo selecionado
+        setSelectedDocumentType(null);
+        documentTypeRef.current = null;
+      }
+    } catch (error) {
+      console.error('Erro no handleImageSourceSelection:', error);
+      Alert.alert('Erro', `Ocorreu um erro ao abrir ${useCamera ? 'a câmera' : 'a galeria'}. Tente novamente.`);
+      setSelectedDocumentType(null);
+      documentTypeRef.current = null;
+    }
+  };
+
+  const uploadDocument = async (fileData, documentType = null) => {
+    const typeToUse = documentType || selectedDocumentType;
+    if (!typeToUse) {
+      Alert.alert('Erro', 'Tipo de documento não selecionado.');
+      return;
+    }
+
+    setUploadingDocument(true);
+    try {
+      const { data, error } = await uploadTenantDocument(
+        tenant.id,
+        typeToUse,
+        fileData,
+        typeToUse === 'outros' ? customDocumentName : null
+      );
+
+      if (error) {
+        Alert.alert('Erro', error.message || 'Não foi possível fazer upload do documento.');
+      } else {
+        Alert.alert('Sucesso', 'Documento adicionado com sucesso!');
+        // Recarregar lista de documentos
+        const { data: updatedDocuments } = await fetchTenantDocuments(tenant.id);
+        setDocuments(updatedDocuments || []);
+      }
+    } catch (err) {
+      console.error('Erro ao fazer upload:', err);
+      Alert.alert('Erro', 'Ocorreu um erro inesperado.');
+    } finally {
+      setUploadingDocument(false);
+      setSelectedDocumentType(null);
+      setCustomDocumentName('');
+    }
+  };
+
+  const handleDeleteDocument = (documentId) => {
+    Alert.alert(
+      'Confirmar exclusão',
+      'Tem certeza que deseja excluir este documento?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await deleteTenantDocument(documentId);
+            if (error) {
+              Alert.alert('Erro', 'Não foi possível excluir o documento.');
+            } else {
+              Alert.alert('Sucesso', 'Documento excluído com sucesso!');
+              // Recarregar lista de documentos
+              const { data: updatedDocuments } = await fetchTenantDocuments(tenant.id);
+              setDocuments(updatedDocuments || []);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleViewDocument = (document) => {
+    if (document.file_url) {
+      setSelectedDocument(document);
+      setShowDocumentViewer(true);
+      setDocumentLoading(true);
+    } else {
+      Alert.alert('Erro', 'URL do documento não disponível.');
+    }
+  };
+
+  const handleCloseDocumentViewer = () => {
+    setShowDocumentViewer(false);
+    setSelectedDocument(null);
+    setDocumentLoading(false);
+  };
+
+  const getDocumentTypeLabel = (documentType, customName) => {
+    if (documentType === 'outros' && customName) {
+      return customName;
+    }
+    const type = DOCUMENT_TYPES.find((t) => t.key === documentType);
+    return type ? type.label : documentType;
+  };
+
   return (
     <View style={styles.container}>
         <ScreenHeader
@@ -250,7 +618,25 @@ const TenantDetailsScreen = ({ route, navigation }) => {
                 </View>
                 <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Telefone</Text>
-                    <Text style={styles.infoValue}>{tenant.phone || 'N/A'}</Text>
+                    <View style={styles.phoneRow}>
+                        <Text style={styles.infoValue}>{tenant.phone || 'N/A'}</Text>
+                        {tenant.phone && (
+                            <View style={styles.phoneActions}>
+                                <TouchableOpacity
+                                    style={styles.phoneActionButton}
+                                    onPress={handleCall}
+                                >
+                                    <MaterialIcons name="phone" size={20} color={colors.primary} />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.phoneActionButton}
+                                    onPress={handleWhatsApp}
+                                >
+                                    <MaterialCommunityIcons name="whatsapp" size={20} color="#25D366" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
                 </View>
                 <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Email</Text>
@@ -434,6 +820,75 @@ const TenantDetailsScreen = ({ route, navigation }) => {
                   </TouchableOpacity>
                 </View>
             </View>
+
+            {/* Seção de Documentos */}
+            <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Documentos</Text>
+                    <TouchableOpacity
+                        style={styles.addDocumentButton}
+                        onPress={handleAddDocument}
+                        disabled={uploadingDocument}
+                    >
+                        {uploadingDocument ? (
+                            <ActivityIndicator size="small" color={colors.primary} />
+                        ) : (
+                            <>
+                                <MaterialIcons name="add" size={20} color={colors.primary} />
+                                <Text style={styles.addDocumentButtonText}>Adicionar</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                </View>
+
+                {documentsLoading ? (
+                    <View style={styles.documentsLoading}>
+                        <ActivityIndicator size="small" color={colors.primary} />
+                        <Text style={styles.documentsLoadingText}>Carregando documentos...</Text>
+                    </View>
+                ) : documents.length === 0 ? (
+                    <View style={styles.documentsEmpty}>
+                        <MaterialIcons name="description" size={48} color="#ccc" />
+                        <Text style={styles.documentsEmptyText}>Nenhum documento adicionado</Text>
+                    </View>
+                ) : (
+                    <View style={styles.documentsList}>
+                        {documents.map((doc) => (
+                            <View key={doc.id} style={styles.documentItem}>
+                                <View style={styles.documentInfo}>
+                                    <MaterialIcons
+                                        name={doc.mime_type === 'application/pdf' ? 'picture-as-pdf' : 'image'}
+                                        size={24}
+                                        color={colors.primary}
+                                    />
+                                    <View style={styles.documentDetails}>
+                                        <Text style={styles.documentName} numberOfLines={1}>
+                                            {getDocumentTypeLabel(doc.document_type, doc.custom_name)}
+                                        </Text>
+                                        <Text style={styles.documentMeta} numberOfLines={1}>
+                                            {doc.file_name} • {(doc.file_size / 1024).toFixed(1)} KB
+                                        </Text>
+                                    </View>
+                                </View>
+                                <View style={styles.documentActions}>
+                                    <TouchableOpacity
+                                        style={styles.documentActionButton}
+                                        onPress={() => handleViewDocument(doc)}
+                                    >
+                                        <MaterialIcons name="visibility" size={20} color={colors.primary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.documentActionButton}
+                                        onPress={() => handleDeleteDocument(doc.id)}
+                                    >
+                                        <MaterialIcons name="delete" size={20} color="#F44336" />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                )}
+            </View>
             
             <View style={styles.buttonContainer}>
                 <TouchableOpacity 
@@ -447,6 +902,262 @@ const TenantDetailsScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
             </View>
         </ScrollView>
+
+        {/* Bottom Sheet de seleção de tipo de documento */}
+        <Modal
+            visible={showDocumentTypeModal}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={handleCloseDocumentTypeModal}
+        >
+            <TouchableOpacity
+                style={styles.bottomSheetOverlay}
+                activeOpacity={1}
+                onPress={handleCloseDocumentTypeModal}
+            >
+                <Animated.View
+                    style={[
+                        styles.bottomSheetContainer,
+                        {
+                            transform: [{ translateY: slideAnim }],
+                        },
+                    ]}
+                    onStartShouldSetResponder={() => true}
+                >
+                    {/* Handle do bottom sheet */}
+                    <View style={styles.bottomSheetHandle} />
+                    
+                    {/* Header */}
+                    <View style={styles.bottomSheetHeader}>
+                        <Text style={styles.bottomSheetTitle}>Selecione o tipo de documento</Text>
+                        <TouchableOpacity
+                            onPress={handleCloseDocumentTypeModal}
+                            style={styles.bottomSheetCloseButton}
+                        >
+                            <MaterialIcons name="close" size={24} color="#333" />
+                        </TouchableOpacity>
+                    </View>
+                    
+                    {/* Lista de documentos */}
+                    <ScrollView 
+                        style={styles.bottomSheetBody}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        {DOCUMENT_TYPES.map((type) => {
+                            // Para "outros", verificar se já existem 3 ou mais documentos
+                            let exists = false;
+                            let disabled = false;
+                            let outrosCount = 0;
+                            if (type.key === 'outros') {
+                                outrosCount = countOtherDocuments();
+                                exists = outrosCount >= 3;
+                                disabled = outrosCount >= 3;
+                            } else {
+                                exists = checkDocumentExists(type.key);
+                                disabled = exists;
+                            }
+                            return (
+                                <TouchableOpacity
+                                    key={type.key}
+                                    style={[
+                                        styles.documentTypeOption,
+                                        disabled && styles.documentTypeOptionDisabled,
+                                    ]}
+                                    onPress={() => !disabled && handleSelectDocumentType(type.key)}
+                                    disabled={disabled}
+                                >
+                                    <View style={styles.documentTypeOptionLeft}>
+                                        <Text style={[
+                                            styles.documentTypeOptionText,
+                                            disabled && styles.documentTypeOptionTextDisabled,
+                                        ]}>
+                                            {type.label}
+                                        </Text>
+                                        {type.key === 'outros' && outrosCount > 0 && outrosCount < 3 && (
+                                            <View style={styles.documentCountBadge}>
+                                                <Text style={styles.documentCountText}>
+                                                    {outrosCount}/3
+                                                </Text>
+                                            </View>
+                                        )}
+                                        {exists && (
+                                            <View style={styles.documentExistsBadge}>
+                                                <MaterialIcons name="check-circle" size={16} color="#4CAF50" />
+                                                <Text style={styles.documentExistsText}>
+                                                    {type.key === 'outros' ? 'Limite atingido' : 'Enviado'}
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                    {!disabled && (
+                                        <MaterialIcons name="chevron-right" size={20} color="#999" />
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+                </Animated.View>
+            </TouchableOpacity>
+        </Modal>
+
+        {/* Modal de nome customizado para documento "outros" */}
+        <Modal
+            visible={showCustomNameModal}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => {
+                setShowCustomNameModal(false);
+                setCustomDocumentName('');
+                setSelectedDocumentType(null);
+            }}
+        >
+            <View style={styles.modalOverlay}>
+                <View style={[styles.modalContent, styles.customNameModalContent]}>
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Nome do documento</Text>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setShowCustomNameModal(false);
+                                setCustomDocumentName('');
+                                setSelectedDocumentType(null);
+                            }}
+                            style={styles.modalCloseButton}
+                        >
+                            <MaterialIcons name="close" size={24} color="#333" />
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.modalBody}>
+                        <Text style={styles.modalLabel}>Digite o nome do documento:</Text>
+                        <TextInput
+                            style={styles.modalInput}
+                            value={customDocumentName}
+                            onChangeText={setCustomDocumentName}
+                            placeholder="Ex: Certidão de Casamento"
+                            autoFocus={true}
+                        />
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.modalButtonCancel]}
+                                onPress={() => {
+                                    setShowCustomNameModal(false);
+                                    setCustomDocumentName('');
+                                    setSelectedDocumentType(null);
+                                }}
+                            >
+                                <Text style={styles.modalButtonCancelText}>Cancelar</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.modalButtonConfirm]}
+                                onPress={handleConfirmCustomName}
+                            >
+                                <Text style={styles.modalButtonConfirmText}>Continuar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+
+        {/* Modal de visualização de documentos */}
+        <Modal
+            visible={showDocumentViewer}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={handleCloseDocumentViewer}
+        >
+            <View style={styles.documentViewerOverlay}>
+                <View style={styles.documentViewerContainer}>
+                    {/* Header */}
+                    <View style={styles.documentViewerHeader}>
+                        <Text style={styles.documentViewerTitle} numberOfLines={1}>
+                            {selectedDocument ? getDocumentTypeLabel(selectedDocument.document_type, selectedDocument.custom_name) : ''}
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.documentViewerCloseButton}
+                            onPress={handleCloseDocumentViewer}
+                        >
+                            <MaterialIcons name="close" size={24} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Conteúdo do documento */}
+                    <View style={styles.documentViewerContent}>
+                        {documentLoading && (
+                            <View style={styles.documentViewerLoading}>
+                                <ActivityIndicator size="large" color={colors.primary} />
+                                <Text style={styles.documentViewerLoadingText}>Carregando documento...</Text>
+                            </View>
+                        )}
+                        
+                        {selectedDocument && (
+                            <>
+                                {selectedDocument.mime_type && selectedDocument.mime_type.startsWith('image/') ? (
+                                    <ScrollView
+                                        style={styles.documentImageContainer}
+                                        contentContainerStyle={styles.documentImageContent}
+                                        maximumZoomScale={3}
+                                        minimumZoomScale={1}
+                                        showsHorizontalScrollIndicator={false}
+                                        showsVerticalScrollIndicator={false}
+                                    >
+                                        <Image
+                                            source={{ uri: selectedDocument.file_url }}
+                                            style={styles.documentImage}
+                                            resizeMode="contain"
+                                            onLoadStart={() => setDocumentLoading(true)}
+                                            onLoadEnd={() => setDocumentLoading(false)}
+                                            onError={() => {
+                                                setDocumentLoading(false);
+                                                Alert.alert('Erro', 'Não foi possível carregar a imagem.');
+                                            }}
+                                        />
+                                    </ScrollView>
+                                ) : selectedDocument.mime_type === 'application/pdf' ? (
+                                    <View style={styles.documentPdfContainer}>
+                                        {documentLoading && (
+                                            <View style={styles.documentViewerLoading}>
+                                                <ActivityIndicator size="large" color={colors.primary} />
+                                                <Text style={styles.documentViewerLoadingText}>Carregando PDF...</Text>
+                                            </View>
+                                        )}
+                                        <WebView
+                                            source={{ uri: selectedDocument.file_url }}
+                                            style={styles.documentPdfWebView}
+                                            onLoadStart={() => setDocumentLoading(true)}
+                                            onLoadEnd={() => setDocumentLoading(false)}
+                                            onError={() => {
+                                                setDocumentLoading(false);
+                                                Alert.alert('Erro', 'Não foi possível carregar o PDF. Tente abrir no navegador.');
+                                            }}
+                                            startInLoadingState={true}
+                                            scalesPageToFit={true}
+                                        />
+                                    </View>
+                                ) : (
+                                    <View style={styles.documentViewerUnsupported}>
+                                        <MaterialIcons name="description" size={48} color="#ccc" />
+                                        <Text style={styles.documentViewerUnsupportedText}>
+                                            Tipo de documento não suportado para visualização
+                                        </Text>
+                                        <TouchableOpacity
+                                            style={styles.documentViewerOpenButton}
+                                            onPress={() => {
+                                                if (selectedDocument.file_url) {
+                                                    Linking.openURL(selectedDocument.file_url);
+                                                }
+                                            }}
+                                        >
+                                            <Text style={styles.documentViewerOpenButtonText}>Abrir no navegador</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </>
+                        )}
+                    </View>
+                </View>
+            </View>
+        </Modal>
+
     </View>
   );
 };
@@ -690,6 +1401,364 @@ const styles = StyleSheet.create({
     legendText: {
         fontSize: 11,
         color: '#555',
+    },
+    phoneRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        justifyContent: 'flex-end',
+    },
+    phoneActions: {
+        flexDirection: 'row',
+        marginLeft: 10,
+        gap: 8,
+    },
+    phoneActionButton: {
+        padding: 8,
+        borderRadius: radii.md,
+        backgroundColor: colors.primarySoft,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    addDocumentButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: radii.pill,
+        backgroundColor: '#f0f7ff',
+        gap: 4,
+    },
+    addDocumentButtonText: {
+        color: colors.primary,
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    documentsLoading: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        gap: 10,
+    },
+    documentsLoadingText: {
+        color: '#666',
+        fontSize: 14,
+    },
+    documentsEmpty: {
+        alignItems: 'center',
+        padding: 30,
+    },
+    documentsEmptyText: {
+        marginTop: 10,
+        color: '#999',
+        fontSize: 14,
+    },
+    documentsList: {
+        gap: 8,
+    },
+    documentItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 12,
+        backgroundColor: '#f9f9f9',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#eee',
+    },
+    documentInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        marginRight: 10,
+    },
+    documentDetails: {
+        flex: 1,
+        marginLeft: 12,
+    },
+    documentName: {
+        ...typography.bodyStrong,
+        fontSize: 14,
+        marginBottom: 2,
+    },
+    documentMeta: {
+        ...typography.body,
+        fontSize: 12,
+        color: '#666',
+    },
+    documentActions: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    documentActionButton: {
+        padding: 6,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 16,
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderRadius: radii.lg,
+        width: '100%',
+        maxWidth: 500,
+        maxHeight: '80%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    modalTitle: {
+        ...typography.sectionTitle,
+        fontSize: 18,
+    },
+    modalCloseButton: {
+        padding: 4,
+    },
+    modalBody: {
+        padding: 20,
+    },
+    documentTypeOption: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 16,
+        backgroundColor: '#f9f9f9',
+        borderRadius: 8,
+        marginBottom: 8,
+        minHeight: 56,
+    },
+    documentTypeOptionText: {
+        ...typography.body,
+        fontSize: 16,
+    },
+    modalLabel: {
+        ...typography.bodyStrong,
+        marginBottom: 8,
+        fontSize: 14,
+    },
+    modalInput: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        padding: 12,
+        fontSize: 16,
+        marginBottom: 20,
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    modalButton: {
+        flex: 1,
+        padding: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    modalButtonCancel: {
+        backgroundColor: '#f0f0f0',
+    },
+    modalButtonConfirm: {
+        backgroundColor: colors.primary,
+    },
+    modalButtonCancelText: {
+        ...typography.button,
+        color: '#333',
+    },
+    modalButtonConfirmText: {
+        ...typography.button,
+        color: '#fff',
+    },
+    customNameModalContent: {
+        marginBottom: 52,
+    },
+    bottomSheetOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    bottomSheetContainer: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        maxHeight: '80%',
+        paddingBottom: 20,
+    },
+    bottomSheetHandle: {
+        width: 40,
+        height: 4,
+        backgroundColor: '#ccc',
+        borderRadius: 2,
+        alignSelf: 'center',
+        marginTop: 8,
+        marginBottom: 8,
+    },
+    bottomSheetHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    bottomSheetTitle: {
+        ...typography.sectionTitle,
+        fontSize: 18,
+        flex: 1,
+    },
+    bottomSheetCloseButton: {
+        padding: 4,
+        marginLeft: 10,
+    },
+    bottomSheetBody: {
+        paddingHorizontal: 20,
+        paddingTop: 8,
+    },
+    documentTypeOptionLeft: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    documentTypeOptionDisabled: {
+        opacity: 0.6,
+        backgroundColor: '#f5f5f5',
+    },
+    documentTypeOptionTextDisabled: {
+        color: '#999',
+    },
+    documentExistsBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#E8F5E9',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        marginLeft: 8,
+    },
+    documentExistsText: {
+        fontSize: 12,
+        color: '#4CAF50',
+        fontWeight: '600',
+        marginLeft: 4,
+    },
+    documentCountBadge: {
+        backgroundColor: '#E3F2FD',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        marginLeft: 8,
+    },
+    documentCountText: {
+        fontSize: 12,
+        color: colors.primary,
+        fontWeight: '600',
+    },
+    documentViewerOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    documentViewerContainer: {
+        flex: 1,
+        width: '100%',
+        backgroundColor: '#000',
+    },
+    documentViewerHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        paddingTop: 50,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    documentViewerTitle: {
+        ...typography.sectionTitle,
+        fontSize: 16,
+        color: '#fff',
+        flex: 1,
+        marginRight: 12,
+    },
+    documentViewerCloseButton: {
+        padding: 8,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    documentViewerContent: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    documentViewerLoading: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+    },
+    documentViewerLoadingText: {
+        color: '#fff',
+        marginTop: 12,
+        fontSize: 14,
+    },
+    documentImageContainer: {
+        flex: 1,
+        width: '100%',
+    },
+    documentImageContent: {
+        flexGrow: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    documentImage: {
+        width: Dimensions.get('window').width,
+        height: Dimensions.get('window').height - 150,
+    },
+    documentPdfContainer: {
+        flex: 1,
+        width: '100%',
+    },
+    documentPdfWebView: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    documentViewerUnsupported: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 40,
+    },
+    documentViewerUnsupportedText: {
+        color: '#fff',
+        marginTop: 16,
+        fontSize: 16,
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    documentViewerOpenButton: {
+        backgroundColor: colors.primary,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 8,
+    },
+    documentViewerOpenButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
     },
 });
 

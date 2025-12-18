@@ -26,3 +26,4 @@ COMMENT ON COLUMN properties.city IS 'Cidade';
 COMMENT ON COLUMN properties.state IS 'Estado (UF, 2 caracteres)';
 COMMENT ON COLUMN properties.complement IS 'Complemento (Apartamento, Bloco, etc.)';
 
+
