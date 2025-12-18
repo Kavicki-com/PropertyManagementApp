@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 import ScreenHeader from '../components/ScreenHeader';
 import { fetchActiveContractsByTenants } from '../lib/contractsService';
+import { fetchTenantBillingSummary } from '../lib/financesService';
 import { colors, radii, typography } from '../theme';
 import SearchBar from '../components/SearchBar';
 
@@ -104,132 +105,43 @@ const TenantsScreen = ({ navigation }) => {
         return;
       }
 
-      // 2) Descobrir propriedades ligadas a esses inquilinos
-      const propertyIds = Array.from(
-        new Set(
-          (tenantsData || [])
-            .map((t) => t.property_id)
-            .filter(Boolean),
-        ),
-      );
-
-      let financesByProperty = {};
-
-      // 2b) Buscar contratos ativos por inquilino para obter dia de vencimento e período
+      // 2) Buscar contratos ativos por inquilino para obter dia de vencimento e período
       const tenantIds = (tenantsData || []).map((t) => t.id).filter(Boolean);
       const { data: contractsByTenant } = await fetchActiveContractsByTenants(tenantIds);
 
-      if (propertyIds.length > 0) {
-        // 3) Buscar transações financeiras dessas propriedades
-        const { data: financesData, error: financesError } = await supabase
-          .from('finances')
-          .select('id, type, date, property_id')
-          .in('property_id', propertyIds);
+      // 3) Calcular status de pagamento para cada inquilino usando a mesma função da tela de detalhes
+      const tenantsWithInvoices = await Promise.all(
+        (tenantsData || []).map(async (tenant) => {
+          const contract = contractsByTenant?.[tenant.id] || null;
+          let overdue_invoices = 0;
+          let due_date_display = tenant.due_date || null;
 
-        if (financesError) {
-          console.error('Error fetching finances for tenants:', financesError);
-        } else {
-          financesByProperty = (financesData || []).reduce((acc, f) => {
-            if (!acc[f.property_id]) acc[f.property_id] = [];
-            acc[f.property_id].push(f);
-            return acc;
-          }, {});
-        }
-      }
-
-      // 4) Calcular indicador de faturas (esperadas x registradas) por inquilino
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Normalizar para início do dia
-
-      // Função auxiliar para calcular a data de vencimento de uma mensalidade
-      const calculateDueDate = (startDate, dueDay, monthIndex) => {
-        const dueDate = new Date(startDate);
-        dueDate.setMonth(startDate.getMonth() + (monthIndex - 1));
-        
-        // Ajustar para o dia de vencimento correto
-        const lastDayOfMonth = new Date(dueDate.getFullYear(), dueDate.getMonth() + 1, 0).getDate();
-        const dayToSet = Math.min(dueDay, lastDayOfMonth);
-        dueDate.setDate(dayToSet);
-        dueDate.setHours(0, 0, 0, 0);
-        
-        return dueDate;
-      };
-
-      const tenantsWithInvoices = (tenantsData || []).map((tenant) => {
-        const contract = contractsByTenant?.[tenant.id] || null;
-        let overdue_invoices = 0;
-        let due_date_display = tenant.due_date || null;
-
-        if (contract && contract.start_date && contract.lease_term && contract.due_day && tenant.property_id) {
-          const start = new Date(contract.start_date);
-          start.setHours(0, 0, 0, 0);
-          
-          const contractTotal = contract.lease_term || 0;
-          const dueDay = contract.due_day;
-
-          if (contractTotal > 0 && dueDay) {
-            const propertyFinances = (financesByProperty[tenant.property_id] || [])
-              .filter((f) => f.type === 'income')
-              .map((f) => {
-                const paymentDate = new Date(f.date);
-                paymentDate.setHours(0, 0, 0, 0);
-                return { ...f, paymentDate };
-              });
-
-            // Rastrear quais pagamentos já foram associados a uma mensalidade
-            const usedPayments = new Set();
-
-            // Função para verificar se há pagamento para uma mensalidade
-            const hasPaymentForMonth = (dueDate) => {
-              if (propertyFinances.length === 0) return false;
-              
-              // Janela de pagamento: de 10 dias antes até 5 dias depois do vencimento
-              const paymentWindowStart = new Date(dueDate);
-              paymentWindowStart.setDate(paymentWindowStart.getDate() - 10);
-              
-              const paymentWindowEnd = new Date(dueDate);
-              paymentWindowEnd.setDate(paymentWindowEnd.getDate() + 5);
-              
-              // Encontrar o primeiro pagamento não usado dentro da janela
-              const matchingPayment = propertyFinances.find((payment) => {
-                if (usedPayments.has(payment.id)) return false;
-                return payment.paymentDate >= paymentWindowStart && payment.paymentDate <= paymentWindowEnd;
-              });
-              
-              if (matchingPayment) {
-                usedPayments.add(matchingPayment.id);
-                return true;
-              }
-              
-              return false;
+          if (contract && contract.start_date && contract.lease_term && contract.due_day && tenant.property_id) {
+            // Usar a mesma função da tela de detalhes para garantir consistência
+            const source = {
+              property_id: contract.property_id,
+              tenant_id: contract.tenant_id, // Usar tenant_id do contrato
+              start_date: contract.start_date,
+              due_date: contract.due_day,
+              lease_term: contract.lease_term,
             };
 
-            // Processar cada mensalidade do contrato
-            for (let monthIndex = 1; monthIndex <= contractTotal; monthIndex++) {
-              const dueDate = calculateDueDate(start, dueDay, monthIndex);
-              
-              // Verificar se a mensalidade já venceu
-              if (dueDate < today) {
-                // Mensalidade vencida - verificar se foi paga
-                if (!hasPaymentForMonth(dueDate)) {
-                  overdue_invoices++;
-                }
-              }
+            const { summary } = await fetchTenantBillingSummary(source);
+            overdue_invoices = summary.overdue || 0;
+
+            // Atualiza o dia de vencimento exibido a partir do contrato ativo
+            if (contract.due_day != null) {
+              due_date_display = contract.due_day;
             }
           }
 
-          // Atualiza o dia de vencimento exibido a partir do contrato ativo
-          if (contract.due_day != null) {
-            due_date_display = contract.due_day;
-          }
-        }
-
-        return {
-          ...tenant,
-          overdue_invoices,
-          due_date: due_date_display,
-        };
-      });
+          return {
+            ...tenant,
+            overdue_invoices,
+            due_date: due_date_display,
+          };
+        })
+      );
 
       setTenants(tenantsWithInvoices);
     } finally {
