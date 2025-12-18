@@ -1,6 +1,7 @@
 // screens/TenantDetailsScreen.js
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator, Modal, TextInput, InteractionManager, Animated, Dimensions } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { useIsFocused } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -34,6 +35,9 @@ const TenantDetailsScreen = ({ route, navigation }) => {
   const [showCustomNameModal, setShowCustomNameModal] = useState(false);
   const [customDocumentName, setCustomDocumentName] = useState('');
   const [selectedDocumentType, setSelectedDocumentType] = useState(null);
+  const [showDocumentViewer, setShowDocumentViewer] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState(null);
+  const [documentLoading, setDocumentLoading] = useState(false);
   const documentTypeRef = useRef(null);
   const isFocused = useIsFocused();
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
@@ -550,10 +554,18 @@ const TenantDetailsScreen = ({ route, navigation }) => {
 
   const handleViewDocument = (document) => {
     if (document.file_url) {
-      Linking.openURL(document.file_url);
+      setSelectedDocument(document);
+      setShowDocumentViewer(true);
+      setDocumentLoading(true);
     } else {
       Alert.alert('Erro', 'URL do documento não disponível.');
     }
+  };
+
+  const handleCloseDocumentViewer = () => {
+    setShowDocumentViewer(false);
+    setSelectedDocument(null);
+    setDocumentLoading(false);
   };
 
   const getDocumentTypeLabel = (documentType, customName) => {
@@ -1041,6 +1053,106 @@ const TenantDetailsScreen = ({ route, navigation }) => {
                                 <Text style={styles.modalButtonConfirmText}>Continuar</Text>
                             </TouchableOpacity>
                         </View>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+
+        {/* Modal de visualização de documentos */}
+        <Modal
+            visible={showDocumentViewer}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={handleCloseDocumentViewer}
+        >
+            <View style={styles.documentViewerOverlay}>
+                <View style={styles.documentViewerContainer}>
+                    {/* Header */}
+                    <View style={styles.documentViewerHeader}>
+                        <Text style={styles.documentViewerTitle} numberOfLines={1}>
+                            {selectedDocument ? getDocumentTypeLabel(selectedDocument.document_type, selectedDocument.custom_name) : ''}
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.documentViewerCloseButton}
+                            onPress={handleCloseDocumentViewer}
+                        >
+                            <MaterialIcons name="close" size={24} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Conteúdo do documento */}
+                    <View style={styles.documentViewerContent}>
+                        {documentLoading && (
+                            <View style={styles.documentViewerLoading}>
+                                <ActivityIndicator size="large" color={colors.primary} />
+                                <Text style={styles.documentViewerLoadingText}>Carregando documento...</Text>
+                            </View>
+                        )}
+                        
+                        {selectedDocument && (
+                            <>
+                                {selectedDocument.mime_type && selectedDocument.mime_type.startsWith('image/') ? (
+                                    <ScrollView
+                                        style={styles.documentImageContainer}
+                                        contentContainerStyle={styles.documentImageContent}
+                                        maximumZoomScale={3}
+                                        minimumZoomScale={1}
+                                        showsHorizontalScrollIndicator={false}
+                                        showsVerticalScrollIndicator={false}
+                                    >
+                                        <Image
+                                            source={{ uri: selectedDocument.file_url }}
+                                            style={styles.documentImage}
+                                            resizeMode="contain"
+                                            onLoadStart={() => setDocumentLoading(true)}
+                                            onLoadEnd={() => setDocumentLoading(false)}
+                                            onError={() => {
+                                                setDocumentLoading(false);
+                                                Alert.alert('Erro', 'Não foi possível carregar a imagem.');
+                                            }}
+                                        />
+                                    </ScrollView>
+                                ) : selectedDocument.mime_type === 'application/pdf' ? (
+                                    <View style={styles.documentPdfContainer}>
+                                        {documentLoading && (
+                                            <View style={styles.documentViewerLoading}>
+                                                <ActivityIndicator size="large" color={colors.primary} />
+                                                <Text style={styles.documentViewerLoadingText}>Carregando PDF...</Text>
+                                            </View>
+                                        )}
+                                        <WebView
+                                            source={{ uri: selectedDocument.file_url }}
+                                            style={styles.documentPdfWebView}
+                                            onLoadStart={() => setDocumentLoading(true)}
+                                            onLoadEnd={() => setDocumentLoading(false)}
+                                            onError={() => {
+                                                setDocumentLoading(false);
+                                                Alert.alert('Erro', 'Não foi possível carregar o PDF. Tente abrir no navegador.');
+                                            }}
+                                            startInLoadingState={true}
+                                            scalesPageToFit={true}
+                                        />
+                                    </View>
+                                ) : (
+                                    <View style={styles.documentViewerUnsupported}>
+                                        <MaterialIcons name="description" size={48} color="#ccc" />
+                                        <Text style={styles.documentViewerUnsupportedText}>
+                                            Tipo de documento não suportado para visualização
+                                        </Text>
+                                        <TouchableOpacity
+                                            style={styles.documentViewerOpenButton}
+                                            onPress={() => {
+                                                if (selectedDocument.file_url) {
+                                                    Linking.openURL(selectedDocument.file_url);
+                                                }
+                                            }}
+                                        >
+                                            <Text style={styles.documentViewerOpenButtonText}>Abrir no navegador</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </>
+                        )}
                     </View>
                 </View>
             </View>
@@ -1553,6 +1665,99 @@ const styles = StyleSheet.create({
     documentCountText: {
         fontSize: 12,
         color: colors.primary,
+        fontWeight: '600',
+    },
+    documentViewerOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    documentViewerContainer: {
+        flex: 1,
+        width: '100%',
+        backgroundColor: '#000',
+    },
+    documentViewerHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        paddingTop: 50,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    documentViewerTitle: {
+        ...typography.sectionTitle,
+        fontSize: 16,
+        color: '#fff',
+        flex: 1,
+        marginRight: 12,
+    },
+    documentViewerCloseButton: {
+        padding: 8,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    documentViewerContent: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    documentViewerLoading: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+    },
+    documentViewerLoadingText: {
+        color: '#fff',
+        marginTop: 12,
+        fontSize: 14,
+    },
+    documentImageContainer: {
+        flex: 1,
+        width: '100%',
+    },
+    documentImageContent: {
+        flexGrow: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    documentImage: {
+        width: Dimensions.get('window').width,
+        height: Dimensions.get('window').height - 150,
+    },
+    documentPdfContainer: {
+        flex: 1,
+        width: '100%',
+    },
+    documentPdfWebView: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    documentViewerUnsupported: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 40,
+    },
+    documentViewerUnsupportedText: {
+        color: '#fff',
+        marginTop: 16,
+        fontSize: 16,
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    documentViewerOpenButton: {
+        backgroundColor: colors.primary,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 8,
+    },
+    documentViewerOpenButtonText: {
+        color: '#fff',
+        fontSize: 16,
         fontWeight: '600',
     },
 });
