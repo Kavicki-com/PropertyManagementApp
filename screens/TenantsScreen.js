@@ -29,7 +29,10 @@ const TenantItem = ({ item, onPress, onPressPhone, isBlocked }) => (
     activeOpacity={isBlocked ? 0.5 : 0.7}
   >
     <Image
-      source={require('../assets/avatar-placeholder.png')}
+      source={item.photo_url 
+        ? { uri: item.photo_url }
+        : require('../assets/avatar-placeholder.png')
+      }
       style={styles.avatar}
     />
     <View style={styles.tenantInfo}>
@@ -427,8 +430,9 @@ const styles = StyleSheet.create({
   searchContainer: {
     paddingHorizontal: 15,
     paddingTop: 10,
-    paddingBottom: 5,
-    marginTop: 8,
+    paddingBottom: 10,
+    backgroundColor: '#fff',
+    marginTop: 4,
   },
   loadingContainer: {
     flex: 1,
@@ -505,7 +509,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     width: 60,
     height: 60,
-    borderRadius: 30,
+    borderRadius: radii.pill,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

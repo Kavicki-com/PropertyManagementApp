@@ -17,6 +17,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { filterOnlyLetters, filterOnlyNumbers } from '../lib/validation';
 import { canAddTenant, getUserSubscription, getActiveTenantsCount, getRequiredPlan } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
+import { radii } from '../theme';
 
 const AddTenantScreen = ({ route, navigation }) => {
   const [fullName, setFullName] = useState('');
@@ -286,7 +287,7 @@ const styles = StyleSheet.create({
     addButton: {
         backgroundColor: '#4a86e8',
         padding: 15,
-        borderRadius: 8,
+        borderRadius: radii.pill,
         alignItems: 'center',
         marginTop: 10,
         marginBottom: 50,

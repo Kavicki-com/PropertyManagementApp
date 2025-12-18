@@ -13,6 +13,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
+import { radii } from '../theme';
 
 const TenantItem = ({ item, onPress }) => {
   const isOccupied = !!item.property_id;
@@ -20,7 +21,10 @@ const TenantItem = ({ item, onPress }) => {
   return (
     <TouchableOpacity style={styles.tenantCard} onPress={() => onPress(item)}>
       <Image
-        source={require('../assets/avatar-placeholder.png')}
+        source={item.photo_url 
+          ? { uri: item.photo_url }
+          : require('../assets/avatar-placeholder.png')
+        }
         style={styles.avatar}
       />
       <View style={styles.tenantInfo}>
@@ -220,7 +224,7 @@ const styles = StyleSheet.create({
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: radii.pill,
     borderWidth: 1,
   },
   statusAvailable: {
@@ -249,7 +253,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4a86e8',
     paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: radii.pill,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

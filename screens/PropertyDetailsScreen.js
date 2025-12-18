@@ -748,7 +748,7 @@ const styles = StyleSheet.create({
     editButton: {
         backgroundColor: 'transparent',
         padding: 15,
-        borderRadius: 0,
+        borderRadius: radii.pill,
         flex: 1,
         alignItems: 'center',
         borderWidth: 0,
@@ -765,7 +765,7 @@ const styles = StyleSheet.create({
     secondaryButton: {
         backgroundColor: '#78909C',
         padding: 15,
-        borderRadius: 8,
+        borderRadius: radii.pill,
         flex: 1,
         alignItems: 'center',
         marginTop: 10,

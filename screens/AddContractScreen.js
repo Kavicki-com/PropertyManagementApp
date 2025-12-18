@@ -17,7 +17,7 @@ import { format, differenceInMonths } from 'date-fns';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import CustomDatePicker from '../components/CustomDatePicker';
-import { createContract } from '../lib/contractsService';
+import { createContract, fetchActiveContractByProperty } from '../lib/contractsService';
 import { parseMoney, filterOnlyNumbers, filterMoney } from '../lib/validation';
 import { colors, radii, typography } from '../theme';
 
@@ -49,6 +49,7 @@ const AddContractScreen = ({ route, navigation }) => {
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [contractLength, setContractLength] = useState(existingContract?.lease_term || 0);
   const [loading, setLoading] = useState(false);
+  const [propertyWarning, setPropertyWarning] = useState(null);
 
   useEffect(() => {
     const fetchProperties = async () => {
@@ -86,8 +87,32 @@ const AddContractScreen = ({ route, navigation }) => {
       if (selected && selected.rent) {
         setRentAmount(String(selected.rent));
       }
+      
+      // Verificar se o imóvel já está alugado (apenas se não for edição do mesmo contrato)
+      const checkPropertyAvailability = async () => {
+        if (!existingContract || existingContract.property_id !== propertyId) {
+          const { data: activeContract } = await fetchActiveContractByProperty(propertyId);
+          if (activeContract && activeContract.tenant_id !== tenantId) {
+            // Buscar nome do inquilino atual
+            const { data: currentTenant } = await supabase
+              .from('tenants')
+              .select('full_name')
+              .eq('id', activeContract.tenant_id)
+              .single();
+            
+            const tenantName = currentTenant?.full_name || 'outro inquilino';
+            setPropertyWarning(`Este imóvel já está alugado para ${tenantName}. É necessário encerrar o contrato atual antes de criar um novo.`);
+          } else {
+            setPropertyWarning(null);
+          }
+        } else {
+          setPropertyWarning(null);
+        }
+      };
+      
+      checkPropertyAvailability();
     }
-  }, [propertyId, properties]);
+  }, [propertyId, properties, tenantId, existingContract]);
 
   useEffect(() => {
     const months = differenceInMonths(endDate, startDate);
@@ -176,6 +201,7 @@ const AddContractScreen = ({ route, navigation }) => {
           <SelectList
             setSelected={(val) => {
               setPropertyId(val);
+              setPropertyWarning(null); // Limpar aviso ao mudar seleção
               const selected = properties.find(p => p.key === val);
               if (selected && selected.rent) {
                 setRentAmount(String(selected.rent));
@@ -190,6 +216,12 @@ const AddContractScreen = ({ route, navigation }) => {
             dropdownStyles={styles.dropdownContainer}
             search={false}
           />
+          {propertyWarning && (
+            <View style={styles.warningContainer}>
+              <MaterialIcons name="warning" size={20} color="#F59E0B" />
+              <Text style={styles.warningText}>{propertyWarning}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.inputGroup}>
@@ -383,6 +415,23 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSubtle,
     borderRadius: radii.sm,
     backgroundColor: colors.surface,
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: '#FEF3C7',
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  warningText: {
+    flex: 1,
+    marginLeft: 8,
+    color: '#92400E',
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
 

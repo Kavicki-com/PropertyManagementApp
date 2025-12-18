@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
   Alert, // Adicionado para melhor feedback de erro
   Keyboard,
   TouchableWithoutFeedback,
+  Modal,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
@@ -18,6 +21,7 @@ import { useIsFocused } from '@react-navigation/native';
 import SearchBar from '../components/SearchBar';
 import { getBlockedProperties, getUserSubscription, getActivePropertiesCount, getRequiredPlan, canAddProperty } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
+import { colors, radii, typography } from '../theme';
 
 // Função para formatar endereço na listagem
 const formatPropertyAddress = (item) => {
@@ -73,7 +77,27 @@ const PropertiesScreen = ({ navigation }) => {
   const [blockedPropertyIds, setBlockedPropertyIds] = useState([]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
   const isFocused = useIsFocused();
+  const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+
+  // Animar bottom sheet quando abrir/fechar
+  useEffect(() => {
+    if (showFiltersModal) {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 7,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: Dimensions.get('window').height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showFiltersModal]);
 
   const fetchProperties = async () => {
     setLoading(true);
@@ -223,107 +247,22 @@ const PropertiesScreen = ({ navigation }) => {
               <Text style={styles.header}>Propriedades</Text>
             </View>
 
-            {/* Barra de busca e filtros */}
-            <View style={styles.filtersContainer}>
-              <SearchBar
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Buscar por endereço"
-              />
-        <View style={styles.filterRow}>
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Tipo</Text>
-            <View style={styles.filterChipsContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.chip,
-                  typeFilter === 'all' && styles.chipActive,
-                ]}
-                onPress={() => setTypeFilter('all')}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    typeFilter === 'all' && styles.chipTextActive,
-                  ]}
-                >
-                  Todos
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.chip,
-                  typeFilter === 'Residencial' && styles.chipActive,
-                ]}
-                onPress={() => setTypeFilter('Residencial')}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    typeFilter === 'Residencial' && styles.chipTextActive,
-                  ]}
-                >
-                  Residencial
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.chip,
-                  typeFilter === 'Comercial' && styles.chipActive,
-                ]}
-                onPress={() => setTypeFilter('Comercial')}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    typeFilter === 'Comercial' && styles.chipTextActive,
-                  ]}
-                >
-                  Comercial
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Ordenar por</Text>
-            <View style={styles.filterChipsContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.chip,
-                  sortBy === 'rentAsc' && styles.chipActive,
-                ]}
-                onPress={() => setSortBy('rentAsc')}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    sortBy === 'rentAsc' && styles.chipTextActive,
-                  ]}
-                >
-                  Aluguel ↑
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.chip,
-                  sortBy === 'rentDesc' && styles.chipActive,
-                ]}
-                onPress={() => setSortBy('rentDesc')}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    sortBy === 'rentDesc' && styles.chipTextActive,
-                  ]}
-                >
-                  Aluguel ↓
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
+            {/* Barra de busca e botão de filtros */}
+            <View style={styles.searchContainer}>
+              <View style={styles.searchBarContainer}>
+                <SearchBar
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Buscar por endereço"
+                />
               </View>
+              <TouchableOpacity
+                style={styles.filterButton}
+                onPress={() => setShowFiltersModal(true)}
+              >
+                <MaterialIcons name="tune" size={20} color={colors.primary} />
+                <Text style={styles.filterButtonText}>Filtros</Text>
+              </TouchableOpacity>
             </View>
             <FlatList
               data={activeProperties}
@@ -389,6 +328,154 @@ const PropertiesScreen = ({ navigation }) => {
           propertyCount={subscriptionInfo?.propertyCount || 0}
           requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
         />
+
+        {/* Bottom Sheet de Filtros */}
+        <Modal
+          visible={showFiltersModal}
+          transparent={true}
+          animationType="none"
+          onRequestClose={() => setShowFiltersModal(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowFiltersModal(false)}
+          >
+            <Animated.View
+              style={[
+                styles.bottomSheet,
+                {
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
+            >
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={(e) => e.stopPropagation()}
+              >
+                <View style={styles.bottomSheetHeader}>
+                  <Text style={styles.bottomSheetTitle}>Filtros</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowFiltersModal(false)}
+                    style={styles.closeButton}
+                  >
+                    <MaterialIcons name="close" size={24} color={colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.bottomSheetContent}>
+                  <View style={styles.filterGroup}>
+                    <Text style={styles.filterLabel}>Tipo</Text>
+                    <View style={styles.filterChipsContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          typeFilter === 'all' && styles.chipActive,
+                        ]}
+                        onPress={() => setTypeFilter('all')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            typeFilter === 'all' && styles.chipTextActive,
+                          ]}
+                        >
+                          Todos
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          typeFilter === 'Residencial' && styles.chipActive,
+                        ]}
+                        onPress={() => setTypeFilter('Residencial')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            typeFilter === 'Residencial' && styles.chipTextActive,
+                          ]}
+                        >
+                          Residencial
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          typeFilter === 'Comercial' && styles.chipActive,
+                        ]}
+                        onPress={() => setTypeFilter('Comercial')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            typeFilter === 'Comercial' && styles.chipTextActive,
+                          ]}
+                        >
+                          Comercial
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.filterGroup}>
+                    <Text style={styles.filterLabel}>Ordenar por</Text>
+                    <View style={styles.filterChipsContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          sortBy === 'addressAsc' && styles.chipActive,
+                        ]}
+                        onPress={() => setSortBy('addressAsc')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            sortBy === 'addressAsc' && styles.chipTextActive,
+                          ]}
+                        >
+                          Endereço A-Z
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          sortBy === 'rentAsc' && styles.chipActive,
+                        ]}
+                        onPress={() => setSortBy('rentAsc')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            sortBy === 'rentAsc' && styles.chipTextActive,
+                          ]}
+                        >
+                          Aluguel ↑
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          sortBy === 'rentDesc' && styles.chipActive,
+                        ]}
+                        onPress={() => setSortBy('rentDesc')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            sortBy === 'rentDesc' && styles.chipTextActive,
+                          ]}
+                        >
+                          Aluguel ↓
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
+          </TouchableOpacity>
+        </Modal>
       </View>
     </TouchableWithoutFeedback>
   );
@@ -414,6 +501,68 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 15,
     paddingBottom: 80,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 15,
+    paddingTop: 10,
+    paddingBottom: 10,
+    backgroundColor: '#fff',
+    marginTop: 4,
+    gap: 10,
+    alignItems: 'center',
+  },
+  searchBarContainer: {
+    flex: 0.8,
+    minWidth: 0, // Permite que o flex funcione corretamente
+  },
+  filterButton: {
+    flex: 0.2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+    gap: 6,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    paddingBottom: 40,
+    maxHeight: '80%',
+  },
+  bottomSheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+  },
+  bottomSheetTitle: {
+    ...typography.sectionTitle,
+    fontSize: 20,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  bottomSheetContent: {
+    padding: 20,
   },
   filtersContainer: {
     paddingHorizontal: 15,
@@ -523,7 +672,7 @@ const styles = StyleSheet.create({
   archivedToggleButton: {
     paddingVertical: 6,
     paddingHorizontal: 4,
-    borderRadius: 0,
+    borderRadius: radii.pill,
     borderWidth: 0,
     alignItems: 'center',
     backgroundColor: 'transparent',
@@ -544,7 +693,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4a86e8',
     width: 60,
     height: 60,
-    borderRadius: 30,
+    borderRadius: radii.pill,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

@@ -11,6 +11,7 @@ import { fetchActiveContractByTenant, endContract } from '../lib/contractsServic
 import { colors, radii, typography } from '../theme';
 import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
+import { Buffer } from 'buffer';
 import { fetchTenantDocuments, uploadTenantDocument, deleteTenantDocument, DOCUMENT_TYPES } from '../lib/tenantDocumentsService';
 import { filterOnlyNumbers } from '../lib/validation';
 import { canViewTenantDetails, getUserSubscription, getActiveTenantsCount, getRequiredPlan, canAddDocument, getTotalDocumentsCount } from '../lib/subscriptionService';
@@ -43,9 +44,20 @@ const TenantDetailsScreen = ({ route, navigation }) => {
   const [isBlocked, setIsBlocked] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const documentTypeRef = useRef(null);
   const isFocused = useIsFocused();
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+
+  // Função para decodificar base64
+  const decode = (base64) => {
+    const binaryString = Buffer.from(base64, 'base64').toString('binary');
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+  };
 
   // Resetar animação quando o modal fecha
   useEffect(() => {
@@ -268,9 +280,157 @@ const TenantDetailsScreen = ({ route, navigation }) => {
     if (!tenant.property_id) return;
     navigation.navigate('AddTransaction', {
       preselectedPropertyId: tenant.property_id,
-      preselectedType: 'income',
+      preselectedType: 'rent', // Tipo 'rent' para ativar o modo aluguel
       preselectedTenantId: tenant.id,
     });
+  };
+
+  const handlePhotoPicker = async (useCamera = false) => {
+    const permission = useCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (permission.status !== 'granted') {
+      Alert.alert('Permissão necessária', 'Você precisa permitir o acesso para adicionar fotos.');
+      return;
+    }
+
+    try {
+      const result = useCamera
+        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 })
+        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7 });
+
+      if (!result) {
+        Alert.alert('Erro', 'Não foi possível abrir o seletor de imagens.');
+        return;
+      }
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await uploadTenantPhoto(result.assets[0]);
+      }
+    } catch (error) {
+      Alert.alert('Erro', `Não foi possível abrir ${useCamera ? 'a câmera' : 'a galeria'}.`);
+    }
+  };
+
+  const uploadTenantPhoto = async (asset) => {
+    if (!tenant?.id) return;
+
+    setUploadingPhoto(true);
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      Alert.alert('Erro', 'Você precisa estar logado.');
+      setUploadingPhoto(false);
+      return;
+    }
+
+    try {
+      // Fazer upload da nova foto
+      const fileName = `${user.id}/${tenant.id}_${Date.now()}.jpg`;
+      const bucketName = 'tenant-photos';
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucketName)
+        .upload(fileName, decode(asset.base64), { contentType: 'image/jpeg' });
+
+      if (uploadError) {
+        Alert.alert('Erro no Upload', uploadError.message);
+        setUploadingPhoto(false);
+        return;
+      }
+
+      // Obter URL pública
+      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+      const photoUrl = urlData?.publicUrl;
+
+      if (photoUrl) {
+        // Remover foto antiga se existir (após upload bem-sucedido)
+        if (tenant.photo_url) {
+          try {
+            const oldUrlParts = tenant.photo_url.split('/');
+            const oldFileName = oldUrlParts[oldUrlParts.length - 1];
+            const oldFilePath = oldUrlParts.slice(oldUrlParts.indexOf('tenant-photos') + 1).join('/');
+            if (oldFilePath) {
+              await supabase.storage
+                .from('tenant-photos')
+                .remove([oldFilePath]);
+            }
+          } catch (removeError) {
+            console.warn('Erro ao remover foto antiga:', removeError);
+            // Não bloquear o processo se falhar ao remover a foto antiga
+          }
+        }
+
+        // Atualizar inquilino com a nova URL da foto
+        const { error: updateError } = await supabase
+          .from('tenants')
+          .update({ photo_url: photoUrl })
+          .eq('id', tenant.id);
+
+        if (updateError) {
+          Alert.alert('Erro', 'Não foi possível salvar a foto.');
+        } else {
+          // Atualizar estado local
+          setTenant((prev) => ({ ...prev, photo_url: photoUrl }));
+          Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
+        }
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível fazer upload da foto.');
+      console.error('Erro ao fazer upload da foto:', error);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!tenant?.id || !tenant.photo_url) return;
+
+    Alert.alert(
+      'Remover foto',
+      'Deseja realmente remover a foto do inquilino?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: async () => {
+            setUploadingPhoto(true);
+            const { data: { user } } = await supabase.auth.getUser();
+
+            try {
+              // Remover do storage
+              const urlParts = tenant.photo_url.split('/');
+              const filePath = urlParts.slice(urlParts.indexOf('tenant-photos') + 1).join('/');
+              if (filePath) {
+                await supabase.storage
+                  .from('tenant-photos')
+                  .remove([filePath]);
+              }
+
+              // Remover do banco
+              const { error } = await supabase
+                .from('tenants')
+                .update({ photo_url: null })
+                .eq('id', tenant.id);
+
+              if (error) {
+                Alert.alert('Erro', 'Não foi possível remover a foto.');
+              } else {
+                setTenant((prev) => ({ ...prev, photo_url: null }));
+                Alert.alert('Sucesso', 'Foto removida com sucesso!');
+              }
+            } catch (error) {
+              Alert.alert('Erro', 'Não foi possível remover a foto.');
+              console.error('Erro ao remover foto:', error);
+            } finally {
+              setUploadingPhoto(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading || !tenant) {
@@ -681,10 +841,39 @@ const TenantDetailsScreen = ({ route, navigation }) => {
         />
         <ScrollView style={styles.scrollContainer}>
             <View style={styles.avatarContainer}>
-                <Image 
-                source={require('../assets/avatar-placeholder.png')} 
-                style={styles.avatar} 
-                />
+                <TouchableOpacity
+                  onPress={() => {
+                    Alert.alert(
+                      'Foto do Inquilino',
+                      'Escolha uma opção',
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        { text: 'Câmera', onPress: () => handlePhotoPicker(true) },
+                        { text: 'Galeria', onPress: () => handlePhotoPicker(false) },
+                        tenant.photo_url && { text: 'Remover foto', style: 'destructive', onPress: handleRemovePhoto },
+                      ].filter(Boolean)
+                    );
+                  }}
+                  disabled={uploadingPhoto}
+                  style={styles.avatarTouchable}
+                >
+                  {uploadingPhoto ? (
+                    <ActivityIndicator size="large" color={colors.primary} />
+                  ) : (
+                    <>
+                      <Image 
+                        source={tenant.photo_url 
+                          ? { uri: tenant.photo_url }
+                          : require('../assets/avatar-placeholder.png')
+                        } 
+                        style={styles.avatar} 
+                      />
+                      <View style={styles.avatarEditIcon}>
+                        <MaterialIcons name="camera-alt" size={24} color={colors.primary} />
+                      </View>
+                    </>
+                  )}
+                </TouchableOpacity>
             </View>
             
             <View style={styles.section}>
@@ -1309,11 +1498,24 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: 20,
     },
+    avatarTouchable: {
+        position: 'relative',
+        marginBottom: 15,
+    },
     avatar: { 
         width: 100, 
         height: 100, 
-        borderRadius: 50, 
-        marginBottom: 15,
+        borderRadius: 50,
+    },
+    avatarEditIcon: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        backgroundColor: colors.surface,
+        borderRadius: 20,
+        padding: 6,
+        borderWidth: 2,
+        borderColor: colors.primary,
     },
     section: { 
         backgroundColor: colors.surface, 
@@ -1403,7 +1605,7 @@ const styles = StyleSheet.create({
     editButton: { 
         backgroundColor: 'transparent', 
         padding: 15, 
-        borderRadius: 0, 
+        borderRadius: radii.pill, 
         flex: 1,  
         alignItems: 'center',
         borderWidth: 0,
@@ -1544,7 +1746,7 @@ const styles = StyleSheet.create({
     },
     phoneActionButton: {
         padding: 8,
-        borderRadius: radii.md,
+        borderRadius: radii.pill,
         backgroundColor: colors.primarySoft,
     },
     sectionHeader: {
@@ -1693,7 +1895,7 @@ const styles = StyleSheet.create({
     modalButton: {
         flex: 1,
         padding: 12,
-        borderRadius: 8,
+        borderRadius: radii.pill,
         alignItems: 'center',
     },
     modalButtonCancel: {
@@ -1882,7 +2084,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primary,
         paddingHorizontal: 24,
         paddingVertical: 12,
-        borderRadius: 8,
+        borderRadius: radii.pill,
     },
     documentViewerOpenButtonText: {
         color: '#fff',

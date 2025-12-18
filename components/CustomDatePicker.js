@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Modal, TouchableOpacity, Text, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { radii } from '../theme';
 
 const CustomDatePicker = ({ date, onDateChange, visible, onClose }) => {
   // For iOS, we need a temporary state to hold the date until the user confirms
@@ -85,7 +86,7 @@ const styles = StyleSheet.create({
   button: {
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 8,
+    borderRadius: radii.pill,
   },
   confirmButton: {
     backgroundColor: '#4a86e8',
