@@ -17,6 +17,12 @@ import { filterOnlyNumbers } from '../lib/validation';
 import { canViewTenantDetails, getUserSubscription, getActiveTenantsCount, getRequiredPlan, canAddDocument, getTotalDocumentsCount } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
 
+// Função para formatar valor monetário
+const formatCurrency = (value) => {
+  if (!value && value !== 0) return 'R$ 0,00';
+  return `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
+};
+
 const TenantDetailsScreen = ({ route, navigation }) => {
   const { tenant: initialTenant } = route.params;
   
@@ -113,7 +119,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
 
       if (tenantError) {
         setLoading(false);
-        Alert.alert('Error', 'Could not fetch tenant details.');
+        Alert.alert('Erro', 'Não foi possível buscar os detalhes do inquilino.');
         console.error('Error fetching details:', tenantError);
         return;
       }
@@ -122,7 +128,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
       setLoading(false);
     };
 
-    // Re-fetch data every time the screen comes into focus
+    // Recarregar dados sempre que a tela receber foco
     if (isFocused) {
       fetchDetails();
     }
@@ -434,7 +440,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
   };
 
   if (loading || !tenant) {
-    return <View style={styles.loadingContainer}><ActivityIndicator size="large" /></View>;
+    return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={colors.primary} /></View>;
   }
 
   // Tela de bloqueio quando inquilino está bloqueado
@@ -946,7 +952,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
                           {tenant.properties.address}
                         </Text>
                         <Text style={styles.contractPropertySub}>
-                          R${tenant.properties.rent || 0}/mês
+                          {formatCurrency(tenant.properties.rent || 0)}/mês
                         </Text>
                       </View>
                       <TouchableOpacity

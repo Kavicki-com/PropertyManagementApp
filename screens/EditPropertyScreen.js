@@ -65,6 +65,17 @@ const EditPropertyScreen = ({ route, navigation }) => {
   const [images, setImages] = useState([]);
   const [errors, setErrors] = useState({});
 
+  // Função para formatar valor monetário durante a digitação
+  const formatMoneyInput = (text) => {
+    const numbers = text.replace(/\D/g, '');
+    if (!numbers) return '';
+    const value = parseFloat(numbers) / 100;
+    return value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
   const [typeValue, setTypeValue] = useState('');
   const [typeItems] = useState([
     { key: 'Residencial', value: 'Residencial' },
@@ -85,7 +96,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
       setBanheiros(property.bathrooms?.toString() || '');
       setTotalComodos(property.total_rooms?.toString() || '');
       setArea(property.sqft?.toString() || '');
-      setAluguel(property.rent?.toString() || '');
+      setAluguel(property.rent ? String(property.rent).replace(/\D/g, '') : '');
       setImages(property.image_urls || []);
     }
   }, [property]);
@@ -275,7 +286,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
     const parsedBanheiros = banheiros ? parseInt(filterOnlyNumbers(banheiros), 10) : null;
     const parsedTotalComodos = totalComodos ? parseInt(filterOnlyNumbers(totalComodos), 10) : null;
     const parsedArea = area ? parseInt(filterOnlyNumbers(area), 10) : null;
-    const parsedAluguel = aluguel ? parseMoney(aluguel) : null;
+    const parsedAluguel = aluguel ? (parseFloat(aluguel) / 100) : null;
 
     if (parsedAluguel !== null && (isNaN(parsedAluguel) || parsedAluguel <= 0)) {
       Alert.alert('Erro', 'Valor do aluguel inválido.');
@@ -310,8 +321,20 @@ const EditPropertyScreen = ({ route, navigation }) => {
       return;
     }
 
-    Alert.alert('Sucesso', 'Propriedade atualizada!');
-    navigation.goBack();
+    // Buscar o imóvel atualizado para navegar para detalhes
+    const { data: updatedProperty, error: fetchError } = await supabase
+      .from('properties')
+      .select('*')
+      .eq('id', property.id)
+      .single();
+
+    if (fetchError || !updatedProperty) {
+      Alert.alert('Sucesso', 'Propriedade atualizada!');
+      navigation.goBack();
+    } else {
+      Alert.alert('Sucesso', 'Propriedade atualizada!');
+      navigation.replace('PropertyDetails', { property: updatedProperty });
+    }
     setLoading(false);
   };
 
@@ -339,7 +362,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
               keyboardType="numeric"
               maxLength={9}
             />
-            {loadingCep && <ActivityIndicator size="small" color="#4a86e8" style={styles.cepLoader} />}
+            {loadingCep && <ActivityIndicator size="small" color={colors.primary} style={styles.cepLoader} />}
           </View>
           {errors.cep && <Text style={styles.errorText}>{errors.cep}</Text>}
         </View>
@@ -502,13 +525,14 @@ const EditPropertyScreen = ({ route, navigation }) => {
           <Text style={styles.label}>Valor do Aluguel (R$) *</Text>
           <TextInput
             style={[styles.input, errors.aluguel && styles.inputError]}
-            placeholder="Ex: 1800,50"
-            value={aluguel}
+            placeholder="R$ 0,00"
+            value={aluguel ? formatMoneyInput(aluguel) : ''}
             onChangeText={(text) => {
-              setAluguel(filterMoney(text));
+              const numbers = text.replace(/\D/g, '');
+              setAluguel(numbers);
               if (errors.aluguel) setErrors({ ...errors, aluguel: null });
             }}
-            keyboardType="decimal-pad"
+            keyboardType="numeric"
           />
           {errors.aluguel && <Text style={styles.errorText}>{errors.aluguel}</Text>}
         </View>
@@ -549,7 +573,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
         </View>
 
         <TouchableOpacity style={styles.updateButton} onPress={handleUpdateProperty} disabled={loading}>
-          {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
+          {loading ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
         </TouchableOpacity>
       </ScrollView>
     </View>

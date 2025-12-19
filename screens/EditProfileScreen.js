@@ -15,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, typography, radii } from '../theme';
 import { validatePassword, getPasswordStrength } from '../lib/validation';
+import { SelectList } from 'react-native-dropdown-select-list';
 
 const EditProfileScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -226,7 +227,7 @@ const EditProfileScreen = ({ navigation }) => {
       }
       
       if (newPassword !== confirmPassword) {
-        Alert.alert('Erro', 'As senhas não coincidem.');
+        Alert.alert('Erro', 'As senhas não coincidem');
         setIsSaving(false);
         return;
       }
@@ -253,7 +254,7 @@ const EditProfileScreen = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
       >
         {loading ? (
-          <ActivityIndicator style={styles.loader} />
+          <ActivityIndicator style={styles.loader} color={colors.primary} />
         ) : (
           <View style={styles.formContainer}>
             <View style={styles.section}>
@@ -299,11 +300,21 @@ const EditProfileScreen = ({ navigation }) => {
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Estado civil</Text>
-                <TextInput
-                  style={styles.input}
-                  value={maritalStatus}
-                  onChangeText={setMaritalStatus}
-                  placeholder="Ex: Solteiro(a), Casado(a)"
+                <SelectList
+                  setSelected={(val) => setMaritalStatus(val)}
+                  data={[
+                    { key: 'Solteiro', value: 'Solteiro' },
+                    { key: 'Casado', value: 'Casado' },
+                    { key: 'União Estável', value: 'União Estável' },
+                    { key: 'Divorciado', value: 'Divorciado' },
+                  ]}
+                  save="value"
+                  placeholder="Selecione o estado civil"
+                  defaultOption={maritalStatus ? { key: maritalStatus, value: maritalStatus } : undefined}
+                  boxStyles={styles.dropdown}
+                  inputStyles={styles.dropdownText}
+                  dropdownStyles={styles.dropdownContainer}
+                  search={false}
                 />
               </View>
               <View style={styles.inputGroup}>
@@ -442,7 +453,7 @@ const EditProfileScreen = ({ navigation }) => {
               disabled={isSaving}
             >
               {isSaving ? (
-                <ActivityIndicator color="white" />
+                <ActivityIndicator color={colors.primary} />
               ) : (
                 <Text style={styles.buttonText}>Salvar alterações</Text>
               )}
@@ -564,6 +575,25 @@ const styles = StyleSheet.create({
   radioLabel: {
     ...typography.body,
     fontSize: 16,
+  },
+  dropdown: {
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.sm,
+    minHeight: 50,
+    overflow: 'hidden',
+    width: '100%',
+    backgroundColor: colors.surface,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  dropdownContainer: {
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
   },
 });
 

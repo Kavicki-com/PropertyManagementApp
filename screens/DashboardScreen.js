@@ -16,7 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { fetchActiveContractsByTenants } from '../lib/contractsService';
 import { useIsFocused } from '@react-navigation/native';
-import { startOfMonth, endOfMonth, format, differenceInDays, setDate } from 'date-fns';
+import { startOfMonth, endOfMonth, format, differenceInDays, setDate, addMonths } from 'date-fns';
 import { colors, radii, typography } from '../theme';
 import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits, checkSubscriptionStatus, getBlockedProperties } from '../lib/subscriptionService';
 
@@ -158,6 +158,7 @@ const DashboardScreen = ({ navigation }) => {
   });
   const [upcomingRents, setUpcomingRents] = useState([]);
   const [allUpcomingRents, setAllUpcomingRents] = useState([]);
+  const [nextMonthRents, setNextMonthRents] = useState([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -223,6 +224,40 @@ const DashboardScreen = ({ navigation }) => {
     setUpcomingRents(sorted);
   };
 
+  const computeNextMonthRents = (tenants, contractsMap) => {
+    const today = new Date();
+    const nextMonth = addMonths(today, 1);
+    const nextMonthStart = startOfMonth(nextMonth);
+    const nextMonthEnd = endOfMonth(nextMonth);
+    const items = [];
+
+    tenants.forEach(tenant => {
+      const contract = contractsMap[tenant.id];
+      if (!contract || !contract.due_day || !contract.rent_amount) return;
+
+      // Calcular data de vencimento no próximo mês
+      let dueDateNextMonth = setDate(nextMonth, contract.due_day);
+
+      // Verificar se a data está dentro do próximo mês
+      if (dueDateNextMonth >= nextMonthStart && dueDateNextMonth <= nextMonthEnd) {
+        const daysDiff = differenceInDays(dueDateNextMonth, today);
+        items.push({
+          id: tenant.id || `${tenant.full_name}-${contract.due_day}-${tenant.property_id || 'no-property'}`,
+          name: tenant.full_name,
+          days: daysDiff,
+          date: dueDateNextMonth,
+          propertyAddress: tenant.properties?.address,
+          amount: contract.rent_amount,
+          tenant: tenant,
+        });
+      }
+    });
+
+    // Ordenar por data
+    const sorted = items.sort((a, b) => a.days - b.days);
+    setNextMonthRents(sorted);
+  };
+
   const fetchDashboardData = async () => {
     setLoading(true);
     setError(null);
@@ -231,7 +266,7 @@ const DashboardScreen = ({ navigation }) => {
     const startDate = format(startOfMonth(today), 'yyyy-MM-dd');
     const endDate = format(endOfMonth(today), 'yyyy-MM-dd');
 
-    // --- All data fetching promises ---
+    // --- Promessas de busca de dados ---
     const financePromise = supabase
       .from('finances')
       .select('amount')
@@ -259,7 +294,7 @@ const DashboardScreen = ({ navigation }) => {
       .select('id, type')
       .is('archived_at', null);
 
-    // --- Execute all promises concurrently ---
+    // --- Executar todas as promessas simultaneamente ---
     const [
       { data: financeData, error: financeError },
       { data: tenantsData, error: tenantsError },
@@ -333,8 +368,10 @@ const DashboardScreen = ({ navigation }) => {
 
       if (tenantsData) {
         computeUpcomingRents(tenantsData, contractsMap || {});
+        computeNextMonthRents(tenantsData, contractsMap || {});
       } else {
         setUpcomingRents([]);
+        setNextMonthRents([]);
       }
 
       if (recentTransactionsData) {
@@ -380,7 +417,7 @@ const DashboardScreen = ({ navigation }) => {
           <View style={styles.loadingSkeletonCard} />
           <View style={styles.loadingSkeletonCard} />
           <View style={styles.loadingSkeletonCard} />
-          <ActivityIndicator size="large" style={{ marginTop: 20 }} />
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
         </View>
       </View>
     );
@@ -539,10 +576,10 @@ const DashboardScreen = ({ navigation }) => {
           <View style={styles.shortcutsGrid}>
             <TouchableOpacity
               style={styles.shortcutButton}
-              onPress={() => navigation.navigate('AddTransaction')}
+              onPress={() => navigation.navigate('SelectPropertyForContract')}
             >
-              <MaterialIcons name="playlist-add" size={22} color={colors.primary} style={styles.shortcutIcon} />
-              <Text style={styles.shortcutLabel}>Registrar recebimento</Text>
+              <MaterialIcons name="description" size={22} color={colors.primary} style={styles.shortcutIcon} />
+              <Text style={styles.shortcutLabel}>Novo Contrato</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.shortcutButton}
@@ -566,6 +603,48 @@ const DashboardScreen = ({ navigation }) => {
               <Text style={styles.shortcutLabel}>Ver finanças</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Bloco 2.5 – Previsão de recebimentos do próximo mês */}
+        <View style={styles.section}>
+          <View style={styles.sectionTitleRow}>
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Previsão de recebimentos</Text>
+            <Text style={styles.sectionTitleDate}>{format(addMonths(new Date(), 1), 'MMMM yyyy')}</Text>
+          </View>
+          {nextMonthRents.length === 0 ? (
+            <Text style={styles.emptyText}>
+              Nenhum recebimento previsto para o próximo mês.
+            </Text>
+          ) : (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Total previsto:</Text>
+                <Text style={styles.summaryValue}>
+                  {formatCurrency(nextMonthRents.reduce((sum, item) => sum + (item.amount || 0), 0))}
+                </Text>
+              </View>
+              {nextMonthRents.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.upcomingItem}
+                  onPress={() => navigation.navigate('TenantDetails', { tenant: item.tenant })}
+                >
+                  <View style={styles.upcomingInfo}>
+                    <Text style={styles.upcomingName} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.upcomingMeta} numberOfLines={1}>
+                      {item.propertyAddress || 'Sem imóvel vinculado'} • Dia {format(item.date, 'dd')}
+                    </Text>
+                  </View>
+                  <Text style={styles.upcomingAmount}>
+                    {formatCurrency(item.amount || 0)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
         </View>
 
         {/* Bloco 4 – Imóveis e ocupação */}
@@ -770,6 +849,17 @@ const styles = StyleSheet.create({
     ...typography.sectionTitle,
     marginBottom: 12,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionTitleDate: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -954,6 +1044,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#111827',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.borderSubtle,
+    marginBottom: 12,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    ...typography.bodyStrong,
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  summaryValue: {
+    ...typography.bodyStrong,
+    fontSize: 18,
+    color: colors.primary,
+    fontWeight: '700',
   },
   transactionCard: {
     backgroundColor: colors.surface,

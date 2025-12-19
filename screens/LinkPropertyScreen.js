@@ -12,6 +12,12 @@ import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 
+// Função para formatar valor monetário
+const formatCurrency = (value) => {
+  if (!value && value !== 0) return 'R$ 0,00';
+  return `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
+};
+
 const PropertyItem = ({ item, onPress }) => {
   const isOccupied = item.tenants && item.tenants.length > 0;
 
@@ -22,7 +28,7 @@ const PropertyItem = ({ item, onPress }) => {
           {item.address}
         </Text>
         <View style={styles.propertyMetaRow}>
-          <Text style={styles.propertyRent}>R${item.rent || 0}/mês</Text>
+          <Text style={styles.propertyRent}>{formatCurrency(item.rent || 0)}/mês</Text>
           <View
             style={[
               styles.statusBadge,
@@ -140,7 +146,7 @@ const LinkPropertyScreen = ({ route, navigation }) => {
   if (loading && properties.length === 0) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }

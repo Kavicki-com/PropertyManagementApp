@@ -17,6 +17,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { colors, typography, radii } from '../theme';
 import Constants from 'expo-constants';
 import { isValidCPF, isValidEmail, isValidPhone, validatePassword, getPasswordStrength, filterOnlyLetters, filterOnlyNumbers } from '../lib/validation';
+import { SelectList } from 'react-native-dropdown-select-list';
 
 const SignUpScreen = ({ navigation }) => {
   // Dados básicos
@@ -228,7 +229,8 @@ const SignUpScreen = ({ navigation }) => {
         // Verifica se é erro de usuário já existente
         if (authError.message.includes('already registered') || 
             authError.message.includes('User already registered') ||
-            authError.message.includes('already exists')) {
+            authError.message.includes('already exists') ||
+            authError.message.includes('Email rate limit exceeded')) {
           Alert.alert(
             'Email já cadastrado',
             'Este email já está cadastrado. Tente fazer login ou recuperar sua senha.',
@@ -247,8 +249,16 @@ const SignUpScreen = ({ navigation }) => {
               },
             ]
           );
+        } else if (authError.message.includes('Invalid email') || 
+                   authError.message.includes('email')) {
+          Alert.alert('Email inválido', 'Por favor, verifique se o email está correto e tente novamente.');
+        } else if (authError.message.includes('Password')) {
+          Alert.alert('Erro na senha', 'A senha não atende aos requisitos. Verifique se possui no mínimo 8 caracteres e pelo menos 1 caractere especial.');
+        } else if (authError.message.includes('network') || 
+                   authError.message.includes('Network')) {
+          Alert.alert('Erro de conexão', 'Verifique sua conexão com a internet e tente novamente.');
         } else {
-          Alert.alert('Erro no Cadastro', authError.message);
+          Alert.alert('Erro no cadastro', `Não foi possível criar a conta. ${authError.message || 'Tente novamente mais tarde.'}`);
         }
         setLoading(false);
         return;
@@ -288,10 +298,95 @@ const SignUpScreen = ({ navigation }) => {
         p_terms_accepted_at: new Date().toISOString(),
       };
       
+      // Função auxiliar para verificar e exibir erro de perfil já existente
+      const checkAndShowDuplicateProfileError = async (error, userId) => {
+        if (!error || !error.message) {
+          return false;
+        }
+        
+        // Verifica a mensagem de erro original (sem toLowerCase para manter exatidão)
+        const errorMessageOriginal = error.message;
+        const errorMessage = errorMessageOriginal.toLowerCase();
+        
+        // Verifica múltiplas formas de detectar erro de foreign key relacionado a profiles
+        // Mensagem exata que aparece: "insert or update on table "profiles" violates foreign key constraint "profiles_id_fkey""
+        const hasProfilesIdFkey = errorMessage.includes('profiles_id_fkey');
+        const hasForeignKeyAndProfiles = errorMessage.includes('foreign key') && errorMessage.includes('profiles');
+        const hasInsertUpdateProfiles = errorMessage.includes('insert or update') && errorMessage.includes('profiles');
+        const isCode23503 = error.code === '23503';
+        
+        // Se qualquer uma dessas condições for verdadeira, é erro de foreign key em profiles
+        const isForeignKeyError = hasProfilesIdFkey || 
+                                  hasForeignKeyAndProfiles || 
+                                  (hasInsertUpdateProfiles && errorMessage.includes('violates')) ||
+                                  isCode23503;
+        
+        if (isForeignKeyError) {
+          // Para erro de foreign key em profiles, sempre mostrar mensagem amigável
+          // pois indica problema de vinculação (perfil duplicado ou usuário não existe em auth.users)
+          Alert.alert(
+            'Conta já cadastrada',
+            'Este email já possui uma conta cadastrada. Por favor, faça login ou recupere sua senha.',
+            [
+              {
+                text: 'Cancelar',
+                style: 'cancel',
+              },
+              {
+                text: 'Fazer Login',
+                onPress: () => navigation.navigate('Login'),
+              },
+              {
+                text: 'Recuperar Senha',
+                onPress: () => navigation.navigate('ForgotPassword'),
+              },
+            ]
+          );
+          setLoading(false);
+          return true; // Indica que o erro foi tratado
+        }
+        return false; // Erro não foi tratado
+      };
+      
       const { error: functionError } = await supabase.rpc('create_user_profile', profileParams);
 
       if (functionError) {
         // Logs de erro mantidos apenas para debugging técnico (sem dados sensíveis)
+        
+        // PRIMEIRO: Verificação direta e simples para erro de foreign key em profiles
+        // Verifica se a mensagem contém "profiles_id_fkey" (parte mais específica do erro)
+        if (functionError.message && 
+            (functionError.message.toLowerCase().includes('profiles_id_fkey') ||
+             (functionError.message.toLowerCase().includes('foreign key constraint') && 
+              functionError.message.toLowerCase().includes('profiles')) ||
+             functionError.code === '23503')) {
+          Alert.alert(
+            'Conta já cadastrada',
+            'Este email já possui uma conta cadastrada. Por favor, faça login ou recupere sua senha.',
+            [
+              {
+                text: 'Cancelar',
+                style: 'cancel',
+              },
+              {
+                text: 'Fazer Login',
+                onPress: () => navigation.navigate('Login'),
+              },
+              {
+                text: 'Recuperar Senha',
+                onPress: () => navigation.navigate('ForgotPassword'),
+              },
+            ]
+          );
+          setLoading(false);
+          return;
+        }
+        
+        // Verificar também usando a função auxiliar (para outros casos)
+        const handled = await checkAndShowDuplicateProfileError(functionError, authData.user.id);
+        if (handled) {
+          return;
+        }
         
         // Se for erro de constraint de account_type, mostra mensagem específica
         if (functionError.code === '23514' && functionError.message && functionError.message.includes('account_type_check')) {
@@ -317,10 +412,44 @@ const SignUpScreen = ({ navigation }) => {
             .upsert(basicProfileData, { onConflict: 'id' });
 
           if (basicError) {
-            Alert.alert(
-              'Aviso',
-              'Conta criada com sucesso! Mas houve um problema ao salvar dados do perfil.\n\nExecute o script create_profile_function.sql no Supabase para resolver este problema.\n\nErro: ' + basicError.message
-            );
+            // Verificação direta para erro de foreign key em profiles
+            if (basicError.message && 
+                (basicError.message.toLowerCase().includes('profiles_id_fkey') ||
+                 (basicError.message.toLowerCase().includes('foreign key constraint') && 
+                  basicError.message.toLowerCase().includes('profiles')) ||
+                 basicError.code === '23503')) {
+              Alert.alert(
+                'Conta já cadastrada',
+                'Este email já possui uma conta cadastrada. Por favor, faça login ou recupere sua senha.',
+                [
+                  {
+                    text: 'Cancelar',
+                    style: 'cancel',
+                  },
+                  {
+                    text: 'Fazer Login',
+                    onPress: () => navigation.navigate('Login'),
+                  },
+                  {
+                    text: 'Recuperar Senha',
+                    onPress: () => navigation.navigate('ForgotPassword'),
+                  },
+                ]
+              );
+              setLoading(false);
+              return;
+            }
+            
+            // Verificar se é erro de perfil duplicado usando função auxiliar
+            const handled = await checkAndShowDuplicateProfileError(basicError, authData.user.id);
+            if (!handled) {
+              Alert.alert(
+                'Aviso',
+                'Conta criada com sucesso! Mas houve um problema ao salvar dados do perfil.\n\nExecute o script create_profile_function.sql no Supabase para resolver este problema.\n\nErro: ' + basicError.message
+              );
+            } else {
+              return;
+            }
           } else {
             // Tenta atualizar campos adicionais depois
             try {
@@ -344,10 +473,58 @@ const SignUpScreen = ({ navigation }) => {
             }
           }
         } else {
-          Alert.alert(
-            'Aviso',
-            'Conta criada, mas houve um problema ao salvar dados do perfil. Erro: ' + functionError.message
-          );
+          // Verificar se o perfil foi criado mesmo com erro
+          const { data: profileCheck } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', authData.user.id)
+            .single();
+          
+          if (profileCheck) {
+            Alert.alert(
+              'Aviso',
+              'Conta criada com sucesso! Alguns dados do perfil podem não ter sido salvos completamente. Você pode completar seu perfil nas configurações.'
+            );
+          } else {
+            // Verificação direta para erro de foreign key em profiles ANTES de mostrar mensagem genérica
+            if (functionError.message && 
+                (functionError.message.toLowerCase().includes('profiles_id_fkey') ||
+                 (functionError.message.toLowerCase().includes('foreign key constraint') && 
+                  functionError.message.toLowerCase().includes('profiles')) ||
+                 functionError.code === '23503')) {
+              Alert.alert(
+                'Conta já cadastrada',
+                'Este email já possui uma conta cadastrada. Por favor, faça login ou recupere sua senha.',
+                [
+                  {
+                    text: 'Cancelar',
+                    style: 'cancel',
+                  },
+                  {
+                    text: 'Fazer Login',
+                    onPress: () => navigation.navigate('Login'),
+                  },
+                  {
+                    text: 'Recuperar Senha',
+                    onPress: () => navigation.navigate('ForgotPassword'),
+                  },
+                ]
+              );
+              setLoading(false);
+              return;
+            }
+            
+            // Verificar novamente se é erro de perfil duplicado usando função auxiliar
+            const handled = await checkAndShowDuplicateProfileError(functionError, authData.user.id);
+            if (!handled) {
+              Alert.alert(
+                'Erro ao criar perfil',
+                'Não foi possível criar seu perfil. Por favor, tente novamente ou entre em contato com o suporte.\n\nErro: ' + functionError.message
+              );
+              setLoading(false);
+              return;
+            }
+          }
         }
       }
 
@@ -561,14 +738,24 @@ const SignUpScreen = ({ navigation }) => {
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Estado Civil *</Text>
-            <TextInput
-              style={[styles.input, errors.maritalStatus && styles.inputError]}
-              placeholder="Ex: Solteiro, Casado"
-              value={maritalStatus}
-              onChangeText={(text) => {
-                setMaritalStatus(filterOnlyLetters(text));
+            <SelectList
+              setSelected={(val) => {
+                setMaritalStatus(val);
                 if (errors.maritalStatus) setErrors({ ...errors, maritalStatus: null });
               }}
+              data={[
+                { key: 'Solteiro', value: 'Solteiro' },
+                { key: 'Casado', value: 'Casado' },
+                { key: 'União Estável', value: 'União Estável' },
+                { key: 'Divorciado', value: 'Divorciado' },
+              ]}
+              save="value"
+              placeholder="Selecione o estado civil"
+              defaultOption={maritalStatus ? { key: maritalStatus, value: maritalStatus } : undefined}
+              boxStyles={[styles.dropdown, errors.maritalStatus && styles.inputError]}
+              inputStyles={styles.dropdownText}
+              dropdownStyles={styles.dropdownContainer}
+              search={false}
             />
             {errors.maritalStatus && <Text style={styles.errorText}>{errors.maritalStatus}</Text>}
           </View>
@@ -682,7 +869,7 @@ const SignUpScreen = ({ navigation }) => {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color={colors.primary} />
           ) : (
             <Text style={styles.signUpButtonText}>Cadastrar</Text>
           )}
@@ -876,6 +1063,25 @@ const styles = StyleSheet.create({
   radioLabel: {
     ...typography.body,
     fontSize: 16,
+  },
+  dropdown: {
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.sm,
+    minHeight: 50,
+    overflow: 'hidden',
+    width: '100%',
+    backgroundColor: colors.surface,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  dropdownContainer: {
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
   },
 });
 

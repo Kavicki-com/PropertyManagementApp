@@ -34,6 +34,12 @@ const formatPropertyAddress = (item) => {
   return item.address || 'Endereço não informado';
 };
 
+// Função para formatar valor monetário
+const formatCurrency = (value) => {
+  if (!value && value !== 0) return 'R$ 0,00';
+  return `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
+};
+
 const PropertyItem = ({ item, onPress, isBlocked }) => {
   const hasTenant = item.tenants && item.tenants.length > 0;
   const status = hasTenant ? 'Alugada' : 'Disponível';
@@ -56,6 +62,9 @@ const PropertyItem = ({ item, onPress, isBlocked }) => {
       />
       <View style={styles.propertyInfo}>
         <Text style={styles.propertyAddress} numberOfLines={2}>{formatPropertyAddress(item)}</Text>
+        {item.rent && (
+          <Text style={styles.propertyRent}>{formatCurrency(item.rent)}/mês</Text>
+        )}
         <View style={styles.propertyMeta}>
           <Text style={styles.propertyType}>{item.type}</Text>
           <View style={[styles.statusBadge, statusStyle]}>
@@ -72,6 +81,7 @@ const PropertiesScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'Residencial' | 'Comercial'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'rented' | 'available'
   const [sortBy, setSortBy] = useState('addressAsc'); // 'rentAsc' | 'rentDesc' | 'addressAsc'
   const [showArchived, setShowArchived] = useState(false);
   const [blockedPropertyIds, setBlockedPropertyIds] = useState([]);
@@ -202,6 +212,19 @@ const PropertiesScreen = ({ navigation }) => {
       result = result.filter((p) => p.type === typeFilter);
     }
 
+    // Filtro por status (alugada/disponível)
+    if (statusFilter !== 'all') {
+      result = result.filter((p) => {
+        const hasTenant = p.tenants && p.tenants.length > 0;
+        if (statusFilter === 'rented') {
+          return hasTenant;
+        } else if (statusFilter === 'available') {
+          return !hasTenant;
+        }
+        return true;
+      });
+    }
+
     // Ordenação
     result.sort((a, b) => {
       if (sortBy === 'addressAsc') {
@@ -232,14 +255,14 @@ const PropertiesScreen = ({ navigation }) => {
     const sortedActive = [...nonBlocked, ...blocked];
 
     return { activeProperties: sortedActive, archivedProperties: archived };
-  }, [properties, searchQuery, typeFilter, sortBy, blockedPropertyIds]);
+  }, [properties, searchQuery, typeFilter, statusFilter, sortBy, blockedPropertyIds]);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
         {loading && properties.length === 0 ? (
           <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-            <ActivityIndicator size="large" />
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
         ) : (
           <>
@@ -413,6 +436,60 @@ const PropertiesScreen = ({ navigation }) => {
                           ]}
                         >
                           Comercial
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.filterGroup}>
+                    <Text style={styles.filterLabel}>Status</Text>
+                    <View style={styles.filterChipsContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          statusFilter === 'all' && styles.chipActive,
+                        ]}
+                        onPress={() => setStatusFilter('all')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            statusFilter === 'all' && styles.chipTextActive,
+                          ]}
+                        >
+                          Todos
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          statusFilter === 'rented' && styles.chipActive,
+                        ]}
+                        onPress={() => setStatusFilter('rented')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            statusFilter === 'rented' && styles.chipTextActive,
+                          ]}
+                        >
+                          Alugada
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          statusFilter === 'available' && styles.chipActive,
+                        ]}
+                        onPress={() => setStatusFilter('available')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            statusFilter === 'available' && styles.chipTextActive,
+                          ]}
+                        >
+                          Disponível
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -634,6 +711,12 @@ const styles = StyleSheet.create({
   propertyAddress: {
     fontSize: 18,
     fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  propertyRent: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4a86e8',
     marginBottom: 8,
   },
   propertyMeta: {

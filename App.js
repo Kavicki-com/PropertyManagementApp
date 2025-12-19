@@ -35,6 +35,8 @@ import SettingsScreen from './screens/SettingsScreen';
 import LinkTenantScreen from './screens/LinkTenantScreen';
 import LinkPropertyScreen from './screens/LinkPropertyScreen';
 import AddContractScreen from './screens/AddContractScreen';
+import SelectPropertyForContractScreen from './screens/SelectPropertyForContractScreen';
+import SelectTenantForContractScreen from './screens/SelectTenantForContractScreen';
 import TermsOfServiceScreen from './screens/TermsOfServiceScreen';
 import FAQScreen from './screens/FAQScreen';
 import EmailConfirmationScreen from './screens/EmailConfirmationScreen';
@@ -318,7 +320,7 @@ export default function App() {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -343,7 +345,7 @@ export default function App() {
           return () => {};
         }
       }} 
-      fallback={<ActivityIndicator />}
+      fallback={<ActivityIndicator color={colors.primary} />}
     >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {session && session.user ? (
@@ -360,6 +362,8 @@ export default function App() {
             <Stack.Screen name="LinkTenant" component={LinkTenantScreen} />
             <Stack.Screen name="LinkProperty" component={LinkPropertyScreen} />
             <Stack.Screen name="AddContract" component={AddContractScreen} />
+            <Stack.Screen name="SelectPropertyForContract" component={SelectPropertyForContractScreen} />
+            <Stack.Screen name="SelectTenantForContract" component={SelectTenantForContractScreen} />
             <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             <Stack.Screen name="Subscription" component={SubscriptionScreen} />

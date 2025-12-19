@@ -260,12 +260,6 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
     setModalVisible(true);
   };
 
-  const handleAddTransaction = () => {
-    navigation.navigate('AddTransaction', {
-      preselectedPropertyId: property.id,
-    });
-  };
-
   const formatCurrency = (value) => {
     return `R$${Number(value || 0).toFixed(2)}`;
   };
@@ -326,7 +320,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   if (loading || !property) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -477,29 +471,64 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           <Text style={styles.sectionTitle}>Aluguel & Contrato</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Aluguel Mensal</Text>
-            <Text style={styles.infoValue}>{formatCurrency(property.rent)}/mês</Text>
+            <Text style={styles.infoValue}>
+              {contract?.rent_amount ? formatCurrency(contract.rent_amount) : formatCurrency(property.rent)}/mês
+            </Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Status</Text>
             <Text style={styles.infoValue}>{tenant ? 'Alugada' : 'Disponível'}</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Duração do Contrato</Text>
-            <Text style={styles.infoValue}>
-              {contract?.lease_term != null ? `${contract.lease_term} meses` : 'Nenhum contrato ativo'}
-            </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Status de pagamento</Text>
-            <Text
-              style={[
-                styles.infoValue,
-                contract && billingSummary.overdue > 0 && { color: '#F44336', fontWeight: '600' },
-              ]}
-            >
-              {getPaymentStatus()}
-            </Text>
-          </View>
+          {contract ? (
+            <>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Data de Início</Text>
+                <Text style={styles.infoValue}>{formatDate(contract.start_date)}</Text>
+              </View>
+              {contract.end_date && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Data de Término</Text>
+                  <Text style={styles.infoValue}>{formatDate(contract.end_date)}</Text>
+                </View>
+              )}
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Duração do Contrato</Text>
+                <Text style={styles.infoValue}>
+                  {contract.lease_term != null ? `${contract.lease_term} meses` : 'N/A'}
+                </Text>
+              </View>
+              {contract.due_day && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Dia de Vencimento</Text>
+                  <Text style={styles.infoValue}>Dia {contract.due_day}</Text>
+                </View>
+              )}
+              {contract.deposit && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Depósito Caução</Text>
+                  <Text style={styles.infoValue}>{formatCurrency(contract.deposit)}</Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Contrato</Text>
+              <Text style={styles.infoValue}>Nenhum contrato ativo</Text>
+            </View>
+          )}
+          {contract && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Status de pagamento</Text>
+              <Text
+                style={[
+                  styles.infoValue,
+                  billingSummary.overdue > 0 && { color: '#F44336', fontWeight: '600' },
+                ]}
+              >
+                {getPaymentStatus()}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -528,15 +557,6 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
                 {formatCurrency(financesSummary.net)}
               </Text>
             </View>
-          </View>
-
-          <View style={styles.financeActions}>
-            <TouchableOpacity 
-              style={styles.financeActionButton}
-              onPress={handleAddTransaction}
-            >
-              <Text style={styles.financeActionText}>Novo lançamento</Text>
-            </TouchableOpacity>
           </View>
         </View>
         
@@ -591,7 +611,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             disabled={isDeleting}
           >
             {isDeleting ? (
-              <ActivityIndicator color={colors.expense} />
+              <ActivityIndicator color={colors.primary} />
             ) : (
               <Text style={[styles.buttonText, styles.deleteButtonText]}>Excluir Propriedade</Text>
             )}
@@ -818,21 +838,6 @@ const styles = StyleSheet.create({
     },
     expense: {
         color: '#F44336',
-    },
-    financeActions: {
-        marginTop: 12,
-    },
-    financeActionButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderRadius: radii.pill,
-        borderWidth: 1,
-        borderColor: colors.primary,
-        alignItems: 'center',
-    },
-    financeActionText: {
-        ...typography.button,
-        color: colors.primary,
     },
     blockedContainer: {
         flex: 1,
