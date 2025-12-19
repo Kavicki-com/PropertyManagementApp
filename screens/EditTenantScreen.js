@@ -14,8 +14,9 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
-import { filterOnlyLetters, filterOnlyNumbers } from '../lib/validation';
+import { filterOnlyLetters, filterOnlyNumbers, isValidCPF, isValidEmail, isValidPhone } from '../lib/validation';
 import { radii } from '../theme';
+import { SelectList } from 'react-native-dropdown-select-list';
 
 const EditTenantScreen = ({ route, navigation }) => {
   const { tenant } = route.params;
@@ -29,9 +30,43 @@ const EditTenantScreen = ({ route, navigation }) => {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const validate = () => {
+    const newErrors = {};
+
+    if (!fullName.trim()) {
+      newErrors.fullName = 'Nome completo é obrigatório';
+    } else if (fullName.trim().length < 3) {
+      newErrors.fullName = 'Nome deve ter pelo menos 3 caracteres';
+    }
+
+    if (!cpf.trim()) {
+      newErrors.cpf = 'CPF é obrigatório';
+    } else if (!isValidCPF(cpf)) {
+      newErrors.cpf = 'CPF inválido. Verifique os dígitos.';
+    }
+
+    if (!rg.trim()) {
+      newErrors.rg = 'RG é obrigatório';
+    }
+
+    if (!phone.trim()) {
+      newErrors.phone = 'Telefone é obrigatório';
+    } else if (!isValidPhone(phone)) {
+      newErrors.phone = 'Telefone inválido. Use formato (00) 00000-0000';
+    }
+
+    if (email.trim() && !isValidEmail(email)) {
+      newErrors.email = 'Email inválido';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   useEffect(() => {
-    // Pre-fill form with tenant data
+    // Preencher formulário com dados do inquilino
     if (tenant) {
       setFullName(tenant.full_name || '');
       setCpf(tenant.cpf || '');
@@ -45,6 +80,11 @@ const EditTenantScreen = ({ route, navigation }) => {
   }, [tenant]);
   
   const handleUpdateTenant = async () => {
+    if (!validate()) {
+      Alert.alert('Verifique os dados', 'Alguns campos precisam de atenção antes de salvar.');
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase
       .from('tenants')
@@ -61,9 +101,9 @@ const EditTenantScreen = ({ route, navigation }) => {
       .eq('id', tenant.id);
 
     if (error) {
-      Alert.alert('Error updating tenant', error.message);
+      Alert.alert('Erro ao atualizar inquilino', error.message);
     } else {
-      Alert.alert('Success', 'Tenant updated successfully!');
+      Alert.alert('Sucesso', 'Inquilino atualizado com sucesso!');
       navigation.goBack();
     }
     setLoading(false);
@@ -87,34 +127,46 @@ const EditTenantScreen = ({ route, navigation }) => {
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Nome Completo</Text>
                 <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, errors.fullName && styles.inputError]} 
                     value={fullName} 
-                    onChangeText={(text) => setFullName(filterOnlyLetters(text))}
+                    onChangeText={(text) => {
+                      setFullName(filterOnlyLetters(text));
+                      if (errors.fullName) setErrors({ ...errors, fullName: null });
+                    }}
                     placeholder="Digite o nome do inquilino"
                 />
+                {errors.fullName && <Text style={styles.errorText}>{errors.fullName}</Text>}
             </View>
 
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>CPF</Text>
                 <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, errors.cpf && styles.inputError]} 
                     value={cpf} 
-                    onChangeText={(text) => setCpf(filterOnlyNumbers(text))} 
+                    onChangeText={(text) => {
+                      setCpf(filterOnlyNumbers(text));
+                      if (errors.cpf) setErrors({ ...errors, cpf: null });
+                    }} 
                     keyboardType="numeric"
                     placeholder="Digite o CPF do inquilino"
                     maxLength={11}
                 />
+                {errors.cpf && <Text style={styles.errorText}>{errors.cpf}</Text>}
             </View>
 
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>RG</Text>
                 <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, errors.rg && styles.inputError]} 
                     value={rg} 
-                    onChangeText={(text) => setRg(filterOnlyNumbers(text))}
+                    onChangeText={(text) => {
+                      setRg(filterOnlyNumbers(text));
+                      if (errors.rg) setErrors({ ...errors, rg: null });
+                    }}
                     keyboardType="numeric"
                     placeholder="Digite o RG do inquilino"
                 />
+                {errors.rg && <Text style={styles.errorText}>{errors.rg}</Text>}
             </View>
 
             <View style={styles.inputGroup}>
@@ -129,11 +181,21 @@ const EditTenantScreen = ({ route, navigation }) => {
 
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Estado civil</Text>
-                <TextInput 
-                    style={styles.input} 
-                    value={maritalStatus} 
-                    onChangeText={(text) => setMaritalStatus(filterOnlyLetters(text))}
-                    placeholder="Ex: Solteiro, Casado"
+                <SelectList
+                    setSelected={(val) => setMaritalStatus(val)}
+                    data={[
+                        { key: 'Solteiro', value: 'Solteiro' },
+                        { key: 'Casado', value: 'Casado' },
+                        { key: 'União Estável', value: 'União Estável' },
+                        { key: 'Divorciado', value: 'Divorciado' },
+                    ]}
+                    save="value"
+                    placeholder="Selecione o estado civil"
+                    defaultOption={maritalStatus ? { key: maritalStatus, value: maritalStatus } : undefined}
+                    boxStyles={styles.dropdown}
+                    inputStyles={styles.dropdownText}
+                    dropdownStyles={styles.dropdownContainer}
+                    search={false}
                 />
             </View>
 
@@ -150,27 +212,35 @@ const EditTenantScreen = ({ route, navigation }) => {
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Telefone</Text>
                 <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, errors.phone && styles.inputError]} 
                     value={phone} 
-                    onChangeText={(text) => setPhone(filterOnlyNumbers(text))} 
+                    onChangeText={(text) => {
+                      setPhone(filterOnlyNumbers(text));
+                      if (errors.phone) setErrors({ ...errors, phone: null });
+                    }} 
                     keyboardType="phone-pad"
                     maxLength={11}
                 />
+                {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
             </View>
 
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Email</Text>
                 <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, errors.email && styles.inputError]} 
                     value={email} 
-                    onChangeText={setEmail} 
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      if (errors.email) setErrors({ ...errors, email: null });
+                    }} 
                     keyboardType="email-address"
                     autoCapitalize="none"
                 />
+                {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
             </View>
 
             <TouchableOpacity style={styles.updateButton} onPress={handleUpdateTenant} disabled={loading}>
-                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
+                {loading ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
             </TouchableOpacity>
         </ScrollView>
         </KeyboardAvoidingView>
@@ -222,6 +292,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 15, 
         fontSize: 16,
     },
+    inputError: {
+        borderColor: '#F44336',
+        borderWidth: 2,
+    },
+    errorText: {
+        color: '#F44336',
+        fontSize: 12,
+        marginTop: 4,
+    },
     disabledInput: {
         backgroundColor: '#f5f5f5',
         color: '#666',
@@ -255,6 +334,24 @@ const styles = StyleSheet.create({
         color: 'white', 
         fontWeight: 'bold', 
         fontSize: 16,
+    },
+    dropdown: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        minHeight: 50,
+        overflow: 'hidden',
+        width: '100%',
+    },
+    dropdownText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    dropdownContainer: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        backgroundColor: '#fff',
     },
 });
 

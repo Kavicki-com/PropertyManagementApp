@@ -22,19 +22,19 @@ import { parseMoney, filterOnlyNumbers, filterMoney } from '../lib/validation';
 import { colors, radii, typography } from '../theme';
 
 const AddContractScreen = ({ route, navigation }) => {
-  const { tenantId, contract: existingContract, property } = route.params || {};
+  const { tenantId, propertyId: preselectedPropertyId, contract: existingContract, property } = route.params || {};
   const screenWidth = Dimensions.get('window').width;
 
   const [propertyId, setPropertyId] = useState(
-    property?.id || existingContract?.property_id || null
+    preselectedPropertyId || property?.id || existingContract?.property_id || null
   );
   const [properties, setProperties] = useState([]);
 
   const [rentAmount, setRentAmount] = useState(
-    existingContract?.rent_amount != null ? String(existingContract.rent_amount) : '',
+    existingContract?.rent_amount != null ? String(Math.round(existingContract.rent_amount * 100)) : '',
   );
   const [deposit, setDeposit] = useState(
-    existingContract?.deposit != null ? String(existingContract.deposit) : '',
+    existingContract?.deposit != null ? String(Math.round(existingContract.deposit * 100)) : '',
   );
   const [dueDate, setDueDate] = useState(
     existingContract?.due_day != null ? String(existingContract.due_day) : '',
@@ -53,39 +53,60 @@ const AddContractScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     const fetchProperties = async () => {
-      const { data, error } = await supabase
+      // Buscar todas as propriedades
+      const { data: allProperties, error } = await supabase
         .from('properties')
         .select('id, address, rent')
         .is('archived_at', null);
 
       if (error) {
         Alert.alert('Erro', 'Não foi possível carregar as propriedades.');
-      } else {
-        const formatted = (data || []).map((p) => ({
-          key: p.id,
-          value: p.address,
-          rent: p.rent,
-        }));
-        setProperties(formatted);
+        return;
+      }
 
-        // Se não houver propertyId inicial, usar a primeira disponível
-        if (!propertyId && formatted.length > 0) {
-          setPropertyId(formatted[0].key);
-          if (formatted[0].rent) {
-            setRentAmount(String(formatted[0].rent));
+      // Se estiver editando um contrato existente, incluir a propriedade do contrato mesmo que esteja alugada
+      const currentPropertyId = existingContract?.property_id || propertyId;
+      
+      // Filtrar propriedades que não têm contratos ativos (exceto a propriedade do contrato atual se estiver editando)
+      const availableProperties = [];
+      for (const prop of (allProperties || [])) {
+        // Se for a propriedade do contrato atual em edição, sempre incluir
+        if (currentPropertyId && prop.id === currentPropertyId) {
+          availableProperties.push(prop);
+        } else {
+          // Verificar se tem contrato ativo
+          const { data: activeContract } = await fetchActiveContractByProperty(prop.id);
+          // Incluir apenas se não tiver contrato ativo
+          if (!activeContract) {
+            availableProperties.push(prop);
           }
+        }
+      }
+
+      const formatted = availableProperties.map((p) => ({
+        key: p.id,
+        value: p.address,
+        rent: p.rent,
+      }));
+      setProperties(formatted);
+
+      // Se não houver propertyId inicial, usar a primeira disponível
+      if (!propertyId && formatted.length > 0) {
+        setPropertyId(formatted[0].key);
+        if (formatted[0].rent) {
+          setRentAmount(String(Math.round(formatted[0].rent * 100)));
         }
       }
     };
 
     fetchProperties();
-  }, []);
+  }, [existingContract]);
 
   useEffect(() => {
     if (propertyId && properties.length > 0) {
       const selected = properties.find((item) => item.key === propertyId);
       if (selected && selected.rent) {
-        setRentAmount(String(selected.rent));
+        setRentAmount(String(Math.round(selected.rent * 100)));
       }
       
       // Verificar se o imóvel já está alugado (apenas se não for edição do mesmo contrato)
@@ -118,6 +139,23 @@ const AddContractScreen = ({ route, navigation }) => {
     const months = differenceInMonths(endDate, startDate);
     setContractLength(months);
   }, [startDate, endDate]);
+
+  // Função para formatar valor monetário durante a digitação
+  const formatMoneyInput = (text) => {
+    // Remove tudo exceto números
+    const numbers = text.replace(/\D/g, '');
+    
+    if (!numbers) return '';
+    
+    // Converte para número e divide por 100 para ter centavos
+    const value = parseFloat(numbers) / 100;
+    
+    // Formata como R$ 0,00
+    return `R$ ${value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
 
   const onStartDateChange = (event, selectedDate) => {
     setShowStartPicker(false);
@@ -158,8 +196,8 @@ const AddContractScreen = ({ route, navigation }) => {
         startDate: startDate.toISOString(),
         endDate: endDate ? endDate.toISOString() : null,
         dueDay: dueDate ? parseInt(dueDate, 10) : null,
-        rentAmount: rentAmount ? parseMoney(rentAmount) : null,
-        deposit: deposit ? parseMoney(deposit) : null,
+        rentAmount: rentAmount ? (parseFloat(rentAmount) / 100) : null,
+        deposit: deposit ? (parseFloat(deposit) / 100) : null,
         leaseTerm: contractLength,
       });
 
@@ -170,7 +208,25 @@ const AddContractScreen = ({ route, navigation }) => {
 
       const actionLabel = existingContract ? 'atualizado' : 'criado';
       Alert.alert('Sucesso', `Contrato ${actionLabel} com sucesso!`);
-      navigation.goBack();
+      
+      // Se veio da rota da home (tem tenantId pré-selecionado e não é edição), navegar para detalhes do inquilino
+      if (tenantId && !existingContract) {
+        // Buscar dados do inquilino para navegar
+        const { data: tenantData, error: tenantError } = await supabase
+          .from('tenants')
+          .select('*')
+          .eq('id', tenantId)
+          .single();
+
+        if (!tenantError && tenantData) {
+          // Navegar para detalhes do inquilino
+          navigation.replace('TenantDetails', { tenant: tenantData });
+        } else {
+          navigation.goBack();
+        }
+      } else {
+        navigation.goBack();
+      }
     } finally {
       setLoading(false);
     }
@@ -204,7 +260,7 @@ const AddContractScreen = ({ route, navigation }) => {
               setPropertyWarning(null); // Limpar aviso ao mudar seleção
               const selected = properties.find(p => p.key === val);
               if (selected && selected.rent) {
-                setRentAmount(String(selected.rent));
+                setRentAmount(String(Math.round(selected.rent * 100)));
               }
             }}
             data={properties}
@@ -256,10 +312,13 @@ const AddContractScreen = ({ route, navigation }) => {
           <Text style={styles.label}>Valor do Aluguel</Text>
           <TextInput
             style={styles.input}
-            placeholder="Ex: 1800"
-            value={rentAmount}
-            onChangeText={(text) => setRentAmount(filterMoney(text))}
-            keyboardType="decimal-pad"
+            placeholder="R$ 0,00"
+            value={rentAmount ? formatMoneyInput(rentAmount) : ''}
+            onChangeText={(text) => {
+              const numbers = text.replace(/\D/g, '');
+              setRentAmount(numbers);
+            }}
+            keyboardType="numeric"
           />
         </View>
 
@@ -279,10 +338,13 @@ const AddContractScreen = ({ route, navigation }) => {
           <Text style={styles.label}>Depósito Caução</Text>
           <TextInput
             style={styles.input}
-            placeholder="Insira o valor de depósito"
-            value={deposit}
-            onChangeText={(text) => setDeposit(filterMoney(text))}
-            keyboardType="decimal-pad"
+            placeholder="R$ 0,00"
+            value={deposit ? formatMoneyInput(deposit) : ''}
+            onChangeText={(text) => {
+              const numbers = text.replace(/\D/g, '');
+              setDeposit(numbers);
+            }}
+            keyboardType="numeric"
           />
         </View>
 
@@ -292,7 +354,7 @@ const AddContractScreen = ({ route, navigation }) => {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color={colors.primary} />
           ) : (
             <Text style={styles.saveButtonText}>
               {isEditing ? 'Salvar contrato' : 'Criar contrato'}

@@ -269,7 +269,7 @@ const SubscriptionScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Assinatura" />
+      <ScreenHeader title="Assinatura" onBack={() => navigation.goBack()} />
       <ScrollView style={styles.scrollContainer}>
         {/* Plano Atual */}
         <View style={styles.section}>
@@ -400,7 +400,7 @@ const SubscriptionScreen = ({ navigation }) => {
                 disabled={purchasing}
               >
                 {purchasing ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={colors.primary} />
                 ) : (
                   <Text style={styles.upgradeButtonText}>Assinar</Text>
                 )}
@@ -456,7 +456,7 @@ const SubscriptionScreen = ({ navigation }) => {
                 disabled={purchasing}
               >
                 {purchasing ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={colors.primary} />
                 ) : (
                   <Text style={styles.upgradeButtonText}>Assinar</Text>
                 )}

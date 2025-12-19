@@ -66,6 +66,17 @@ const AddPropertyScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState([]);
   const [errors, setErrors] = useState({});
+
+  // Função para formatar valor monetário durante a digitação
+  const formatMoneyInput = (text) => {
+    const numbers = text.replace(/\D/g, '');
+    if (!numbers) return '';
+    const value = parseFloat(numbers) / 100;
+    return value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
 
@@ -300,7 +311,7 @@ const AddPropertyScreen = ({ navigation }) => {
     const parsedBanheiros = banheiros ? parseInt(filterOnlyNumbers(banheiros), 10) : null;
     const parsedTotalComodos = totalComodos ? parseInt(filterOnlyNumbers(totalComodos), 10) : null;
     const parsedArea = area ? parseInt(filterOnlyNumbers(area), 10) : null;
-    const parsedAluguel = aluguel ? parseMoney(aluguel) : null;
+    const parsedAluguel = aluguel ? (parseFloat(aluguel) / 100) : null;
 
     if (parsedAluguel === null || isNaN(parsedAluguel) || parsedAluguel <= 0) {
       Alert.alert('Erro', 'Valor do aluguel inválido.');
@@ -330,8 +341,22 @@ const AddPropertyScreen = ({ navigation }) => {
     if (insertError) {
       Alert.alert('Erro ao adicionar propriedade', insertError.message);
     } else {
-      Alert.alert('Sucesso', 'Propriedade adicionada com sucesso!');
-      navigation.goBack();
+      // Buscar o imóvel recém-criado para navegar para detalhes
+      const { data: newProperties, error: fetchError } = await supabase
+        .from('properties')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (fetchError || !newProperties) {
+        Alert.alert('Sucesso', 'Propriedade adicionada com sucesso!');
+        navigation.goBack();
+      } else {
+        Alert.alert('Sucesso', 'Propriedade adicionada com sucesso!');
+        navigation.replace('PropertyDetails', { property: newProperties });
+      }
     }
 
     setLoading(false);
@@ -361,7 +386,7 @@ const AddPropertyScreen = ({ navigation }) => {
               keyboardType="numeric"
               maxLength={9}
             />
-            {loadingCep && <ActivityIndicator size="small" color="#4a86e8" style={styles.cepLoader} />}
+            {loadingCep && <ActivityIndicator size="small" color={colors.primary} style={styles.cepLoader} />}
           </View>
           {errors.cep && <Text style={styles.errorText}>{errors.cep}</Text>}
         </View>
@@ -537,13 +562,14 @@ const AddPropertyScreen = ({ navigation }) => {
           <Text style={styles.label}>Valor do Aluguel (R$) *</Text>
           <TextInput
             style={[styles.input, errors.aluguel && styles.inputError]}
-            placeholder="Ex: 1800,50"
-            value={aluguel}
+            placeholder="R$ 0,00"
+            value={aluguel ? formatMoneyInput(aluguel) : ''}
             onChangeText={(text) => {
-              setAluguel(filterMoney(text));
+              const numbers = text.replace(/\D/g, '');
+              setAluguel(numbers);
               if (errors.aluguel) setErrors({ ...errors, aluguel: null });
             }}
-            keyboardType="decimal-pad"
+            keyboardType="numeric"
           />
           {errors.aluguel && <Text style={styles.errorText}>{errors.aluguel}</Text>}
         </View>
@@ -582,7 +608,7 @@ const AddPropertyScreen = ({ navigation }) => {
 
         <TouchableOpacity style={styles.addButton} onPress={handleAddProperty} disabled={loading}>
           {loading ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color={colors.primary} />
           ) : (
             <Text style={styles.addButtonText}>Adicionar Propriedade</Text>
           )}

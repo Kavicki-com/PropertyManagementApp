@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { radii } from '../theme';
+import { radii, colors } from '../theme';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -118,7 +118,7 @@ const LoginScreen = ({ navigation }) => {
         <Text style={styles.label}>Senha</Text>
         <TextInput
           style={styles.input}
-          placeholder="Password"
+          placeholder="Senha"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -131,7 +131,7 @@ const LoginScreen = ({ navigation }) => {
 
       <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
         {loading ? (
-          <ActivityIndicator color="white" />
+          <ActivityIndicator color={colors.primary} />
         ) : (
           <Text style={styles.loginButtonText}>Entrar</Text>
         )}

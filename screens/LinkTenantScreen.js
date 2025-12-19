@@ -14,6 +14,7 @@ import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { radii } from '../theme';
+import { useIsFocused } from '@react-navigation/native';
 
 const TenantItem = ({ item, onPress }) => {
   const isOccupied = !!item.property_id;
@@ -55,6 +56,7 @@ const TenantItem = ({ item, onPress }) => {
 
 const LinkTenantScreen = ({ route, navigation }) => {
   const { propertyId } = route.params;
+  const isFocused = useIsFocused();
 
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,8 +78,10 @@ const LinkTenantScreen = ({ route, navigation }) => {
   };
 
   useEffect(() => {
-    fetchTenants();
-  }, []);
+    if (isFocused) {
+      fetchTenants();
+    }
+  }, [isFocused]);
 
   const handleSelectTenant = (tenant) => {
     if (tenant.property_id) {
@@ -133,9 +137,37 @@ const LinkTenantScreen = ({ route, navigation }) => {
           'Sucesso',
           forceMove
             ? 'Inquilino movido para a propriedade selecionada.'
-            : 'Inquilino vinculado à propriedade.'
+            : 'Inquilino vinculado à propriedade.',
+          [
+            {
+              text: 'Criar Contrato',
+              onPress: () => {
+                // Buscar dados completos do imóvel
+                supabase
+                  .from('properties')
+                  .select('*')
+                  .eq('id', propertyId)
+                  .single()
+                  .then(({ data: propertyData, error: propError }) => {
+                    if (propError || !propertyData) {
+                      Alert.alert('Aviso', 'Não foi possível carregar os dados do imóvel.');
+                      navigation.goBack();
+                    } else {
+                      navigation.replace('AddContract', {
+                        propertyId: propertyId,
+                        tenantId: tenant.id,
+                        property: propertyData,
+                      });
+                    }
+                  });
+              },
+            },
+            {
+              text: 'OK',
+              onPress: () => navigation.goBack(),
+            },
+          ]
         );
-        navigation.goBack();
       }
     } finally {
       setLoading(false);
@@ -149,7 +181,7 @@ const LinkTenantScreen = ({ route, navigation }) => {
   if (loading && tenants.length === 0) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }

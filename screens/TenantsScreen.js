@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   ActivityIndicator,
   Keyboard,
   TouchableWithoutFeedback,
+  Modal,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
@@ -21,8 +24,8 @@ import SearchBar from '../components/SearchBar';
 import { getBlockedTenants, getUserSubscription, getActiveTenantsCount, getRequiredPlan, canAddTenant } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
 
-// Updated TenantItem to display mais informações
-const TenantItem = ({ item, onPress, onPressPhone, isBlocked }) => (
+// TenantItem atualizado para exibir mais informações
+const TenantItem = ({ item, onPress, onPressPhone, isBlocked, hasActiveContract }) => (
   <TouchableOpacity 
     style={[styles.tenantCard, isBlocked && styles.tenantCardBlocked]} 
     onPress={() => onPress(item)}
@@ -58,9 +61,27 @@ const TenantItem = ({ item, onPress, onPressPhone, isBlocked }) => (
         </View>
       )}
 
-      {typeof item.overdue_invoices === 'number' && (
-        <View style={styles.invoiceBadge}>
-          <Text style={styles.invoiceBadgeText}>
+      {hasActiveContract === false && (
+        <View style={styles.invoiceBadgeNoContract}>
+          <Text style={styles.invoiceBadgeTextNoContract}>
+            Sem contrato ativo
+          </Text>
+        </View>
+      )}
+
+      {hasActiveContract !== false && typeof item.overdue_invoices === 'number' && (
+        <View style={[
+          styles.invoiceBadge,
+          item.overdue_invoices === 0 && styles.invoiceBadgeSuccess,
+          item.overdue_invoices > 0 && item.overdue_invoices <= 2 && styles.invoiceBadgeWarning,
+          item.overdue_invoices > 2 && styles.invoiceBadgeError,
+        ]}>
+          <Text style={[
+            styles.invoiceBadgeText,
+            item.overdue_invoices === 0 && styles.invoiceBadgeTextSuccess,
+            item.overdue_invoices > 0 && item.overdue_invoices <= 2 && styles.invoiceBadgeTextWarning,
+            item.overdue_invoices > 2 && styles.invoiceBadgeTextError,
+          ]}>
             {item.overdue_invoices > 0
               ? `${item.overdue_invoices} fatura(s) em atraso`
               : 'Sem faturas em atraso'}
@@ -82,11 +103,33 @@ const TenantsScreen = ({ navigation }) => {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('name'); // 'name' | 'due_date'
+  const [sortBy, setSortBy] = useState('nameAsc'); // 'nameAsc' | 'recent'
+  const [availabilityFilter, setAvailabilityFilter] = useState('all'); // 'all' | 'available' | 'occupied' | 'noContract'
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('all'); // 'all' | 'paid' | 'overdue'
   const [blockedTenantIds, setBlockedTenantIds] = useState([]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
   const isFocused = useIsFocused();
+  const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+
+  // Animar bottom sheet quando abrir/fechar
+  useEffect(() => {
+    if (showFiltersModal) {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 7,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: Dimensions.get('window').height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showFiltersModal]);
 
   const fetchTenants = async (options = {}) => {
     const { search = '' } = options;
@@ -99,7 +142,8 @@ const TenantsScreen = ({ navigation }) => {
       // 1) Buscar inquilinos com propriedade relacionada
       let tenantQuery = supabase
         .from('tenants')
-        .select(`*, properties ( address, rent )`);
+        .select(`*, properties ( address, rent )`)
+        .order('created_at', { ascending: false });
 
       if (trimmedSearch.length >= 3) {
         const pattern = `%${trimmedSearch}%`;
@@ -151,6 +195,7 @@ const TenantsScreen = ({ navigation }) => {
             ...tenant,
             overdue_invoices,
             due_date: due_date_display,
+            hasActiveContract: !!contract,
           };
         })
       );
@@ -251,7 +296,9 @@ const TenantsScreen = ({ navigation }) => {
   const filteredTenants = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    let result = tenants;
+    let result = [...tenants];
+    
+    // Filtro por texto (nome ou telefone)
     if (query) {
       result = result.filter((tenant) => {
         const name = (tenant.full_name || '').toLowerCase();
@@ -260,17 +307,50 @@ const TenantsScreen = ({ navigation }) => {
       });
     }
 
-    result = [...result].sort((a, b) => {
-      if (sortBy === 'due_date') {
-        const aDue = a.due_date || 0;
-        const bDue = b.due_date || 0;
-        return aDue - bDue;
-      }
+    // Filtro por disponibilidade
+    if (availabilityFilter !== 'all') {
+      result = result.filter((tenant) => {
+        if (availabilityFilter === 'occupied') {
+          return tenant.hasActiveContract === true;
+        } else if (availabilityFilter === 'noContract') {
+          // Sem contrato = sem contrato ativo
+          return tenant.hasActiveContract === false;
+        }
+        return true;
+      });
+    }
 
-      const nameA = (a.full_name || '').toLowerCase();
-      const nameB = (b.full_name || '').toLowerCase();
-      if (nameA < nameB) return -1;
-      if (nameA > nameB) return 1;
+    // Filtro por status de pagamento
+    if (paymentStatusFilter !== 'all') {
+      result = result.filter((tenant) => {
+        // Só aplicar filtro de pagamento se tiver contrato ativo
+        if (tenant.hasActiveContract !== true) {
+          return false; // Sem contrato não tem status de pagamento
+        }
+        
+        if (paymentStatusFilter === 'paid') {
+          return typeof tenant.overdue_invoices === 'number' && tenant.overdue_invoices === 0;
+        } else if (paymentStatusFilter === 'overdue') {
+          return typeof tenant.overdue_invoices === 'number' && tenant.overdue_invoices > 0;
+        }
+        return true;
+      });
+    }
+
+    // Ordenação
+    result.sort((a, b) => {
+      if (sortBy === 'nameAsc') {
+        const nameA = (a.full_name || '').toLowerCase();
+        const nameB = (b.full_name || '').toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        return 0;
+      } else if (sortBy === 'recent') {
+        // Ordenar por data de criação (mais recente primeiro)
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return dateB - dateA;
+      }
       return 0;
     });
 
@@ -280,7 +360,7 @@ const TenantsScreen = ({ navigation }) => {
 
     // Ordenar: não bloqueados primeiro, bloqueados no final
     return [...nonBlocked, ...blocked];
-  }, [tenants, searchQuery, sortBy, blockedTenantIds]);
+  }, [tenants, searchQuery, sortBy, availabilityFilter, paymentStatusFilter, blockedTenantIds]);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -288,16 +368,25 @@ const TenantsScreen = ({ navigation }) => {
         <ScreenHeader title="Inquilinos" />
 
         <View style={styles.searchContainer}>
-          <SearchBar
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Buscar por nome ou telefone"
-          />
+          <View style={styles.searchBarContainer}>
+            <SearchBar
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Buscar por nome ou telefone"
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setShowFiltersModal(true)}
+          >
+            <MaterialIcons name="tune" size={20} color={colors.primary} />
+            <Text style={styles.filterButtonText}>Filtros</Text>
+          </TouchableOpacity>
         </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Carregando inquilinos...</Text>
         </View>
       ) : error ? (
@@ -315,6 +404,7 @@ const TenantsScreen = ({ navigation }) => {
                 item={item}
                 onPress={handleTenantPress}
                 isBlocked={blockedTenantIds.includes(item.id)}
+                hasActiveContract={item.hasActiveContract}
               />
             )}
             keyExtractor={(item) => item.id}
@@ -356,6 +446,192 @@ const TenantsScreen = ({ navigation }) => {
           propertyCount={subscriptionInfo?.propertyCount || 0}
           requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
         />
+
+        {/* Bottom Sheet de Filtros */}
+        <Modal
+          visible={showFiltersModal}
+          transparent={true}
+          animationType="none"
+          onRequestClose={() => setShowFiltersModal(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowFiltersModal(false)}
+          >
+            <Animated.View
+              style={[
+                styles.bottomSheet,
+                {
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
+            >
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={(e) => e.stopPropagation()}
+              >
+                <View style={styles.bottomSheetHeader}>
+                  <Text style={styles.bottomSheetTitle}>Filtros</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowFiltersModal(false)}
+                    style={styles.closeButton}
+                  >
+                    <MaterialIcons name="close" size={24} color={colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.bottomSheetContent}>
+                  <View style={styles.filterGroup}>
+                    <Text style={styles.filterLabel}>Ordenar por</Text>
+                    <View style={styles.filterChipsContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          sortBy === 'nameAsc' && styles.chipActive,
+                        ]}
+                        onPress={() => setSortBy('nameAsc')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            sortBy === 'nameAsc' && styles.chipTextActive,
+                          ]}
+                        >
+                          A-Z
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          sortBy === 'recent' && styles.chipActive,
+                        ]}
+                        onPress={() => setSortBy('recent')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            sortBy === 'recent' && styles.chipTextActive,
+                          ]}
+                        >
+                          Recentes
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.filterGroup}>
+                    <Text style={styles.filterLabel}>Disponibilidade</Text>
+                    <View style={styles.filterChipsContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          availabilityFilter === 'all' && styles.chipActive,
+                        ]}
+                        onPress={() => setAvailabilityFilter('all')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            availabilityFilter === 'all' && styles.chipTextActive,
+                          ]}
+                        >
+                          Todos
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          availabilityFilter === 'occupied' && styles.chipActive,
+                        ]}
+                        onPress={() => setAvailabilityFilter('occupied')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            availabilityFilter === 'occupied' && styles.chipTextActive,
+                          ]}
+                        >
+                          Ocupado
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          availabilityFilter === 'noContract' && styles.chipActive,
+                        ]}
+                        onPress={() => setAvailabilityFilter('noContract')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            availabilityFilter === 'noContract' && styles.chipTextActive,
+                          ]}
+                        >
+                          Sem contrato
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.filterGroup}>
+                    <Text style={styles.filterLabel}>Status de pagamento</Text>
+                    <View style={styles.filterChipsContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          paymentStatusFilter === 'all' && styles.chipActive,
+                        ]}
+                        onPress={() => setPaymentStatusFilter('all')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            paymentStatusFilter === 'all' && styles.chipTextActive,
+                          ]}
+                        >
+                          Todos
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          paymentStatusFilter === 'paid' && styles.chipActive,
+                        ]}
+                        onPress={() => setPaymentStatusFilter('paid')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            paymentStatusFilter === 'paid' && styles.chipTextActive,
+                          ]}
+                        >
+                          Em dia
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          paymentStatusFilter === 'overdue' && styles.chipActive,
+                        ]}
+                        onPress={() => setPaymentStatusFilter('overdue')}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            paymentStatusFilter === 'overdue' && styles.chipTextActive,
+                          ]}
+                        >
+                          Em atraso
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
+          </TouchableOpacity>
+        </Modal>
       </View>
     </TouchableWithoutFeedback>
   );
@@ -428,11 +704,100 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   searchContainer: {
+    flexDirection: 'row',
     paddingHorizontal: 15,
     paddingTop: 10,
     paddingBottom: 10,
     backgroundColor: '#fff',
     marginTop: 4,
+    gap: 10,
+    alignItems: 'center',
+  },
+  searchBarContainer: {
+    flex: 0.8,
+    minWidth: 0,
+  },
+  filterButton: {
+    flex: 0.2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+    gap: 6,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    paddingBottom: 40,
+    maxHeight: '80%',
+  },
+  bottomSheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle || '#e0e0e0',
+  },
+  bottomSheetTitle: {
+    ...typography.sectionTitle,
+    fontSize: 20,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  bottomSheetContent: {
+    padding: 20,
+  },
+  filterGroup: {
+    marginBottom: 24,
+  },
+  filterLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  filterChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
+  },
+  chipActive: {
+    backgroundColor: colors.primary || '#4a86e8',
+    borderColor: colors.primary || '#4a86e8',
+  },
+  chipText: {
+    fontSize: 12,
+    color: '#555',
+  },
+  chipTextActive: {
+    color: '#fff',
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
@@ -498,9 +863,39 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: '#eef7ff',
   },
+  invoiceBadgeSuccess: {
+    backgroundColor: '#e8f5e9',
+  },
+  invoiceBadgeWarning: {
+    backgroundColor: '#fff3cd',
+  },
+  invoiceBadgeError: {
+    backgroundColor: '#ffebee',
+  },
   invoiceBadgeText: {
     fontSize: 11,
     color: '#1e88e5',
+  },
+  invoiceBadgeTextSuccess: {
+    color: '#2e7d32',
+  },
+  invoiceBadgeTextWarning: {
+    color: '#f57c00',
+  },
+  invoiceBadgeTextError: {
+    color: '#c62828',
+  },
+  invoiceBadgeNoContract: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    backgroundColor: '#e3f2fd',
+  },
+  invoiceBadgeTextNoContract: {
+    fontSize: 11,
+    color: '#1976d2',
   },
   addButton: {
     position: 'absolute',

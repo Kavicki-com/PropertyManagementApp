@@ -15,7 +15,7 @@ import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
-import { radii } from '../theme';
+import { radii, colors } from '../theme';
 
 const ForgotPasswordScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -88,7 +88,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
             <TouchableOpacity style={styles.sendButton} onPress={handlePasswordReset} disabled={loading}>
                 {loading ? (
-                <ActivityIndicator color="white" />
+                <ActivityIndicator color={colors.primary} />
                 ) : (
                 <Text style={styles.sendButtonText}>Enviar Link de Recuperação</Text>
                 )}

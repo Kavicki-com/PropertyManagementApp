@@ -24,6 +24,17 @@ const AddTransactionScreen = ({ route, navigation }) => {
   const [amount, setAmount] = useState('');
   const [discounts, setDiscounts] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Função para formatar valor monetário durante a digitação
+  const formatMoneyInput = (text) => {
+    const numbers = text.replace(/\D/g, '');
+    if (!numbers) return '';
+    const value = parseFloat(numbers) / 100;
+    return `R$ ${value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const [rentAmount, setRentAmount] = useState('');
@@ -62,7 +73,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
         .select('id, address')
         .is('archived_at', null);
       if (error) {
-        Alert.alert('Error', 'Could not fetch properties.');
+        Alert.alert('Erro', 'Não foi possível buscar as propriedades.');
       } else {
         const formattedProperties = data.map(prop => ({
           key: prop.id,
@@ -116,13 +127,12 @@ const AddTransactionScreen = ({ route, navigation }) => {
         ? parseFloat(rentAmount.replace(',', '.')) || 0
         : parseFloat(rentAmount) || 0;
       
-      // Converter discounts para número (pode estar vazio ou com vírgula)
-      const discountStr = (discounts || '').trim().replace(',', '.');
-      const discount = discountStr ? (parseFloat(discountStr) || 0) : 0;
+      // Converter discounts de centavos para número
+      const discount = discounts ? (parseFloat(discounts) / 100) : 0;
       
       // Calcular valor final: aluguel - descontos
       const finalAmount = Math.max(0, rent - discount);
-      setAmount(finalAmount.toFixed(2));
+      setAmount(finalAmount.toFixed(2).replace('.', '').replace(/\B(?=(\d{3})+(?!\d))/g, ''));
     }
   }, [rentAmount, discounts, isRentMode]);
 
@@ -211,9 +221,8 @@ const AddTransactionScreen = ({ route, navigation }) => {
         return;
       }
       
-      // Converter discounts para número (pode estar vazio ou com vírgula)
-      const discountStr = (discounts || '').trim().replace(',', '.');
-      const discount = discountStr ? (parseFloat(discountStr) || 0) : 0;
+      // Converter discounts de centavos para número
+      const discount = discounts ? (parseFloat(discounts) / 100) : 0;
       
       // Calcular valor final: aluguel - descontos
       // Este é o valor que será salvo no banco de dados
@@ -227,7 +236,8 @@ const AddTransactionScreen = ({ route, navigation }) => {
       }
     } else {
       // Modo normal: usar o valor digitado diretamente
-      finalAmount = parseFloat(amount) || 0;
+      // Converter amount de centavos para número
+      finalAmount = amount ? (parseFloat(amount) / 100) : 0;
     }
 
     const { error } = await supabase.from('finances').insert({
@@ -314,9 +324,12 @@ const AddTransactionScreen = ({ route, navigation }) => {
                     <Text style={styles.label}>Descontos (R$)</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Ex: 50,00"
-                        value={discounts}
-                        onChangeText={setDiscounts}
+                        placeholder="R$ 0,00"
+                        value={discounts ? formatMoneyInput(discounts) : ''}
+                        onChangeText={(text) => {
+                          const numbers = text.replace(/\D/g, '');
+                          setDiscounts(numbers);
+                        }}
                         keyboardType="numeric"
                     />
                 </View>
@@ -329,7 +342,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
                             <Text style={[styles.disabledText, styles.finalAmountText]}>
                                 R$ {(() => {
                                     const rent = parseFloat(rentAmount) || 0;
-                                    const discount = parseFloat(discounts) || 0;
+                                    const discount = discounts ? (parseFloat(discounts) / 100) : 0;
                                     const final = Math.max(0, rent - discount);
                                     return final.toFixed(2).replace('.', ',');
                                 })()}
@@ -379,9 +392,12 @@ const AddTransactionScreen = ({ route, navigation }) => {
                     <Text style={styles.label}>Valor (R$)</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Ex: 1200"
-                        value={amount}
-                        onChangeText={setAmount}
+                        placeholder="R$ 0,00"
+                        value={amount ? formatMoneyInput(amount) : ''}
+                        onChangeText={(text) => {
+                          const numbers = text.replace(/\D/g, '');
+                          setAmount(numbers);
+                        }}
                         keyboardType="numeric"
                     />
                 </View>
@@ -390,7 +406,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
 
         <TouchableOpacity style={styles.addButton} onPress={handleAddTransaction} disabled={loading}>
             {loading ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color={colors.primary} />
             ) : (
             <Text style={styles.addButtonText}>Adicionar Transação</Text>
             )}

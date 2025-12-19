@@ -31,7 +31,7 @@ const ResetPasswordScreen = ({ navigation }) => {
     }
     
     if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'As senhas não coincidem.';
+      newErrors.confirmPassword = 'As senhas não coincidem';
     }
     
     setErrors(newErrors);
@@ -134,7 +134,7 @@ const ResetPasswordScreen = ({ navigation }) => {
 
         <TouchableOpacity style={styles.updateButton} onPress={handlePasswordUpdate} disabled={loading}>
           {loading ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color={colors.primary} />
           ) : (
             <Text style={styles.buttonText}>Atualizar Senha</Text>
           )}
