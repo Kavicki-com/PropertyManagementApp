@@ -5,3 +5,4 @@ ADD COLUMN IF NOT EXISTS photo_url TEXT;
 -- Comentário explicativo
 COMMENT ON COLUMN tenants.photo_url IS 'URL da foto do inquilino armazenada no Supabase Storage';
 
+

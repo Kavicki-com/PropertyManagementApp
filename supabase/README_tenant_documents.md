@@ -133,3 +133,4 @@ tenant-documents/
 - O arquivo deve ter no máximo 10MB
 - Comprima imagens antes de fazer upload
 
+

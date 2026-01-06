@@ -13,7 +13,8 @@
       "backgroundColor": "#fafafa"
     },
     "updates": {
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/d060a5f9-4d18-4a38-b02d-d354c0fd46ea"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -26,6 +27,12 @@
         "NSCameraUsageDescription": "Este aplicativo precisa acessar a câmera para tirar fotos de imóveis e documentos.",
         "NSPhotoLibraryUsageDescription": "Este aplicativo precisa acessar a galeria de fotos para selecionar imagens de imóveis e documentos.",
         "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "llord",
+            "CFBundleURLSchemes": [
+              "llord"
+            ]
+          },
           {
             "CFBundleURLName": "llord",
             "CFBundleURLSchemes": [
@@ -51,9 +58,39 @@
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
         "READ_MEDIA_IMAGES"
       ],
       "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "llord"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "llord"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
         {
           "action": "VIEW",
           "autoVerify": true,
@@ -92,6 +129,9 @@
       },
       "supabaseUrl": "https://gojfugdhndzhuxehoyvb.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvamZ1Z2RobmR6aHV4ZWhveXZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5NTEwNzgsImV4cCI6MjA3NTUyNzA3OH0.Mz94nXAQw3z1HRADATmaNTzPL_-OrX6P8YXXRvpgHHc"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

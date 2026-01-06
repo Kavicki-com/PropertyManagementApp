@@ -58,3 +58,4 @@ COMMENT ON COLUMN tenant_documents.document_type IS 'Tipo predefinido do documen
 COMMENT ON COLUMN tenant_documents.custom_name IS 'Nome customizado quando document_type é "outros"';
 COMMENT ON COLUMN tenant_documents.file_url IS 'URL do arquivo no Supabase Storage';
 
+

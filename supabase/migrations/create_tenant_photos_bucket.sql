@@ -50,3 +50,4 @@ FOR SELECT
 TO public
 USING (bucket_id = 'tenant-photos');
 
+
