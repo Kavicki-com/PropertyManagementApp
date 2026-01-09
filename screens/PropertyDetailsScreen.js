@@ -21,6 +21,8 @@ import {
 import { fetchActiveContractByProperty } from '../lib/contractsService';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { Buffer } from 'buffer';
 import { colors, radii, typography } from '../theme';
 import { canViewPropertyDetails, getUserSubscription, getActivePropertiesCount, getRequiredPlan } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
@@ -48,6 +50,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   const [isBlocked, setIsBlocked] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const isFocused = useIsFocused();
 
   useEffect(() => {
@@ -260,6 +263,101 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
     setModalVisible(true);
   };
 
+  const handleAddImage = async () => {
+    if (!property) return;
+
+    if (property.image_urls && property.image_urls.length >= 10) {
+      Alert.alert('Limite de fotos', 'Você pode adicionar no máximo 10 fotos por imóvel.');
+      return;
+    }
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permission.status !== 'granted') {
+      Alert.alert('Permissão necessária', 'Você precisa permitir o acesso para adicionar fotos.');
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ 
+        base64: true, 
+        quality: 0.7,
+        allowsMultipleSelection: false 
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setIsUploadingImage(true);
+        const asset = result.assets[0];
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          Alert.alert('Erro', 'Usuário não autenticado.');
+          setIsUploadingImage(false);
+          return;
+        }
+
+        const fileName = `${user.id}/${property.id}/${Date.now()}.jpg`;
+        const bucketName = 'property-images';
+
+        // Converter base64 para ArrayBuffer
+        const base64Data = asset.base64;
+        const binaryString = Buffer.from(base64Data, 'base64').toString('binary');
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // Fazer upload para o Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from(bucketName)
+          .upload(fileName, bytes, {
+            contentType: 'image/jpeg',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error('Erro ao fazer upload:', uploadError);
+          Alert.alert('Erro', 'Não foi possível fazer upload da imagem.');
+          setIsUploadingImage(false);
+          return;
+        }
+
+        // Obter URL pública da imagem
+        const { data: urlData } = supabase.storage
+          .from(bucketName)
+          .getPublicUrl(fileName);
+
+        const newImageUrl = urlData.publicUrl;
+
+        // Atualizar a propriedade com a nova URL
+        const currentImageUrls = property.image_urls || [];
+        const updatedImageUrls = [...currentImageUrls, newImageUrl];
+
+        const { error: updateError } = await supabase
+          .from('properties')
+          .update({ image_urls: updatedImageUrls })
+          .eq('id', property.id);
+
+        if (updateError) {
+          console.error('Erro ao atualizar propriedade:', updateError);
+          Alert.alert('Erro', 'Não foi possível adicionar a foto.');
+          // Tentar remover a imagem do storage se falhar
+          await supabase.storage.from(bucketName).remove([fileName]);
+        } else {
+          // Atualizar o estado local
+          setProperty({ ...property, image_urls: updatedImageUrls });
+          Alert.alert('Sucesso', 'Foto adicionada com sucesso!');
+        }
+
+        setIsUploadingImage(false);
+      }
+    } catch (error) {
+      console.error('Erro ao adicionar imagem:', error);
+      Alert.alert('Erro', 'Não foi possível adicionar a foto.');
+      setIsUploadingImage(false);
+    }
+  };
+
   const formatCurrency = (value) => {
     return `R$${Number(value || 0).toFixed(2)}`;
   };
@@ -389,15 +487,41 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             <Text style={styles.sectionTitle}>Fotos do Imóvel</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {property.image_urls && property.image_urls.length > 0 ? (
-                property.image_urls.map((url, index) => (
+                <>
+                {property.image_urls.map((url, index) => (
                 <TouchableOpacity key={index} onPress={() => openImageModal(url)}>
                     <Image source={{ uri: url }} style={styles.galleryImage} />
                 </TouchableOpacity>
-                ))
+                ))}
+                <TouchableOpacity 
+                  style={styles.addImageButton} 
+                  onPress={handleAddImage}
+                  disabled={isUploadingImage}
+                >
+                  {isUploadingImage ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <MaterialIcons name="add" size={32} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+                </>
             ) : (
+                <>
                 <View style={styles.noImageContainer}>
                     <Text style={styles.noImageText}>Nenhuma foto cadastrada</Text>
                 </View>
+                <TouchableOpacity 
+                  style={styles.addImageButton} 
+                  onPress={handleAddImage}
+                  disabled={isUploadingImage}
+                >
+                  {isUploadingImage ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <MaterialIcons name="add" size={32} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+                </>
             )}
             </ScrollView>
         </View>
@@ -465,6 +589,15 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             <Text style={styles.infoLabel}>Total de Cômodos</Text>
             <Text style={styles.infoValue}>{property.total_rooms || 'N/A'}</Text>
           </View>
+        </View>
+        
+        <View style={styles.editButtonContainer}>
+          <TouchableOpacity 
+            style={styles.editButton} 
+            onPress={() => navigation.navigate('EditProperty', { property: property })}
+          >
+            <Text style={styles.editButtonText}>Editar Propriedade</Text>
+          </TouchableOpacity>
         </View>
         
         <View style={styles.section}>
@@ -600,12 +733,6 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         </View>
         <View style={styles.buttonContainer}>
           <TouchableOpacity 
-            style={styles.editButton} 
-            onPress={() => navigation.navigate('EditProperty', { property: property })}
-          >
-            <Text style={styles.editButtonText}>Editar Propriedade</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
             style={styles.deleteButton} 
             onPress={handleDeleteProperty}
             disabled={isDeleting}
@@ -678,6 +805,18 @@ const styles = StyleSheet.create({
       borderRadius: 8,
       marginRight: 10,
       backgroundColor: '#eee',
+    },
+    addImageButton: {
+      width: 120,
+      height: 120,
+      borderRadius: 8,
+      marginRight: 10,
+      backgroundColor: '#f0f0f0',
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: colors.primary,
+      borderStyle: 'dashed',
     },
     noImageContainer: {
         width: 120,
@@ -759,6 +898,11 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         fontStyle: 'italic',
     },
+    editButtonContainer: {
+        paddingHorizontal: 15,
+        paddingVertical: 15,
+        marginTop: 0,
+    },
     buttonContainer: {
         flexDirection: 'column',
         justifyContent: 'center',
@@ -771,7 +915,8 @@ const styles = StyleSheet.create({
         borderRadius: radii.pill,
         flex: 1,
         alignItems: 'center',
-        borderWidth: 0,
+        borderWidth: 1,
+        borderColor: colors.primary,
     },
     deleteButton: {
         backgroundColor: 'transparent',
