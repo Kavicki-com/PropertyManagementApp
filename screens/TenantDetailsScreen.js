@@ -1,6 +1,7 @@
 // screens/TenantDetailsScreen.js
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator, Modal, TextInput, InteractionManager, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal, TextInput, InteractionManager, Animated, Dimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { WebView } from 'react-native-webview';
 import { useIsFocused } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -868,11 +869,12 @@ const TenantDetailsScreen = ({ route, navigation }) => {
                   ) : (
                     <>
                       <Image 
-                        source={tenant.photo_url 
-                          ? { uri: tenant.photo_url }
-                          : require('../assets/avatar-placeholder.png')
-                        } 
-                        style={styles.avatar} 
+                        source={tenant.photo_url || require('../assets/avatar-placeholder.png')}
+                        style={styles.avatar}
+                        contentFit="cover"
+                        transition={200}
+                        placeholder={require('../assets/avatar-placeholder.png')}
+                        cachePolicy="memory-disk"
                       />
                       <View style={styles.avatarEditIcon}>
                         <MaterialIcons name="camera-alt" size={24} color={colors.primary} />
@@ -1393,15 +1395,16 @@ const TenantDetailsScreen = ({ route, navigation }) => {
                                         showsVerticalScrollIndicator={false}
                                     >
                                         <Image
-                                            source={{ uri: selectedDocument.file_url }}
+                                            source={selectedDocument.file_url}
                                             style={styles.documentImage}
-                                            resizeMode="contain"
+                                            contentFit="contain"
                                             onLoadStart={() => setDocumentLoading(true)}
                                             onLoadEnd={() => setDocumentLoading(false)}
                                             onError={() => {
                                                 setDocumentLoading(false);
                                                 Alert.alert('Erro', 'Não foi possível carregar a imagem.');
                                             }}
+                                            cachePolicy="memory-disk"
                                         />
                                     </ScrollView>
                                 ) : selectedDocument.mime_type === 'application/pdf' ? (

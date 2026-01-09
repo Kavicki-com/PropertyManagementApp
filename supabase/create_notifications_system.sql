@@ -82,6 +82,10 @@ DECLARE
   notification_title TEXT;
   notification_body TEXT;
   existing_notification_id UUID;
+  temp_user_id UUID;
+  temp_type TEXT;
+  temp_title TEXT;
+  temp_body TEXT;
 BEGIN
   today_date := CURRENT_DATE;
 
@@ -146,7 +150,13 @@ BEGIN
             'rent_amount', contract_record.rent_amount
           )
         )
-        RETURNING id, user_id, type, title, body INTO notification_id, user_id, type, title, body;
+        RETURNING id, user_id, type, title, body 
+        INTO notification_id, temp_user_id, temp_type, temp_title, temp_body;
+        
+        user_id := temp_user_id;
+        type := temp_type;
+        title := temp_title;
+        body := temp_body;
         
         RETURN NEXT;
       END IF;
@@ -184,7 +194,13 @@ BEGIN
             'rent_amount', contract_record.rent_amount
           )
         )
-        RETURNING id, user_id, type, title, body INTO notification_id, user_id, type, title, body;
+        RETURNING id, user_id, type, title, body 
+        INTO notification_id, temp_user_id, temp_type, temp_title, temp_body;
+        
+        user_id := temp_user_id;
+        type := temp_type;
+        title := temp_title;
+        body := temp_body;
         
         RETURN NEXT;
       END IF;
@@ -222,7 +238,13 @@ BEGIN
             'rent_amount', contract_record.rent_amount
           )
         )
-        RETURNING id, user_id, type, title, body INTO notification_id, user_id, type, title, body;
+        RETURNING id, user_id, type, title, body 
+        INTO notification_id, temp_user_id, temp_type, temp_title, temp_body;
+        
+        user_id := temp_user_id;
+        type := temp_type;
+        title := temp_title;
+        body := temp_body;
         
         RETURN NEXT;
       END IF;
@@ -273,7 +295,13 @@ BEGIN
                 'rent_amount', contract_record.rent_amount
               )
             )
-            RETURNING id, user_id, type, title, body INTO notification_id, user_id, type, title, body;
+            RETURNING id, user_id, type, title, body 
+            INTO notification_id, temp_user_id, temp_type, temp_title, temp_body;
+            
+            user_id := temp_user_id;
+            type := temp_type;
+            title := temp_title;
+            body := temp_body;
             
             RETURN NEXT;
           END IF;
@@ -306,6 +334,10 @@ DECLARE
   notification_title TEXT;
   notification_body TEXT;
   existing_notification_id UUID;
+  temp_user_id UUID;
+  temp_type TEXT;
+  temp_title TEXT;
+  temp_body TEXT;
 BEGIN
   today_date := CURRENT_DATE;
 
@@ -358,7 +390,13 @@ BEGIN
             'end_date', contract_record.end_date
           )
         )
-        RETURNING id, user_id, type, title, body INTO notification_id, user_id, type, title, body;
+        RETURNING id, user_id, type, title, body 
+        INTO notification_id, temp_user_id, temp_type, temp_title, temp_body;
+        
+        user_id := temp_user_id;
+        type := temp_type;
+        title := temp_title;
+        body := temp_body;
         
         RETURN NEXT;
       END IF;
@@ -395,7 +433,13 @@ BEGIN
             'end_date', contract_record.end_date
           )
         )
-        RETURNING id, user_id, type, title, body INTO notification_id, user_id, type, title, body;
+        RETURNING id, user_id, type, title, body 
+        INTO notification_id, temp_user_id, temp_type, temp_title, temp_body;
+        
+        user_id := temp_user_id;
+        type := temp_type;
+        title := temp_title;
+        body := temp_body;
         
         RETURN NEXT;
       END IF;
@@ -432,7 +476,13 @@ BEGIN
             'end_date', contract_record.end_date
           )
         )
-        RETURNING id, user_id, type, title, body INTO notification_id, user_id, type, title, body;
+        RETURNING id, user_id, type, title, body 
+        INTO notification_id, temp_user_id, temp_type, temp_title, temp_body;
+        
+        user_id := temp_user_id;
+        type := temp_type;
+        title := temp_title;
+        body := temp_body;
         
         RETURN NEXT;
       END IF;

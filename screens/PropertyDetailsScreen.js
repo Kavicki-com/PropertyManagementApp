@@ -1,5 +1,5 @@
 // screens/PropertyDetailsScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   SafeAreaView,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { supabase } from '../lib/supabase';
 import {
   fetchFinancesByProperty,
@@ -22,10 +22,11 @@ import { fetchActiveContractByProperty } from '../lib/contractsService';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { Buffer } from 'buffer';
+import { optimizeImage, base64ToArrayBuffer, IMAGE_PICKER_OPTIONS } from '../lib/imageUtils';
 import { colors, radii, typography } from '../theme';
 import { canViewPropertyDetails, getUserSubscription, getActivePropertiesCount, getRequiredPlan } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
+import { getCache, setCache, removeCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
 
 const PropertyDetailsScreen = ({ route, navigation }) => {
   const { property: initialProperty } = route.params;
@@ -51,20 +52,119 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [financesLoading, setFinancesLoading] = useState(false);
   const isFocused = useIsFocused();
+  const hasLoadedOnce = useRef(false);
 
-  useEffect(() => {
-    const fetchFullPropertyDetails = async () => {
-      if (!initialProperty?.id) {
-        Alert.alert("Erro", "ID da propriedade não encontrado.");
-        setLoading(false);
-        return;
+  // Carregar dados dinâmicos (finanças) em lazy load
+  const loadDynamicData = async () => {
+    if (!initialProperty?.id) return;
+    
+    setFinancesLoading(true);
+    
+    // Buscar resumo financeiro desta propriedade (lazy load)
+    const { data: financesData, error: financesError } = await fetchFinancesByProperty(
+      initialProperty.id,
+      { limit: 5 },
+    );
+
+    if (!financesError && financesData) {
+      const overview = calculateOverview(financesData);
+      setFinancesSummary({
+        totalIncome: overview.totalIncome,
+        totalExpenses: overview.totalExpenses,
+        net: overview.netProfit,
+      });
+    }
+    
+    setFinancesLoading(false);
+  };
+
+  // Carregar dados principais da propriedade
+  const loadPropertyData = async () => {
+    if (!initialProperty?.id) return;
+
+    // Query otimizada - buscar apenas campos necessários
+    const { data: propertyData, error: propertyError } = await supabase
+      .from('properties')
+      .select('id, address, street, number, neighborhood, city, state, cep, complement, type, bedrooms, bathrooms, total_rooms, sqft, rent, image_urls, created_at')
+      .eq('id', initialProperty.id)
+      .single();
+
+    if (propertyError) {
+      setLoading(false);
+      Alert.alert('Erro', 'Não foi possível buscar os detalhes da propriedade.');
+      console.error('Error fetching property:', propertyError);
+      return;
+    }
+    
+    if (propertyData) {
+      setProperty(propertyData);
+    }
+
+    // Buscar inquilino e contrato em paralelo
+    const [tenantResult, contractResult] = await Promise.allSettled([
+      supabase
+        .from('tenants')
+        .select('id, full_name, phone, property_id')
+        .eq('property_id', initialProperty.id)
+        .maybeSingle(),
+      fetchActiveContractByProperty(initialProperty.id),
+    ]);
+
+    let tenantData = null;
+    if (tenantResult.status === 'fulfilled') {
+      const { data, error } = tenantResult.value;
+      if (!error && data) {
+        tenantData = data;
+        setTenant(data);
       }
+    }
+
+    let activeContract = null;
+    if (contractResult.status === 'fulfilled' && contractResult.value.data) {
+      activeContract = contractResult.value.data;
+      setContract(activeContract);
+
+      // Calcular billing summary apenas se houver contrato
+      const source = {
+        property_id: activeContract.property_id,
+        tenant_id: activeContract.tenant_id,
+        start_date: activeContract.start_date,
+        due_date: activeContract.due_day,
+        lease_term: activeContract.lease_term,
+      };
+
+      const { summary } = await fetchTenantBillingSummary(source);
+      setBillingSummary(summary);
+      
+      // Cachear dados principais
+      const cacheKey = CACHE_KEYS.PROPERTY_DETAILS(initialProperty.id);
+      await setCache(cacheKey, {
+        property: propertyData,
+        tenant: tenantData,
+        contract: activeContract,
+        billingSummary: summary,
+      }, CACHE_TTL.DEFAULT);
+    } else {
+      setContract(null);
+      setBillingSummary({ expected: 0, paid: 0, overdue: 0 });
+    }
+    
+    setLoading(false);
+    
+    // Carregar dados dinâmicos (finanças) após dados principais
+    loadDynamicData();
+  };
+
+  // Carregar dados iniciais (apenas uma vez)
+  useEffect(() => {
+    const loadInitialData = async () => {
+      if (!initialProperty?.id || hasLoadedOnce.current) return;
 
       setLoading(true);
 
       // Verificar se a propriedade está bloqueada
-      // IMPORTANTE: Re-verifica quando a tela é focada novamente (ex: após upgrade de plano)
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const canView = await canViewPropertyDetails(user.id, initialProperty.id);
@@ -73,7 +173,6 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           const propertyCount = await getActivePropertiesCount(user.id);
           const subscription = await getUserSubscription(user.id);
           const currentPlan = subscription?.subscription_plan || 'free';
-          // Se o plano atual é basic, sempre sugere premium
           const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount);
           
           setSubscriptionInfo({
@@ -83,71 +182,56 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           });
           setLoading(false);
           return;
-        } else {
-          // Se antes estava bloqueado e agora pode ver, desbloqueia
-          setIsBlocked(false);
         }
+        setIsBlocked(false);
       }
-      
-      const { data: propertyData, error: propertyError } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('id', initialProperty.id)
-        .single();
 
-      if (propertyError) {
+      // Tentar buscar do cache primeiro
+      const cacheKey = CACHE_KEYS.PROPERTY_DETAILS(initialProperty.id);
+      const cachedData = await getCache(cacheKey);
+      
+      if (cachedData?.property) {
+        setProperty(cachedData.property);
+        setTenant(cachedData.tenant || null);
+        setContract(cachedData.contract || null);
+        setBillingSummary(cachedData.billingSummary || { expected: 0, paid: 0, overdue: 0 });
+        setFinancesSummary(cachedData.financesSummary || { totalIncome: 0, totalExpenses: 0, net: 0 });
         setLoading(false);
-        Alert.alert('Erro', 'Não foi possível buscar os detalhes da propriedade.');
-        console.error('Error fetching property:', propertyError);
+        hasLoadedOnce.current = true;
+        
+        // Carregar dados dinâmicos em background
+        loadDynamicData();
         return;
       }
-      
-      if (propertyData) {
-        setProperty(propertyData);
+
+      // Buscar dados principais
+      await loadPropertyData();
+      hasLoadedOnce.current = true;
+    };
+
+    loadInitialData();
+  }, [initialProperty?.id]);
+
+  // Quando a tela é focada novamente, apenas verificar bloqueio e atualizar dados críticos
+  useEffect(() => {
+    if (!isFocused || !hasLoadedOnce.current || !initialProperty?.id) return;
+
+    const refreshCriticalData = async () => {
+      // Apenas verificar bloqueio e atualizar contrato/billing se necessário
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const canView = await canViewPropertyDetails(user.id, initialProperty.id);
+        if (!canView) {
+          setIsBlocked(true);
+          return;
+        }
+        setIsBlocked(false);
       }
 
-      const { data: tenantData, error: tenantError } = await supabase
-        .from('tenants')
-        .select('id, full_name, phone, property_id')
-        .eq('property_id', initialProperty.id)
-        .single();
-
-      if (tenantError && tenantError.code !== 'PGRST116') {
-        console.error('Error fetching tenant:', tenantError);
-      } else {
-        setTenant(tenantData);
-      }
-
-      // Buscar resumo financeiro desta propriedade
-      const { data: financesData, error: financesError } = await fetchFinancesByProperty(
-        initialProperty.id,
-        { limit: 5 },
-      );
-
-      if (financesError) {
-        console.error('Error fetching finances for property:', financesError);
-      } else if (financesData) {
-        const overview = calculateOverview(financesData);
-        setFinancesSummary({
-          totalIncome: overview.totalIncome,
-          totalExpenses: overview.totalExpenses,
-          net: overview.netProfit,
-        });
-      }
-
-      // Buscar contrato ativo ligado a este imóvel
-      const { data: activeContract, error: contractError } = await fetchActiveContractByProperty(
-        initialProperty.id,
-      );
-
-      if (contractError) {
-        console.error('Erro ao buscar contrato ativo da propriedade:', contractError);
-      }
-
-      setContract(activeContract || null);
-
-      // Calcular status das faturas com base no contrato ativo
+      // Atualizar contrato e billing (pode ter mudado)
+      const { data: activeContract } = await fetchActiveContractByProperty(initialProperty.id);
       if (activeContract) {
+        setContract(activeContract);
         const source = {
           property_id: activeContract.property_id,
           tenant_id: activeContract.tenant_id,
@@ -155,19 +239,12 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           due_date: activeContract.due_day,
           lease_term: activeContract.lease_term,
         };
-
         const { summary } = await fetchTenantBillingSummary(source);
         setBillingSummary(summary);
-      } else {
-        setBillingSummary({ expected: 0, paid: 0, overdue: 0 });
       }
-      
-      setLoading(false);
     };
 
-    if (isFocused) {
-      fetchFullPropertyDetails();
-    }
+    refreshCriticalData();
   }, [isFocused, initialProperty?.id]);
 
   const handleDeleteProperty = async () => {
@@ -247,6 +324,12 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
                 `Não foi possível excluir a propriedade.\n\nDetalhes: ${deleteError.message || 'verifique as regras do Supabase.'}`
               );
             } else {
+              // Invalidar cache
+              await Promise.all([
+                removeCache(CACHE_KEYS.PROPERTIES),
+                removeCache(CACHE_KEYS.PROPERTY_DETAILS(property.id)),
+              ]);
+              
               Alert.alert('Sucesso', 'Propriedade excluída com sucesso.');
               navigation.goBack();
             }
@@ -278,11 +361,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
     }
 
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({ 
-        base64: true, 
-        quality: 0.7,
-        allowsMultipleSelection: false 
-      });
+      const result = await ImagePicker.launchImageLibraryAsync(IMAGE_PICKER_OPTIONS);
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setIsUploadingImage(true);
@@ -298,19 +377,27 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         const fileName = `${user.id}/${property.id}/${Date.now()}.jpg`;
         const bucketName = 'property-images';
 
-        // Converter base64 para ArrayBuffer
-        const base64Data = asset.base64;
-        const binaryString = Buffer.from(base64Data, 'base64').toString('binary');
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
+        // Otimizar imagem antes do upload
+        let arrayBuffer = null;
+        if (asset.base64) {
+          arrayBuffer = base64ToArrayBuffer(asset.base64);
+        } else if (asset.uri) {
+          const optimized = await optimizeImage(asset.uri);
+          if (optimized.base64) {
+            arrayBuffer = base64ToArrayBuffer(optimized.base64);
+          }
+        }
+
+        if (!arrayBuffer) {
+          Alert.alert('Erro', 'Não foi possível processar a imagem.');
+          setIsUploadingImage(false);
+          return;
         }
 
         // Fazer upload para o Supabase Storage
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from(bucketName)
-          .upload(fileName, bytes, {
+          .upload(fileName, arrayBuffer, {
             contentType: 'image/jpeg',
             upsert: false,
           });
@@ -344,6 +431,10 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           // Tentar remover a imagem do storage se falhar
           await supabase.storage.from(bucketName).remove([fileName]);
         } else {
+          // Invalidar cache
+          await removeCache(CACHE_KEYS.PROPERTY_DETAILS(property.id));
+          await removeCache(CACHE_KEYS.PROPERTIES);
+          
           // Atualizar o estado local
           setProperty({ ...property, image_urls: updatedImageUrls });
           Alert.alert('Sucesso', 'Foto adicionada com sucesso!');
@@ -490,7 +581,13 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
                 <>
                 {property.image_urls.map((url, index) => (
                 <TouchableOpacity key={index} onPress={() => openImageModal(url)}>
-                    <Image source={{ uri: url }} style={styles.galleryImage} />
+                    <Image 
+                      source={url} 
+                      style={styles.galleryImage}
+                      contentFit="cover"
+                      transition={200}
+                      cachePolicy="memory-disk"
+                    />
                 </TouchableOpacity>
                 ))}
                 <TouchableOpacity 
@@ -756,7 +853,13 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
               <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
                   <MaterialIcons name="close" size={30} color="#fff" />
               </TouchableOpacity>
-              <Image source={{ uri: selectedImage }} style={styles.fullScreenImage} resizeMode="contain" />
+              <Image 
+                source={selectedImage} 
+                style={styles.fullScreenImage} 
+                contentFit="contain"
+                transition={200}
+                cachePolicy="memory-disk"
+              />
           </SafeAreaView>
       </Modal>
     </View>

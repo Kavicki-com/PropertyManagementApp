@@ -1,5 +1,5 @@
 // screens/FinancesScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import { colors, radii, typography } from '../theme';
 import SearchBar from '../components/SearchBar';
 import { canAddFinancialTransaction, getUserSubscription, getActivePropertiesCount } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
+import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 
 const FinancesScreen = ({ navigation }) => {
   const [transactions, setTransactions] = useState([]);
@@ -72,7 +73,8 @@ const FinancesScreen = ({ navigation }) => {
     }
   }, [isFocused, filterType, customStartDate, customEndDate]);
 
-  const getFilteredTransactions = () => {
+
+  const getFilteredTransactions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return transactions;
 
@@ -81,7 +83,7 @@ const FinancesScreen = ({ navigation }) => {
       const address = (t.properties?.address || '').toLowerCase();
       return desc.includes(query) || address.includes(query);
     });
-  };
+  }, [transactions, searchQuery]);
 
   const formatCurrency = (value) => {
     return `R$${Number(value || 0).toFixed(2)}`;
@@ -147,9 +149,19 @@ const FinancesScreen = ({ navigation }) => {
               return;
             }
 
+            // Invalidar cache relacionado
+            await Promise.all([
+              removeCache(CACHE_KEYS.FINANCES),
+              removeCache(CACHE_KEYS.DASHBOARD),
+              transaction.property_id ? removeCache(CACHE_KEYS.PROPERTY_DETAILS(transaction.property_id)) : Promise.resolve(),
+            ]);
+
             // Remove da lista atual sem precisar recarregar tudo
-            setTransactions((prev) => prev.filter((t) => t.id !== transaction.id));
-            setOverview(calculateOverview(getFilteredTransactions().filter((t) => t.id !== transaction.id)));
+            setTransactions((prev) => {
+              const filtered = prev.filter((t) => t.id !== transaction.id);
+              setOverview(calculateOverview(filtered));
+              return filtered;
+            });
           },
         },
       ],
@@ -263,7 +275,7 @@ const FinancesScreen = ({ navigation }) => {
               </View>
             )}
 
-            {!error && getFilteredTransactions().length === 0 && (
+            {!error && getFilteredTransactions.length === 0 && (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyTitle}>Nenhum lançamento neste período</Text>
                 <Text style={styles.emptySubtitle}>
@@ -278,7 +290,7 @@ const FinancesScreen = ({ navigation }) => {
               </View>
             )}
 
-            {!error && getFilteredTransactions().length > 0 && getFilteredTransactions().map((transaction) => (
+            {!error && getFilteredTransactions.length > 0 && getFilteredTransactions.map((transaction) => (
               <View key={transaction.id} style={styles.transactionCard}>
                 <View style={styles.transactionDetails}>
                   <Text style={styles.transactionDesc}>{transaction.description}</Text>

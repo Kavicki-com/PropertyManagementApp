@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   Keyboard,
   TouchableWithoutFeedback,
@@ -13,6 +12,7 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
@@ -23,21 +23,28 @@ import { colors, radii, typography } from '../theme';
 import SearchBar from '../components/SearchBar';
 import { getBlockedTenants, getUserSubscription, getActiveTenantsCount, getRequiredPlan, canAddTenant } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
+import { getCache, setCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
+import { TenantsListSkeleton } from '../components/SkeletonLoader';
 
 // TenantItem atualizado para exibir mais informações
-const TenantItem = ({ item, onPress, onPressPhone, isBlocked, hasActiveContract }) => (
-  <TouchableOpacity 
-    style={[styles.tenantCard, isBlocked && styles.tenantCardBlocked]} 
-    onPress={() => onPress(item)}
-    activeOpacity={isBlocked ? 0.5 : 0.7}
-  >
-    <Image
-      source={item.photo_url 
-        ? { uri: item.photo_url }
-        : require('../assets/avatar-placeholder.png')
-      }
-      style={styles.avatar}
-    />
+const TenantItem = React.memo(({ item, onPress, onPressPhone, isBlocked, hasActiveContract }) => {
+  const imageSource = item.photo_url || require('../assets/avatar-placeholder.png');
+
+  return (
+    <TouchableOpacity 
+      style={[styles.tenantCard, isBlocked && styles.tenantCardBlocked]} 
+      onPress={() => onPress(item)}
+      activeOpacity={isBlocked ? 0.5 : 0.7}
+    >
+      <Image
+        source={imageSource}
+        style={styles.avatar}
+        contentFit="cover"
+        transition={200}
+        placeholder={require('../assets/avatar-placeholder.png')}
+        priority="low"
+        cachePolicy="memory-disk"
+      />
     <View style={styles.tenantInfo}>
       <Text style={styles.tenantName}>{item.full_name}</Text>
 
@@ -90,12 +97,22 @@ const TenantItem = ({ item, onPress, onPressPhone, isBlocked, hasActiveContract 
       )}
     </View>
 
-    <View style={styles.dueDateContainer}>
-      <Text style={styles.dueDateLabel}>Vencimento</Text>
-      <Text style={styles.dueDateText}>Dia {item.due_date || 'N/A'}</Text>
-    </View>
-  </TouchableOpacity>
-);
+      <View style={styles.dueDateContainer}>
+        <Text style={styles.dueDateLabel}>Vencimento</Text>
+        <Text style={styles.dueDateText}>Dia {item.due_date || 'N/A'}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison para evitar re-renders desnecessários
+  return (
+    prevProps.item.id === nextProps.item.id &&
+    prevProps.isBlocked === nextProps.isBlocked &&
+    prevProps.item.photo_url === nextProps.item.photo_url &&
+    prevProps.item.overdue_invoices === nextProps.item.overdue_invoices &&
+    prevProps.hasActiveContract === nextProps.hasActiveContract
+  );
+});
 
 const TenantsScreen = ({ navigation }) => {
   const [tenants, setTenants] = useState([]);
@@ -132,17 +149,34 @@ const TenantsScreen = ({ navigation }) => {
   }, [showFiltersModal]);
 
   const fetchTenants = async (options = {}) => {
-    const { search = '' } = options;
+    const { search = '', useCache = true } = options;
     const trimmedSearch = search.trim();
 
     try {
       setError(null);
       if (!refreshing) setLoading(true);
 
-      // 1) Buscar inquilinos com propriedade relacionada
+      // Tentar buscar do cache se não houver busca ativa
+      if (useCache && !trimmedSearch) {
+        const cachedData = await getCache(CACHE_KEYS.TENANTS);
+        if (cachedData) {
+          setTenants(cachedData);
+          setLoading(false);
+          
+          // Buscar propriedades bloqueadas em background
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const blockedIds = await getBlockedTenants(user.id);
+            setBlockedTenantIds(blockedIds);
+          }
+          return;
+        }
+      }
+
+      // 1) Buscar inquilinos com propriedade relacionada - query otimizada
       let tenantQuery = supabase
         .from('tenants')
-        .select(`*, properties ( address, rent )`)
+        .select(`id, full_name, phone, email, property_id, photo_url, created_at, due_date, properties ( address, rent )`)
         .order('created_at', { ascending: false });
 
       if (trimmedSearch.length >= 3) {
@@ -165,42 +199,88 @@ const TenantsScreen = ({ navigation }) => {
       const tenantIds = (tenantsData || []).map((t) => t.id).filter(Boolean);
       const { data: contractsByTenant } = await fetchActiveContractsByTenants(tenantIds);
 
-      // 3) Calcular status de pagamento para cada inquilino usando a mesma função da tela de detalhes
-      const tenantsWithInvoices = await Promise.all(
-        (tenantsData || []).map(async (tenant) => {
-          const contract = contractsByTenant?.[tenant.id] || null;
-          let overdue_invoices = 0;
-          let due_date_display = tenant.due_date || null;
+      // 3) Calcular status de pagamento para cada inquilino - otimizado com Promise.allSettled e cache
+      const billingPromises = (tenantsData || []).map(async (tenant) => {
+        const contract = contractsByTenant?.[tenant.id] || null;
+        
+        if (!contract || !contract.start_date || !contract.lease_term || !contract.due_day || !tenant.property_id) {
+          return {
+            tenant,
+            overdue_invoices: 0,
+            due_date: tenant.due_date || null,
+            hasActiveContract: false,
+          };
+        }
 
-          if (contract && contract.start_date && contract.lease_term && contract.due_day && tenant.property_id) {
-            // Usar a mesma função da tela de detalhes para garantir consistência
-            const source = {
-              property_id: contract.property_id,
-              tenant_id: contract.tenant_id, // Usar tenant_id do contrato
-              start_date: contract.start_date,
-              due_date: contract.due_day,
-              lease_term: contract.lease_term,
-            };
+        // Tentar buscar do cache primeiro
+        const cacheKey = `billing_${tenant.id}_${contract.property_id}`;
+        const cachedBilling = await getCache(cacheKey);
+        
+        let overdue_invoices = 0;
+        
+        if (cachedBilling !== null) {
+          overdue_invoices = cachedBilling.overdue || 0;
+        } else {
+          // Calcular billing summary
+          const source = {
+            property_id: contract.property_id,
+            tenant_id: contract.tenant_id,
+            start_date: contract.start_date,
+            due_date: contract.due_day,
+            lease_term: contract.lease_term,
+          };
 
+          try {
             const { summary } = await fetchTenantBillingSummary(source);
             overdue_invoices = summary.overdue || 0;
-
-            // Atualiza o dia de vencimento exibido a partir do contrato ativo
-            if (contract.due_day != null) {
-              due_date_display = contract.due_day;
-            }
+            
+            // Cachear resultado com TTL curto (10s) porque é dinâmico
+            await setCache(cacheKey, { overdue: overdue_invoices }, CACHE_TTL.SHORT);
+          } catch (error) {
+            console.error(`Erro ao buscar billing para tenant ${tenant.id}:`, error);
+            overdue_invoices = 0;
           }
+        }
 
+        return {
+          tenant,
+          overdue_invoices,
+          due_date: contract.due_day != null ? contract.due_day : (tenant.due_date || null),
+          hasActiveContract: true,
+        };
+      });
+
+      // Usar Promise.allSettled para não bloquear se uma falhar
+      const billingResults = await Promise.allSettled(billingPromises);
+      
+      const tenantsWithInvoices = billingResults.map((result, index) => {
+        if (result.status === 'fulfilled') {
+          const { tenant, overdue_invoices, due_date, hasActiveContract } = result.value;
           return {
             ...tenant,
             overdue_invoices,
-            due_date: due_date_display,
+            due_date,
+            hasActiveContract,
+          };
+        } else {
+          // Em caso de erro, retornar dados básicos
+          const tenant = tenantsData[index];
+          const contract = contractsByTenant?.[tenant.id] || null;
+          return {
+            ...tenant,
+            overdue_invoices: 0,
+            due_date: tenant.due_date || null,
             hasActiveContract: !!contract,
           };
-        })
-      );
+        }
+      });
 
       setTenants(tenantsWithInvoices);
+
+      // Salvar no cache se não houver busca ativa
+      if (!trimmedSearch) {
+        await setCache(CACHE_KEYS.TENANTS, tenantsWithInvoices, CACHE_TTL.DEFAULT);
+      }
 
       // Buscar inquilinos bloqueados
       const { data: { user } } = await supabase.auth.getUser();
@@ -216,7 +296,7 @@ const TenantsScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (isFocused) {
-      fetchTenants({ search: searchQuery });
+      fetchTenants({ search: searchQuery, useCache: true });
     }
   }, [isFocused]);
 
@@ -229,16 +309,16 @@ const TenantsScreen = ({ navigation }) => {
     if (!trimmed) return;
 
     const timeout = setTimeout(() => {
-      fetchTenants({ search: trimmed });
+      fetchTenants({ search: trimmed, useCache: false }); // Não usar cache em busca
     }, 400);
 
     return () => clearTimeout(timeout);
   }, [searchQuery, isFocused]);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchTenants({ search: searchQuery });
-  };
+    fetchTenants({ search: searchQuery, useCache: false }); // Não usar cache no refresh
+  }, [searchQuery]);
 
   const handleAddTenant = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -269,7 +349,7 @@ const TenantsScreen = ({ navigation }) => {
     navigation.navigate('AddTenant');
   };
 
-  const handleTenantPress = async (tenant) => {
+  const handleTenantPress = useCallback(async (tenant) => {
     // Verificar se o inquilino está bloqueado
     if (blockedTenantIds.includes(tenant.id)) {
       // Buscar informações de assinatura para o modal
@@ -291,7 +371,7 @@ const TenantsScreen = ({ navigation }) => {
     } else {
       navigation.navigate('TenantDetails', { tenant });
     }
-  };
+  }, [blockedTenantIds, navigation]);
 
   const filteredTenants = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -386,8 +466,9 @@ const TenantsScreen = ({ navigation }) => {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Carregando inquilinos...</Text>
+          <View style={styles.listContent}>
+            <TenantsListSkeleton count={5} />
+          </View>
         </View>
       ) : error ? (
           <View style={styles.errorContainer}>
@@ -425,6 +506,11 @@ const TenantsScreen = ({ navigation }) => {
             }
             refreshing={refreshing}
             onRefresh={onRefresh}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={10}
+            windowSize={10}
           />
         )}
 

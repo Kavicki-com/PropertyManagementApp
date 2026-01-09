@@ -9,13 +9,13 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SelectList } from 'react-native-dropdown-select-list';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { Buffer } from 'buffer';
+import { optimizeImage, base64ToArrayBuffer, IMAGE_PICKER_OPTIONS, CAMERA_OPTIONS } from '../lib/imageUtils';
 import { 
   isValidMoney, 
   parseMoney, 
@@ -30,17 +30,9 @@ import {
   isValidUF,
 } from '../lib/validation';
 import { fetchAddressByCep } from '../lib/cepService';
-import { radii } from '../theme';
+import { radii, colors } from '../theme';
+import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 
-const decode = (base64) => {
-  const binaryString = Buffer.from(base64, 'base64').toString('binary');
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
-};
 
 const EditPropertyScreen = ({ route, navigation }) => {
   const { property } = route.params;
@@ -152,8 +144,8 @@ const EditPropertyScreen = ({ route, navigation }) => {
     // #endregion
     try {
       const result = useCamera
-        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 })
-        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7 });
+        ? await ImagePicker.launchCameraAsync(CAMERA_OPTIONS)
+        : await ImagePicker.launchImageLibraryAsync(IMAGE_PICKER_OPTIONS);
 
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:137',message:'Resultado do ImagePicker',data:{hasResult:!!result,canceled:result?.canceled,hasAssets:!!result?.assets,assetsLength:result?.assets?.length,firstAssetUri:result?.assets?.[0]?.uri},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
@@ -168,7 +160,18 @@ const EditPropertyScreen = ({ route, navigation }) => {
       }
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setImages([...images, { uri: result.assets[0].uri, base64: result.assets[0].base64, isNew: true }]);
+        const asset = result.assets[0];
+        // Otimizar imagem antes de adicionar
+        if (asset.uri) {
+          const optimized = await optimizeImage(asset.uri);
+          setImages([...images, { 
+            uri: optimized.uri, 
+            base64: optimized.base64 || asset.base64, 
+            isNew: true 
+          }]);
+        } else {
+          setImages([...images, { ...asset, isNew: true }]);
+        }
       } else if (!result.canceled && (!result.assets || result.assets.length === 0)) {
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:149',message:'ERRO: assets vazio ou undefined',data:{result},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
@@ -259,27 +262,57 @@ const EditPropertyScreen = ({ route, navigation }) => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
 
-    const finalImageUrls = [];
-    for (const image of images) {
-      if (typeof image === 'string') {
-        finalImageUrls.push(image);
-      } else if (image.isNew) {
-        const fileName = `${user.id}/${Date.now()}.jpg`;
-        const bucketName = 'property-images';
+    // Separar imagens existentes (strings) e novas para upload
+    const existingImages = images.filter(img => typeof img === 'string');
+    const newImages = images.filter(img => img.isNew);
+    
+    const finalImageUrls = [...existingImages];
+    
+    // Upload de novas imagens em paralelo
+    if (newImages.length > 0) {
+      const uploadPromises = newImages.map(async (image, index) => {
+        try {
+          const fileName = `${user.id}/${property.id}/${Date.now()}_${index}.jpg`;
+          const bucketName = 'property-images';
+          
+          // Usar base64 otimizado se disponível
+          let arrayBuffer = null;
+          
+          if (image.base64) {
+            arrayBuffer = base64ToArrayBuffer(image.base64);
+          } else if (image.uri) {
+            // Se não tem base64, otimizar e converter
+            const optimized = await optimizeImage(image.uri);
+            if (optimized.base64) {
+              arrayBuffer = base64ToArrayBuffer(optimized.base64);
+            }
+          }
 
-        const { error: uploadError } = await supabase.storage
-          .from(bucketName)
-          .upload(fileName, decode(image.base64), { contentType: 'image/jpeg' });
+          if (arrayBuffer) {
+            const { error: uploadError } = await supabase.storage
+              .from(bucketName)
+              .upload(fileName, arrayBuffer, { contentType: 'image/jpeg' });
 
-        if (uploadError) {
-          Alert.alert('Erro no Upload', uploadError.message);
-          setLoading(false);
-          return;
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+              return urlData?.publicUrl;
+            }
+          }
+          
+          return null;
+        } catch (error) {
+          console.error(`Erro ao fazer upload da imagem ${index}:`, error);
+          return null;
         }
+      });
 
-        const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
-        finalImageUrls.push(urlData.publicUrl);
-      }
+      // Aguardar todos os uploads em paralelo
+      const results = await Promise.allSettled(uploadPromises);
+      results.forEach((result) => {
+        if (result.status === 'fulfilled' && result.value) {
+          finalImageUrls.push(result.value);
+        }
+      });
     }
 
     const parsedQuartos = quartos ? parseInt(filterOnlyNumbers(quartos), 10) : null;
@@ -321,10 +354,16 @@ const EditPropertyScreen = ({ route, navigation }) => {
       return;
     }
 
+    // Invalidar cache de propriedades e detalhes desta propriedade
+    await Promise.all([
+      removeCache(CACHE_KEYS.PROPERTIES),
+      removeCache(CACHE_KEYS.PROPERTY_DETAILS(property.id)),
+    ]);
+
     // Buscar o imóvel atualizado para navegar para detalhes
     const { data: updatedProperty, error: fetchError } = await supabase
       .from('properties')
-      .select('*')
+      .select('id, address, street, number, neighborhood, city, state, cep, complement, type, bedrooms, bathrooms, total_rooms, sqft, rent, image_urls, created_at')
       .eq('id', property.id)
       .single();
 
@@ -563,7 +602,12 @@ const EditPropertyScreen = ({ route, navigation }) => {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailContainer}>
             {images.map((image, index) => (
               <View key={index} style={styles.thumbnailWrapper}>
-                <Image source={{ uri: typeof image === 'string' ? image : image.uri }} style={styles.thumbnail} />
+                <Image 
+                  source={typeof image === 'string' ? image : image.uri} 
+                  style={styles.thumbnail}
+                  contentFit="cover"
+                  cachePolicy="memory"
+                />
                 <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(index)}>
                   <MaterialIcons name="cancel" size={24} color="#F44336" />
                 </TouchableOpacity>

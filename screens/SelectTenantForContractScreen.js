@@ -8,8 +8,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
@@ -133,6 +133,10 @@ const SelectTenantForContractScreen = ({ route, navigation }) => {
               <TenantItem item={item} onPress={handleSelectTenant} />
             )}
             contentContainerStyle={styles.listContent}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            initialNumToRender={10}
+            windowSize={10}
           />
           <TouchableOpacity style={styles.fab} onPress={handleCreateNewTenant}>
             <MaterialIcons name="person-add" size={24} color="#fff" />

@@ -19,6 +19,8 @@ import { useIsFocused } from '@react-navigation/native';
 import { startOfMonth, endOfMonth, format, differenceInDays, setDate, addMonths } from 'date-fns';
 import { colors, radii, typography } from '../theme';
 import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits, checkSubscriptionStatus, getBlockedProperties } from '../lib/subscriptionService';
+import { getCache, setCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
+import SkeletonLoader, { PropertyCardSkeleton, TenantCardSkeleton } from '../components/SkeletonLoader';
 
 // Componente de gráfico de donut com cores por tipo de imóvel
 const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30 }) => {
@@ -258,40 +260,73 @@ const DashboardScreen = ({ navigation }) => {
     setNextMonthRents(sorted);
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (useCache = true) => {
     setLoading(true);
     setError(null);
+
+    // Tentar buscar do cache primeiro
+    if (useCache && !refreshing) {
+      const cachedData = await getCache(CACHE_KEYS.DASHBOARD);
+      if (cachedData) {
+        setStats(cachedData.stats);
+        setOccupancyByType(cachedData.occupancyByType);
+        setUpcomingRents(cachedData.upcomingRents);
+        setNextMonthRents(cachedData.nextMonthRents);
+        setRecentTransactions(cachedData.recentTransactions);
+        setSubscription(cachedData.subscription);
+        setSubscriptionStatus(cachedData.subscriptionStatus);
+        setBlockedPropertiesCount(cachedData.blockedPropertiesCount || 0);
+        setLoading(false);
+        setRefreshing(false);
+        
+        // Atualizar em background sem bloquear UI
+        fetchDashboardData(false);
+        return;
+      }
+    }
 
     const today = new Date();
     const startDate = format(startOfMonth(today), 'yyyy-MM-dd');
     const endDate = format(endOfMonth(today), 'yyyy-MM-dd');
 
-    // --- Promessas de busca de dados ---
+    // --- Promessas de busca de dados - queries otimizadas ---
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Usuário não autenticado');
+      setLoading(false);
+      return;
+    }
+
     const financePromise = supabase
       .from('finances')
       .select('amount')
+      .eq('user_id', user.id)
       .eq('type', 'income')
       .gte('date', startDate)
       .lte('date', endDate);
 
     const tenantsPromise = supabase
       .from('tenants')
-      .select('id, full_name, due_date, property_id, properties (address)');
+      .select('id, full_name, due_date, property_id, properties (address)')
+      .eq('user_id', user.id);
     
     const recentTransactionsPromise = supabase
         .from('finances')
-        .select('*, properties (address)')
+        .select('id, description, amount, type, date, properties (address)')
+        .eq('user_id', user.id)
         .order('date', { ascending: false })
         .limit(5);
 
     const propertyCountPromise = supabase
       .from('properties')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
       .is('archived_at', null);
 
     const propertiesPromise = supabase
       .from('properties')
       .select('id, type')
+      .eq('user_id', user.id)
       .is('archived_at', null);
 
     // --- Executar todas as promessas simultaneamente ---
@@ -381,17 +416,31 @@ const DashboardScreen = ({ navigation }) => {
       }
 
       // Carregar dados de assinatura
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const [subscriptionData, status, blockedProperties] = await Promise.all([
-          getUserSubscription(user.id),
-          checkSubscriptionStatus(user.id),
-          getBlockedProperties(user.id),
-        ]);
-        setSubscription(subscriptionData);
-        setSubscriptionStatus(status);
-        setBlockedPropertiesCount(blockedProperties.length);
-      }
+      const [subscriptionData, status, blockedProperties] = await Promise.all([
+        getUserSubscription(user.id),
+        checkSubscriptionStatus(user.id),
+        getBlockedProperties(user.id),
+      ]);
+      setSubscription(subscriptionData);
+      setSubscriptionStatus(status);
+      setBlockedPropertiesCount(blockedProperties.length);
+
+      // Salvar no cache
+      await setCache(CACHE_KEYS.DASHBOARD, {
+        stats: {
+          rentCollected: totalIncome,
+          activeTenants: activeTenants,
+          propertyCount: propertyCount || 0,
+          occupancyRate: occupancyRate,
+        },
+        occupancyByType: occupancyByTypeData,
+        upcomingRents,
+        nextMonthRents,
+        recentTransactions: recentTransactionsData || [],
+        subscription: subscriptionData,
+        subscriptionStatus: status,
+        blockedPropertiesCount: blockedProperties.length,
+      }, CACHE_TTL.LONG);
     }
 
     setLoading(false);
@@ -400,25 +449,40 @@ const DashboardScreen = ({ navigation }) => {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchDashboardData();
+    fetchDashboardData(false); // Não usar cache no refresh
   }, []);
 
   useEffect(() => {
     if (isFocused) {
-      fetchDashboardData();
+      fetchDashboardData(true); // Usar cache ao focar
     }
   }, [isFocused]);
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <View style={styles.loadingSkeletonContainer}>
-          <View style={styles.loadingSkeletonHeader} />
-          <View style={styles.loadingSkeletonCard} />
-          <View style={styles.loadingSkeletonCard} />
-          <View style={styles.loadingSkeletonCard} />
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
+      <View style={styles.container}>
+        <View style={styles.headerContainer}>
+          <Text style={styles.header}>Início</Text>
         </View>
+        <ScrollView style={styles.scrollContainer}>
+          <View style={styles.sectionPlain}>
+            <SkeletonLoader width="40%" height={24} style={{ marginBottom: 16 }} />
+            <View style={styles.kpiRow}>
+              <SkeletonLoader width="30%" height={100} borderRadius={12} />
+              <SkeletonLoader width="30%" height={100} borderRadius={12} />
+              <SkeletonLoader width="30%" height={100} borderRadius={12} />
+            </View>
+          </View>
+          <View style={styles.section}>
+            <SkeletonLoader width="50%" height={20} style={{ marginBottom: 12 }} />
+            <TenantCardSkeleton />
+            <TenantCardSkeleton />
+          </View>
+          <View style={styles.section}>
+            <SkeletonLoader width="60%" height={20} style={{ marginBottom: 12 }} />
+            <SkeletonLoader width="100%" height={160} borderRadius={12} />
+          </View>
+        </ScrollView>
       </View>
     );
   }

@@ -1,6 +1,7 @@
 // screens/SettingsScreen.js 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch, Image, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch, Linking } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import ScreenHeader from '../components/ScreenHeader';
@@ -217,6 +218,8 @@ const SettingsScreen = ({ navigation }) => {
               <Image
                 source={require('../assets/avatar-placeholder.png')}
                 style={styles.avatar}
+                contentFit="cover"
+                cachePolicy="memory-disk"
               />
             </View>
             <View style={styles.userTextContainer}>

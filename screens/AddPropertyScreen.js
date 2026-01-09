@@ -10,13 +10,13 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SelectList } from 'react-native-dropdown-select-list';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { Buffer } from 'buffer';
+import { optimizeImage, base64ToArrayBuffer, IMAGE_PICKER_OPTIONS, CAMERA_OPTIONS } from '../lib/imageUtils';
 import { 
   isValidInteger, 
   isValidMoney, 
@@ -34,17 +34,9 @@ import {
 import { fetchAddressByCep } from '../lib/cepService';
 import { canAddProperty, getActivePropertiesCount, getUserSubscription, getRequiredPlan } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
-import { radii } from '../theme';
+import { radii, colors } from '../theme';
+import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 
-const decode = (base64) => {
-  const binaryString = Buffer.from(base64, 'base64').toString('binary');
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
-};
 
 const AddPropertyScreen = ({ navigation }) => {
   // Campos de endereço
@@ -138,8 +130,8 @@ const AddPropertyScreen = ({ navigation }) => {
     // #endregion
     try {
       const result = useCamera
-        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 })
-        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7 });
+        ? await ImagePicker.launchCameraAsync(CAMERA_OPTIONS)
+        : await ImagePicker.launchImageLibraryAsync(IMAGE_PICKER_OPTIONS);
 
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:119',message:'Resultado do ImagePicker',data:{hasResult:!!result,canceled:result?.canceled,hasAssets:!!result?.assets,assetsLength:result?.assets?.length,firstAssetUri:result?.assets?.[0]?.uri},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
@@ -154,7 +146,14 @@ const AddPropertyScreen = ({ navigation }) => {
       }
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setImages([...images, result.assets[0]]);
+        const asset = result.assets[0];
+        // Otimizar imagem antes de adicionar
+        if (asset.uri) {
+          const optimized = await optimizeImage(asset.uri);
+          setImages([...images, { ...asset, uri: optimized.uri, base64: optimized.base64 || asset.base64 }]);
+        } else {
+          setImages([...images, asset]);
+        }
       } else if (!result.canceled && (!result.assets || result.assets.length === 0)) {
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AddPropertyScreen.js:139',message:'ERRO: assets vazio ou undefined',data:{result},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
@@ -288,23 +287,65 @@ const AddPropertyScreen = ({ navigation }) => {
       return;
     }
 
+    // Upload de imagens em paralelo
     const imageUrls = [];
-    for (const image of images) {
-      const fileName = `${user.id}/${Date.now()}.jpg`;
-      const bucketName = 'property-images';
-      
-      const { error: uploadError } = await supabase.storage
-        .from(bucketName)
-        .upload(fileName, decode(image.base64), { contentType: 'image/jpeg' });
+    const uploadPromises = images.map(async (image, index) => {
+      try {
+        const fileName = `${user.id}/${Date.now()}_${index}.jpg`;
+        const bucketName = 'property-images';
+        
+        // Usar base64 otimizado se disponível
+        const arrayBuffer = image.base64 
+          ? base64ToArrayBuffer(image.base64)
+          : null;
 
-      if (uploadError) {
-        Alert.alert('Erro no Upload', uploadError.message);
-        setLoading(false);
-        return;
+        if (!arrayBuffer && image.uri) {
+          // Se não tem base64, otimizar novamente
+          const optimized = await optimizeImage(image.uri);
+          if (optimized.base64) {
+            const ab = base64ToArrayBuffer(optimized.base64);
+            const { error: uploadError } = await supabase.storage
+              .from(bucketName)
+              .upload(fileName, ab, { contentType: 'image/jpeg' });
+            
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+              return urlData?.publicUrl;
+            }
+          }
+          return null;
+        }
+
+        if (arrayBuffer) {
+          const { error: uploadError } = await supabase.storage
+            .from(bucketName)
+            .upload(fileName, arrayBuffer, { contentType: 'image/jpeg' });
+
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+            return urlData?.publicUrl;
+          }
+        }
+        
+        return null;
+      } catch (error) {
+        console.error(`Erro ao fazer upload da imagem ${index}:`, error);
+        return null;
       }
+    });
 
-      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
-      if (urlData) imageUrls.push(urlData.publicUrl);
+    // Aguardar todos os uploads em paralelo
+    const results = await Promise.allSettled(uploadPromises);
+    results.forEach((result) => {
+      if (result.status === 'fulfilled' && result.value) {
+        imageUrls.push(result.value);
+      }
+    });
+
+    if (imageUrls.length === 0 && images.length > 0) {
+      Alert.alert('Erro no Upload', 'Não foi possível fazer upload das imagens.');
+      setLoading(false);
+      return;
     }
 
     const parsedQuartos = quartos ? parseInt(filterOnlyNumbers(quartos), 10) : null;
@@ -341,10 +382,13 @@ const AddPropertyScreen = ({ navigation }) => {
     if (insertError) {
       Alert.alert('Erro ao adicionar propriedade', insertError.message);
     } else {
+      // Invalidar cache de propriedades
+      await removeCache(CACHE_KEYS.PROPERTIES);
+      
       // Buscar o imóvel recém-criado para navegar para detalhes
       const { data: newProperties, error: fetchError } = await supabase
         .from('properties')
-        .select('*')
+        .select('id, address, street, number, neighborhood, city, state, cep, complement, type, bedrooms, bathrooms, total_rooms, sqft, rent, image_urls, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -600,7 +644,12 @@ const AddPropertyScreen = ({ navigation }) => {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailContainer}>
             {images.map((image, index) => (
               <View key={index} style={styles.thumbnailWrapper}>
-                <Image source={{ uri: image.uri }} style={styles.thumbnail} />
+                <Image 
+                  source={image.uri} 
+                  style={styles.thumbnail}
+                  contentFit="cover"
+                  cachePolicy="memory"
+                />
               </View>
             ))}
           </ScrollView>

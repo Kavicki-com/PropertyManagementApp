@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   Alert, // Adicionado para melhor feedback de erro
   Keyboard,
@@ -14,14 +13,16 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
-import { fetchAllProperties } from '../lib/propertiesService';
 import { useIsFocused } from '@react-navigation/native';
 import SearchBar from '../components/SearchBar';
 import { getBlockedProperties, getUserSubscription, getActivePropertiesCount, getRequiredPlan, canAddProperty } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
 import { colors, radii, typography } from '../theme';
+import { getCache, setCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
+import { PropertiesListSkeleton } from '../components/SkeletonLoader';
 
 // Função para formatar endereço na listagem
 const formatPropertyAddress = (item) => {
@@ -40,14 +41,14 @@ const formatCurrency = (value) => {
   return `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
 };
 
-const PropertyItem = ({ item, onPress, isBlocked }) => {
+const PropertyItem = React.memo(({ item, onPress, isBlocked }) => {
   const hasTenant = item.tenants && item.tenants.length > 0;
   const status = hasTenant ? 'Alugada' : 'Disponível';
   const statusStyle = hasTenant ? styles.rented : styles.available;
   const statusTextStyle = hasTenant ? styles.rentedText : styles.availableText;
 
   const imageSource = (item.image_urls && item.image_urls.length > 0)
-    ? { uri: item.image_urls[0] }
+    ? item.image_urls[0]
     : require('../assets/property-placeholder.jpg');
 
   return (
@@ -58,7 +59,12 @@ const PropertyItem = ({ item, onPress, isBlocked }) => {
     >
       <Image 
         source={imageSource}
-        style={styles.propertyImage} 
+        style={styles.propertyImage}
+        contentFit="cover"
+        transition={200}
+        placeholder={require('../assets/property-placeholder.jpg')}
+        priority="low"
+        cachePolicy="memory-disk"
       />
       <View style={styles.propertyInfo}>
         <Text style={styles.propertyAddress} numberOfLines={2}>{formatPropertyAddress(item)}</Text>
@@ -74,7 +80,15 @@ const PropertyItem = ({ item, onPress, isBlocked }) => {
       </View>
     </TouchableOpacity>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison para evitar re-renders desnecessários
+  return (
+    prevProps.item.id === nextProps.item.id &&
+    prevProps.isBlocked === nextProps.isBlocked &&
+    prevProps.item.image_urls?.[0] === nextProps.item.image_urls?.[0] &&
+    prevProps.item.rent === nextProps.item.rent
+  );
+});
 
 const PropertiesScreen = ({ navigation }) => {
   const [properties, setProperties] = useState([]);
@@ -109,16 +123,44 @@ const PropertiesScreen = ({ navigation }) => {
     }
   }, [showFiltersModal]);
 
-  const fetchProperties = async () => {
+  const fetchProperties = async (useCache = true) => {
     setLoading(true);
+    
+    // Tentar buscar do cache primeiro
+    if (useCache) {
+      const cachedData = await getCache(CACHE_KEYS.PROPERTIES);
+      if (cachedData) {
+        setProperties(cachedData);
+        setLoading(false);
+        
+        // Buscar propriedades bloqueadas em background
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const blockedIds = await getBlockedProperties(user.id);
+          setBlockedPropertyIds(blockedIds);
+        }
+        return;
+      }
+    }
+
     // Busca todas as propriedades; o filtro de status é aplicado em memória
-    const { data, error } = await fetchAllProperties();
+    // Otimizar query para buscar apenas campos necessários
+    const { data, error } = await supabase
+      .from('properties')
+      .select('id, address, street, number, neighborhood, city, state, rent, type, image_urls, tenants(id)')
+      .is('archived_at', null)
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching properties:', error);
       Alert.alert("Erro", "Não foi possível carregar as propriedades.");
+      setProperties([]);
     } else {
-      setProperties(data || []);
+      const propertiesData = data || [];
+      setProperties(propertiesData);
+      
+      // Salvar no cache
+      await setCache(CACHE_KEYS.PROPERTIES, propertiesData, CACHE_TTL.DEFAULT);
       
       // Buscar propriedades bloqueadas
       const { data: { user } } = await supabase.auth.getUser();
@@ -132,9 +174,33 @@ const PropertiesScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (isFocused) {
-      fetchProperties();
+      fetchProperties(true); // Usar cache ao focar
     }
   }, [isFocused]);
+
+  const handlePropertyPress = useCallback(async (property) => {
+    // Verificar se a propriedade está bloqueada
+    if (blockedPropertyIds.includes(property.id)) {
+      // Buscar informações de assinatura para o modal
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const propertyCount = await getActivePropertiesCount(user.id);
+        const subscription = await getUserSubscription(user.id);
+        const currentPlan = subscription?.subscription_plan || 'free';
+        // Se o plano atual é basic, sempre sugere premium
+        const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount);
+        
+        setSubscriptionInfo({
+          currentPlan,
+          propertyCount,
+          requiredPlan,
+        });
+        setShowUpgradeModal(true);
+      }
+    } else {
+      navigation.navigate('PropertyDetails', { property });
+    }
+  }, [blockedPropertyIds, navigation]);
 
   const handleAddProperty = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -165,29 +231,6 @@ const PropertiesScreen = ({ navigation }) => {
     navigation.navigate('AddProperty');
   };
 
-  const handlePropertyPress = async (property) => {
-    // Verificar se a propriedade está bloqueada
-    if (blockedPropertyIds.includes(property.id)) {
-      // Buscar informações de assinatura para o modal
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const propertyCount = await getActivePropertiesCount(user.id);
-        const subscription = await getUserSubscription(user.id);
-        const currentPlan = subscription?.subscription_plan || 'free';
-        // Se o plano atual é basic, sempre sugere premium
-        const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount);
-        
-        setSubscriptionInfo({
-          currentPlan,
-          propertyCount,
-          requiredPlan,
-        });
-        setShowUpgradeModal(true);
-      }
-    } else {
-      navigation.navigate('PropertyDetails', { property });
-    }
-  };
 
   const { activeProperties, archivedProperties } = useMemo(() => {
     let result = [...properties];
@@ -260,15 +303,16 @@ const PropertiesScreen = ({ navigation }) => {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
+        <View style={styles.headerContainer}>
+          <Text style={styles.header}>Propriedades</Text>
+        </View>
+        
         {loading && properties.length === 0 ? (
-          <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-            <ActivityIndicator size="large" color={colors.primary} />
+          <View style={styles.scrollContainer}>
+            <PropertiesListSkeleton count={5} />
           </View>
         ) : (
           <>
-            <View style={styles.headerContainer}>
-              <Text style={styles.header}>Propriedades</Text>
-            </View>
 
             {/* Barra de busca e botão de filtros */}
             <View style={styles.searchContainer}>
@@ -298,9 +342,14 @@ const PropertiesScreen = ({ navigation }) => {
               )}
               keyExtractor={item => item.id.toString()}
               contentContainerStyle={styles.listContent}
-              onRefresh={fetchProperties} // Permite "puxar para atualizar"
+              onRefresh={() => fetchProperties(false)} // Não usar cache no refresh
               refreshing={loading}
               keyboardShouldPersistTaps="handled"
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={10}
+              windowSize={10}
               ListFooterComponent={
                 archivedProperties.length > 0 ? (
                   <View style={styles.archivedSection}>

@@ -19,6 +19,7 @@ import { canAddTenant, getUserSubscription, getActiveTenantsCount, getRequiredPl
 import UpgradeModal from '../components/UpgradeModal';
 import { radii, colors } from '../theme';
 import { SelectList } from 'react-native-dropdown-select-list';
+import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 
 const AddTenantScreen = ({ route, navigation }) => {
   const { preselectedPropertyId } = route.params || {};
@@ -142,7 +143,17 @@ const AddTenantScreen = ({ route, navigation }) => {
           } else {
             Alert.alert('Sucesso', 'Inquilino adicionado e vinculado à propriedade com sucesso!');
           }
+          
+          // Invalidar cache de inquilinos e propriedades
+          await Promise.all([
+            removeCache(CACHE_KEYS.TENANTS),
+            removeCache(CACHE_KEYS.PROPERTIES),
+            removeCache(CACHE_KEYS.PROPERTY_DETAILS(preselectedPropertyId)),
+            removeCache(CACHE_KEYS.DASHBOARD),
+          ]);
         } else {
+          // Invalidar apenas cache de inquilinos
+          await removeCache(CACHE_KEYS.TENANTS);
           Alert.alert('Sucesso', 'Inquilino adicionado com sucesso!');
         }
         navigation.goBack();

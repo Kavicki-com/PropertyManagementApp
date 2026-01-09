@@ -1,5 +1,5 @@
 // screens/LinkTenantScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
-import { radii } from '../theme';
+import { radii, colors } from '../theme';
 import { useIsFocused } from '@react-navigation/native';
 
 const TenantItem = ({ item, onPress }) => {
@@ -22,11 +22,12 @@ const TenantItem = ({ item, onPress }) => {
   return (
     <TouchableOpacity style={styles.tenantCard} onPress={() => onPress(item)}>
       <Image
-        source={item.photo_url 
-          ? { uri: item.photo_url }
-          : require('../assets/avatar-placeholder.png')
-        }
+        source={item.photo_url || require('../assets/avatar-placeholder.png')}
         style={styles.avatar}
+        contentFit="cover"
+        transition={200}
+        placeholder={require('../assets/avatar-placeholder.png')}
+        cachePolicy="memory-disk"
       />
       <View style={styles.tenantInfo}>
         <Text style={styles.tenantName}>{item.full_name}</Text>
@@ -61,11 +62,12 @@ const LinkTenantScreen = ({ route, navigation }) => {
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchTenants = async () => {
+  const fetchTenants = useCallback(async () => {
     setLoading(true);
+    // Query otimizada - buscar apenas campos necessários
     const { data, error } = await supabase
       .from('tenants')
-      .select('*')
+      .select('id, full_name, phone, photo_url, property_id')
       .order('full_name', { ascending: true });
 
     if (error) {
@@ -75,7 +77,7 @@ const LinkTenantScreen = ({ route, navigation }) => {
       setTenants(data || []);
     }
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     if (isFocused) {
@@ -197,6 +199,11 @@ const LinkTenantScreen = ({ route, navigation }) => {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <TenantItem item={item} onPress={handleSelectTenant} />}
         contentContainerStyle={styles.listContent}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={10}
+        windowSize={10}
       />
 
       <TouchableOpacity style={styles.addButton} onPress={handleCreateNewTenant}>

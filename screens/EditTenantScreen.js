@@ -17,6 +17,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { filterOnlyLetters, filterOnlyNumbers, isValidCPF, isValidEmail, isValidPhone } from '../lib/validation';
 import { radii } from '../theme';
 import { SelectList } from 'react-native-dropdown-select-list';
+import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 
 const EditTenantScreen = ({ route, navigation }) => {
   const { tenant } = route.params;
@@ -103,6 +104,12 @@ const EditTenantScreen = ({ route, navigation }) => {
     if (error) {
       Alert.alert('Erro ao atualizar inquilino', error.message);
     } else {
+      // Invalidar cache de inquilinos
+      await removeCache(CACHE_KEYS.TENANTS);
+      if (tenant.id) {
+        await removeCache(CACHE_KEYS.TENANT_DETAILS(tenant.id));
+      }
+      
       Alert.alert('Sucesso', 'Inquilino atualizado com sucesso!');
       navigation.goBack();
     }

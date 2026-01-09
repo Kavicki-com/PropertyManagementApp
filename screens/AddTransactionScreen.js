@@ -18,6 +18,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { colors, radii, typography } from '../theme';
 import { canAddFinancialTransaction, getUserSubscription, getActivePropertiesCount, getRequiredPlan } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
+import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 
 const AddTransactionScreen = ({ route, navigation }) => {
   const [description, setDescription] = useState('');
@@ -253,6 +254,14 @@ const AddTransactionScreen = ({ route, navigation }) => {
     if (error) {
       Alert.alert('Erro ao adicionar transação', error.message);
     } else {
+      // Invalidar cache relacionado
+      await Promise.all([
+        removeCache(CACHE_KEYS.FINANCES),
+        removeCache(CACHE_KEYS.DASHBOARD),
+        propertyValue ? removeCache(CACHE_KEYS.PROPERTY_DETAILS(propertyValue)) : Promise.resolve(),
+        tenantIdForInsert ? removeCache(CACHE_KEYS.TENANT_DETAILS(tenantIdForInsert)) : Promise.resolve(),
+      ]);
+      
       Alert.alert('Sucesso', 'Transação adicionada com sucesso!');
       navigation.goBack();
     }

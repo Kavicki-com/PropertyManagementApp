@@ -6,12 +6,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { supabase } from '../lib/supabase';
 import { radii, colors } from '../theme';
 
@@ -99,7 +99,12 @@ const LoginScreen = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <Image source={require('../assets/logo.png')} style={styles.logo} />
+      <Image 
+        source={require('../assets/logo.png')} 
+        style={styles.logo}
+        contentFit="contain"
+        cachePolicy="memory-disk"
+      />
       <Text style={styles.title}>Entrar</Text>
 
       <View style={styles.inputContainer}>

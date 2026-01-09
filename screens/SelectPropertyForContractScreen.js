@@ -128,14 +128,18 @@ const SelectPropertyForContractScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
-          data={properties}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <PropertyItem item={item} onPress={handleSelectProperty} />
-          )}
-          contentContainerStyle={styles.listContent}
-        />
+          <FlatList
+            data={properties}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <PropertyItem item={item} onPress={handleSelectProperty} />
+            )}
+            contentContainerStyle={styles.listContent}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            initialNumToRender={10}
+            windowSize={10}
+          />
       )}
     </View>
   );
