@@ -125,7 +125,7 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   const handleEmailSupport = async () => {
-    const email = 'suporte@exemplo.com';
+    const email = 'design@kavicki.com';
     const url = `mailto:${email}`;
     try {
       const canOpen = await Linking.canOpenURL(url);
@@ -140,7 +140,7 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   const handleWebsiteSupport = async () => {
-    const url = 'https://suporte.exemplo.com';
+    const url = 'https://llord.kavicki.com/suporte.html';
     try {
       const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
@@ -154,7 +154,7 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   const handleWhatsAppSupport = async () => {
-    const phoneNumber = '5511999999999';
+    const phoneNumber = '5521966087421';
     const url = `whatsapp://send?phone=${phoneNumber}`;
     try {
       const canOpen = await Linking.canOpenURL(url);
