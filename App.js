@@ -13,6 +13,8 @@ import {
   setupNotificationListeners,
   checkAndCreateNotifications,
 } from './lib/notificationsService';
+import { initializeIAP, disconnectIAP } from './lib/iapService';
+import { Platform } from 'react-native';
 
 // Telas
 import LoginScreen from './screens/LoginScreen';
@@ -174,6 +176,35 @@ export default function App() {
       }
     };
   }, [session]);
+
+  // Inicializa IAP quando app inicia (apenas iOS)
+  useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+
+    const setupIAP = async () => {
+      try {
+        const result = await initializeIAP();
+        if (result.success) {
+          console.log('IAP inicializado com sucesso');
+        } else {
+          console.warn('IAP não foi inicializado:', result.error);
+        }
+      } catch (error) {
+        console.error('Erro ao inicializar IAP:', error);
+      }
+    };
+
+    setupIAP();
+
+    // Cleanup: desconecta IAP quando app fecha
+    return () => {
+      if (Platform.OS === 'ios') {
+        disconnectIAP().catch(console.error);
+      }
+    };
+  }, []);
 
   // Função para lidar com deep linking
   const handleDeepLink = async (url) => {

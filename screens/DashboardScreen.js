@@ -17,6 +17,7 @@ import { supabase } from '../lib/supabase';
 import { fetchActiveContractsByTenants } from '../lib/contractsService';
 import { useIsFocused } from '@react-navigation/native';
 import { startOfMonth, endOfMonth, format, differenceInDays, setDate, addMonths } from 'date-fns';
+import ptBR from 'date-fns/locale/pt-BR';
 import { colors, radii, typography } from '../theme';
 import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits, checkSubscriptionStatus, getBlockedProperties } from '../lib/subscriptionService';
 import { getCache, setCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
@@ -673,7 +674,7 @@ const DashboardScreen = ({ navigation }) => {
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
             <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Previsão de recebimentos</Text>
-            <Text style={styles.sectionTitleDate}>{format(addMonths(new Date(), 1), 'MMMM yyyy')}</Text>
+            <Text style={styles.sectionTitleDate}>{format(addMonths(new Date(), 1), 'MMMM yyyy', { locale: ptBR })}</Text>
           </View>
           {nextMonthRents.length === 0 ? (
             <Text style={styles.emptyText}>

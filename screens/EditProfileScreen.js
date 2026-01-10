@@ -9,6 +9,8 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -16,6 +18,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import { colors, typography, radii } from '../theme';
 import { validatePassword, getPasswordStrength } from '../lib/validation';
 import { SelectList } from 'react-native-dropdown-select-list';
+import { optimizeImage, base64ToArrayBuffer, IMAGE_PICKER_OPTIONS, CAMERA_OPTIONS } from '../lib/imageUtils';
 
 const EditProfileScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -33,6 +36,10 @@ const EditProfileScreen = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   
   const [isSaving, setIsSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [photoBase64, setPhotoBase64] = useState(null);
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState(null);
 
   const isFocused = useIsFocused();
 
@@ -100,7 +107,7 @@ const EditProfileScreen = ({ navigation }) => {
         // Primeiro tenta buscar apenas os campos básicos que sabemos que existem
         let { data: profile, error } = await supabase
           .from('profiles')
-          .select('full_name, phone')
+          .select('full_name, phone, photo_url')
           .eq('id', user.id)
           .single();
         
@@ -109,7 +116,7 @@ const EditProfileScreen = ({ navigation }) => {
           try {
             const { data: extendedProfile, error: extendedError } = await supabase
               .from('profiles')
-              .select('cpf, rg, nationality, marital_status, profession, account_type')
+              .select('cpf, rg, nationality, marital_status, profession, account_type, photo_url')
               .eq('id', user.id)
               .single();
             
@@ -142,6 +149,10 @@ const EditProfileScreen = ({ navigation }) => {
           // Converte valor do banco para valor do frontend
           const accountTypeValue = profile.account_type ? mapAccountTypeFromDB(profile.account_type) : null;
           setAccountType(accountTypeValue);
+          // Carrega foto atual do perfil
+          if (profile.photo_url) {
+            setCurrentPhotoUrl(profile.photo_url);
+          }
         }
       }
       setLoading(false);
@@ -152,9 +163,103 @@ const EditProfileScreen = ({ navigation }) => {
     }
   }, [isFocused]);
 
+  const handleImagePicker = async (useCamera = false) => {
+    try {
+      // Solicitar permissões
+      const permission = useCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permission.status !== 'granted') {
+        Alert.alert('Permissão necessária', 'Você precisa permitir o acesso para adicionar uma foto.');
+        return;
+      }
+
+      // Abrir ImagePicker
+      const result = useCamera
+        ? await ImagePicker.launchCameraAsync(CAMERA_OPTIONS)
+        : await ImagePicker.launchImageLibraryAsync(IMAGE_PICKER_OPTIONS);
+
+      if (result && !result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset.uri) {
+          // Otimizar imagem antes de mostrar preview
+          const optimized = await optimizeImage(asset.uri);
+          setPhotoUri(optimized.uri);
+          setPhotoPreview(optimized.uri);
+          // Preservar base64 original do asset se não tiver no optimized
+          if (asset.base64 && !optimized.base64) {
+            setPhotoBase64(asset.base64);
+          } else if (optimized.base64) {
+            setPhotoBase64(optimized.base64);
+          } else {
+            setPhotoBase64(null);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao selecionar imagem:', error);
+      Alert.alert('Erro', `Não foi possível abrir ${useCamera ? 'a câmera' : 'a galeria'}.`);
+    }
+  };
+
   const handleUpdateProfile = async () => {
     setIsSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
+
+    // 0. Upload foto se houver nova foto selecionada
+    let photoUrl = currentPhotoUrl;
+    if (photoUri) {
+      try {
+        // Usar base64 armazenado ou otimizar novamente
+        let base64ToUse = photoBase64;
+        if (!base64ToUse) {
+          const optimized = await optimizeImage(photoUri);
+          base64ToUse = optimized.base64;
+        }
+
+        if (!base64ToUse) {
+          Alert.alert('Erro', 'Não foi possível processar a foto. Por favor, selecione novamente.');
+          setIsSaving(false);
+          return;
+        }
+
+        // Converter base64 para ArrayBuffer
+        const arrayBuffer = base64ToArrayBuffer(base64ToUse);
+
+        // Criar nome do arquivo único
+        const fileName = `${user.id}/${Date.now()}_avatar.jpg`;
+
+        // Fazer upload para Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, arrayBuffer, {
+            contentType: 'image/jpeg',
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error('Erro ao fazer upload da foto:', uploadError);
+          Alert.alert('Erro', 'Não foi possível fazer upload da foto. Tente novamente.');
+          setIsSaving(false);
+          return;
+        }
+
+        // Obter URL pública da imagem
+        const { data: urlData } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(fileName);
+
+        if (urlData?.publicUrl) {
+          photoUrl = urlData.publicUrl;
+        }
+      } catch (error) {
+        console.error('Erro ao processar foto:', error);
+        Alert.alert('Erro', 'Não foi possível processar a foto. Tente novamente.');
+        setIsSaving(false);
+        return;
+      }
+    }
 
     // 1. Update profile data in the 'profiles' table
     // Primeiro atualiza os campos básicos que sabemos que existem
@@ -162,6 +267,7 @@ const EditProfileScreen = ({ navigation }) => {
       full_name: fullName,
       phone: phone.replace(/\D/g, ''),
       updated_at: new Date().toISOString(),
+      photo_url: photoUrl || null,
     };
 
     let { error: profileError } = await supabase
@@ -257,6 +363,46 @@ const EditProfileScreen = ({ navigation }) => {
           <ActivityIndicator style={styles.loader} color={colors.primary} />
         ) : (
           <View style={styles.formContainer}>
+            {/* Seção de Foto do Perfil */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Foto do perfil</Text>
+              <View style={styles.avatarContainer}>
+                <TouchableOpacity
+                  style={styles.avatarWrapper}
+                  onPress={() => {
+                    Alert.alert(
+                      'Selecionar foto',
+                      'Escolha a origem da foto',
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        { text: 'Câmera', onPress: () => handleImagePicker(true) },
+                        { text: 'Galeria', onPress: () => handleImagePicker(false) },
+                      ]
+                    );
+                  }}
+                >
+                  <Image
+                    source={
+                      photoPreview
+                        ? { uri: photoPreview }
+                        : currentPhotoUrl
+                        ? { uri: currentPhotoUrl }
+                        : require('../assets/avatar-placeholder.png')
+                    }
+                    style={styles.avatar}
+                    contentFit="cover"
+                    transition={200}
+                    placeholder={require('../assets/avatar-placeholder.png')}
+                    cachePolicy="memory-disk"
+                  />
+                  <View style={styles.avatarEditOverlay}>
+                    <MaterialIcons name="camera-alt" size={24} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+                <Text style={styles.avatarHint}>Toque para alterar a foto</Text>
+              </View>
+            </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Informações pessoais</Text>
               <View style={styles.inputGroup}>
@@ -594,6 +740,39 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSubtle,
     borderRadius: radii.sm,
     backgroundColor: colors.surface,
+  },
+  avatarContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  avatarWrapper: {
+    position: 'relative',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+    marginBottom: 12,
+    borderWidth: 3,
+    borderColor: colors.primarySoft,
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarEditOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarHint: {
+    ...typography.caption,
+    textAlign: 'center',
+    color: colors.textSecondary,
   },
 });
 

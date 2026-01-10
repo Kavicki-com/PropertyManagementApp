@@ -23,7 +23,6 @@ import {
   purchaseSubscription, 
   restorePurchases,
   handlePurchaseSuccess,
-  handlePurchaseError,
   getProductIdForPlan,
 } from '../lib/iapService';
 import ScreenHeader from '../components/ScreenHeader';
@@ -111,8 +110,19 @@ const SubscriptionScreen = ({ navigation }) => {
           Alert.alert('Erro', 'Compra realizada mas houve erro ao atualizar assinatura.');
         }
       } else {
-        const errorResult = handlePurchaseError(result.error);
-        Alert.alert('Erro', errorResult.message);
+        // result.error pode ser um objeto com message ou uma string
+        let errorMessage = result.error?.message || result.error || 'Erro ao processar compra';
+        
+        // Se for uma string longa (com múltiplas linhas), quebra em múltiplas linhas
+        if (typeof errorMessage === 'string' && errorMessage.includes('\n')) {
+          // Mantém a mensagem como está (já formatada)
+        } else if (typeof errorMessage === 'string') {
+          // Adiciona quebras de linha para melhor legibilidade
+          errorMessage = errorMessage.replace(/\. /g, '.\n\n');
+        }
+        
+        console.error('Erro ao processar compra:', result.error);
+        Alert.alert('Erro na Compra', errorMessage);
       }
     } catch (error) {
       console.error('Erro ao processar compra:', error);
@@ -213,14 +223,43 @@ const SubscriptionScreen = ({ navigation }) => {
   };
 
   const handleRestore = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      Alert.alert('Erro', 'Usuário não autenticado');
+      return;
+    }
+
     setPurchasing(true);
     try {
       const result = await restorePurchases();
-      if (result.success) {
-        Alert.alert('Sucesso', 'Compras restauradas com sucesso!');
-        await loadSubscriptionData();
+      if (result.success && result.purchases && result.purchases.length > 0) {
+        // Processa cada compra restaurada
+        let hasUpdates = false;
+        for (const purchase of result.purchases) {
+          const updateResult = await handlePurchaseSuccess(
+            { 
+              productId: purchase.productId, 
+              transactionId: purchase.transactionId,
+              purchaseTime: purchase.purchaseTime 
+            }, 
+            user.id
+          );
+          if (updateResult.success) {
+            hasUpdates = true;
+          }
+        }
+        
+        if (hasUpdates) {
+          Alert.alert('Sucesso', 'Compras restauradas com sucesso!');
+          await loadSubscriptionData();
+        } else {
+          Alert.alert('Info', 'Nenhuma compra ativa encontrada para restaurar.');
+        }
+      } else if (result.success) {
+        Alert.alert('Info', 'Nenhuma compra encontrada para restaurar.');
       } else {
-        Alert.alert('Erro', 'Não foi possível restaurar as compras.');
+        const errorMessage = result.error?.message || result.error || 'Não foi possível restaurar as compras';
+        Alert.alert('Erro', errorMessage);
       }
     } catch (error) {
       console.error('Erro ao restaurar compras:', error);
