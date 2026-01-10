@@ -11,6 +11,7 @@ import SearchBar from '../components/SearchBar';
 import { canAddFinancialTransaction, getUserSubscription, getActivePropertiesCount } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
 import { removeCache, CACHE_KEYS } from '../lib/cacheService';
+import SkeletonLoader, { OverviewSkeleton, FinancesListSkeleton } from '../components/SkeletonLoader';
 
 const FinancesScreen = ({ navigation }) => {
   const [transactions, setTransactions] = useState([]);
@@ -168,195 +169,217 @@ const FinancesScreen = ({ navigation }) => {
     );
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
         <View style={styles.headerContainer}>
             <Text style={styles.header}>Finanças</Text>
         </View>
         <ScrollView style={styles.scrollContainer}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Visão geral</Text>
-            <View style={styles.overviewRow}>
-              <View style={[styles.overviewCard, styles.overviewCardIncome]}>
-                <Text style={styles.overviewLabel}>Entradas</Text>
-                <Text style={styles.incomeAmount}>{formatCurrency(overview.totalIncome)}</Text>
+          {loading ? (
+            <>
+              <View style={styles.section}>
+                <SkeletonLoader width="40%" height={18} style={{ marginBottom: 15 }} />
+                <OverviewSkeleton />
+                
+                <View style={styles.filtersRow}>
+                  <SkeletonLoader width={70} height={28} borderRadius={radii.pill} style={{ marginRight: 8 }} />
+                  <SkeletonLoader width={80} height={28} borderRadius={radii.pill} style={{ marginRight: 8 }} />
+                  <SkeletonLoader width={90} height={28} borderRadius={radii.pill} />
+                </View>
+
+                <View style={styles.dateFilterRow}>
+                  <SkeletonLoader width={60} height={14} style={{ marginBottom: 4 }} />
+                  <SkeletonLoader width="100%" height={40} borderRadius={radii.pill} />
+                </View>
+
+                <View style={styles.searchAndDateContainer}>
+                  <SkeletonLoader width="100%" height={50} borderRadius={radii.pill} />
+                </View>
               </View>
-              <View style={[styles.overviewCard, styles.overviewCardExpense]}>
-                <Text style={styles.overviewLabel}>Despesas</Text>
-                <Text style={styles.expenseAmount}>{formatCurrency(overview.totalExpenses)}</Text>
+
+              <View style={styles.section}>
+                <SkeletonLoader width="50%" height={18} style={{ marginBottom: 15 }} />
+                <FinancesListSkeleton count={5} />
               </View>
-              <View style={[styles.overviewCard, styles.overviewCardProfit]}>
-                <Text style={styles.overviewLabel}>Lucro</Text>
-                <Text style={styles.profitAmount}>{formatCurrency(overview.netProfit)}</Text>
-              </View>
-            </View>
-
-            <View style={styles.filtersRow}>
-              <TouchableOpacity
-                style={[styles.filterChip, filterType === 'all' && styles.filterChipActive]}
-                onPress={() => setFilterType('all')}
-              >
-                <Text style={[styles.filterChipText, filterType === 'all' && styles.filterChipTextActive]}>
-                  Todos
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.filterChip, filterType === 'income' && styles.filterChipActive]}
-                onPress={() => setFilterType('income')}
-              >
-                <Text style={[styles.filterChipText, filterType === 'income' && styles.filterChipTextActive]}>
-                  Entradas
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.filterChip, filterType === 'expense' && styles.filterChipActive]}
-                onPress={() => setFilterType('expense')}
-              >
-                <Text style={[styles.filterChipText, filterType === 'expense' && styles.filterChipTextActive]}>
-                  Despesas
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.dateFilterRow}>
-              <Text style={styles.dateFilterLabel}>Período</Text>
-              <TouchableOpacity
-                style={styles.periodField}
-                onPress={() => setShowRangePicker(true)}
-              >
-                <MaterialIcons name="date-range" size={18} color="#666" />
-                <Text style={styles.periodFieldText}>
-                  {customStartDate && customEndDate
-                    ? `${formatDate(customStartDate)} - ${formatDate(customEndDate)}`
-                    : customStartDate
-                      ? `${formatDate(customStartDate)} - ...`
-                      : 'Selecionar período'}
-                </Text>
-                {(customStartDate || customEndDate) && (
-                  <TouchableOpacity
-                    style={styles.periodClearButton}
-                    onPress={() => {
-                      setCustomStartDate(null);
-                      setCustomEndDate(null);
-                    }}
-                  >
-                    <MaterialIcons name="close" size={16} color="#666" />
-                  </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.searchAndDateContainer}>
-              <SearchBar
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Buscar por descrição ou imóvel"
-              />
-            </View>
-
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Lançamentos</Text>
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={fetchFinances}>
-                  <Text style={styles.retryButtonText}>Tentar novamente</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {!error && getFilteredTransactions.length === 0 && (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyTitle}>Nenhum lançamento neste período</Text>
-                <Text style={styles.emptySubtitle}>
-                  Ajuste os filtros ou adicione o primeiro lançamento financeiro.
-                </Text>
-                <TouchableOpacity
-                  style={styles.emptyButton}
-                  onPress={handleAddTransaction}
-                >
-                  <Text style={styles.emptyButtonText}>Adicionar lançamento</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {!error && getFilteredTransactions.length > 0 && getFilteredTransactions.map((transaction) => (
-              <View key={transaction.id} style={styles.transactionCard}>
-                <View style={styles.transactionDetails}>
-                  <Text style={styles.transactionDesc}>{transaction.description}</Text>
-                  <Text style={styles.transactionMeta}>
-                    {transaction.properties?.address || 'Sem imóvel vinculado'}
-                    {transaction.tenants?.full_name
-                      ? ` • ${transaction.tenants.full_name}`
-                      : ' • Sem inquilino'}
-                    {' • '}
-                    {formatDate(transaction.date)}
-                  </Text>
-                  <View style={styles.transactionActionsRow}>
-                    {transaction.property_id && (
-                      <TouchableOpacity
-                        style={styles.actionChip}
-                        onPress={() => {
-                          const minimalProperty = {
-                            id: transaction.property_id,
-                            address: transaction.properties?.address || 'Imóvel',
-                          };
-                          navigation.navigate('PropertyDetails', {
-                            property: minimalProperty,
-                          });
-                        }}
-                      >
-                        <MaterialIcons name="home" size={16} color="#4a86e8" />
-                        <Text style={styles.actionChipText}>Ver imóvel</Text>
-                      </TouchableOpacity>
-                    )}
-                    {transaction.tenant_id && (
-                      <TouchableOpacity
-                        style={styles.actionChip}
-                        onPress={() => {
-                          const minimalTenant = {
-                            id: transaction.tenant_id,
-                            full_name: transaction.tenants?.full_name || 'Inquilino',
-                          };
-                          navigation.navigate('TenantDetails', {
-                            tenant: minimalTenant,
-                          });
-                        }}
-                      >
-                        <MaterialIcons name="person" size={16} color="#4a86e8" />
-                        <Text style={styles.actionChipText}>Ver inquilino</Text>
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      style={[styles.actionChip, styles.actionChipDanger]}
-                      onPress={() => handleDeleteTransaction(transaction)}
-                    >
-                      <MaterialIcons name="delete" size={16} color="#F44336" />
-                      <Text style={[styles.actionChipText, { color: '#F44336' }]}>Excluir</Text>
-                    </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Visão geral</Text>
+                <View style={styles.overviewRow}>
+                  <View style={[styles.overviewCard, styles.overviewCardIncome]}>
+                    <Text style={styles.overviewLabel}>Entradas</Text>
+                    <Text style={styles.incomeAmount}>{formatCurrency(overview.totalIncome)}</Text>
+                  </View>
+                  <View style={[styles.overviewCard, styles.overviewCardExpense]}>
+                    <Text style={styles.overviewLabel}>Despesas</Text>
+                    <Text style={styles.expenseAmount}>{formatCurrency(overview.totalExpenses)}</Text>
+                  </View>
+                  <View style={[styles.overviewCard, styles.overviewCardProfit]}>
+                    <Text style={styles.overviewLabel}>Lucro</Text>
+                    <Text style={styles.profitAmount}>{formatCurrency(overview.netProfit)}</Text>
                   </View>
                 </View>
-                <Text
-                  style={[
-                    styles.transactionAmount,
-                    transaction.type === 'income' ? styles.income : styles.expense,
-                  ]}
-                >
-                  {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                </Text>
+
+                    <View style={styles.filtersRow}>
+                  <TouchableOpacity
+                    style={[styles.filterChip, filterType === 'all' && styles.filterChipActive]}
+                    onPress={() => setFilterType('all')}
+                  >
+                    <Text style={[styles.filterChipText, filterType === 'all' && styles.filterChipTextActive]}>
+                      Todos
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.filterChip, filterType === 'income' && styles.filterChipActive]}
+                    onPress={() => setFilterType('income')}
+                  >
+                    <Text style={[styles.filterChipText, filterType === 'income' && styles.filterChipTextActive]}>
+                      Entradas
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.filterChip, filterType === 'expense' && styles.filterChipActive]}
+                    onPress={() => setFilterType('expense')}
+                  >
+                    <Text style={[styles.filterChipText, filterType === 'expense' && styles.filterChipTextActive]}>
+                      Despesas
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.dateFilterRow}>
+                  <Text style={styles.dateFilterLabel}>Período</Text>
+                  <TouchableOpacity
+                    style={styles.periodField}
+                    onPress={() => setShowRangePicker(true)}
+                  >
+                    <MaterialIcons name="date-range" size={18} color="#666" />
+                    <Text style={styles.periodFieldText}>
+                      {customStartDate && customEndDate
+                        ? `${formatDate(customStartDate)} - ${formatDate(customEndDate)}`
+                        : customStartDate
+                          ? `${formatDate(customStartDate)} - ...`
+                          : 'Selecionar período'}
+                    </Text>
+                    {(customStartDate || customEndDate) && (
+                      <TouchableOpacity
+                        style={styles.periodClearButton}
+                        onPress={() => {
+                          setCustomStartDate(null);
+                          setCustomEndDate(null);
+                        }}
+                      >
+                        <MaterialIcons name="close" size={16} color="#666" />
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.searchAndDateContainer}>
+                  <SearchBar
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Buscar por descrição ou imóvel"
+                  />
+                </View>
               </View>
-            ))}
-          </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Lançamentos</Text>
+                {error && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{error}</Text>
+                    <TouchableOpacity style={styles.retryButton} onPress={fetchFinances}>
+                      <Text style={styles.retryButtonText}>Tentar novamente</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {!error && getFilteredTransactions.length === 0 && (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyTitle}>Nenhum lançamento neste período</Text>
+                    <Text style={styles.emptySubtitle}>
+                      Ajuste os filtros ou adicione o primeiro lançamento financeiro.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.emptyButton}
+                      onPress={handleAddTransaction}
+                    >
+                      <Text style={styles.emptyButtonText}>Adicionar lançamento</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {!error && getFilteredTransactions.length > 0 && getFilteredTransactions.map((transaction) => (
+                  <View key={transaction.id} style={styles.transactionCard}>
+                    <View style={styles.transactionDetails}>
+                      <Text style={styles.transactionDesc}>{transaction.description}</Text>
+                      <Text style={styles.transactionMeta}>
+                        {transaction.properties?.address || 'Sem imóvel vinculado'}
+                        {transaction.tenants?.full_name
+                          ? ` • ${transaction.tenants.full_name}`
+                          : ' • Sem inquilino'}
+                        {' • '}
+                        {formatDate(transaction.date)}
+                      </Text>
+                      <View style={styles.transactionActionsRow}>
+                        {transaction.property_id && (
+                          <TouchableOpacity
+                            style={styles.actionChip}
+                            onPress={() => {
+                              const minimalProperty = {
+                                id: transaction.property_id,
+                                address: transaction.properties?.address || 'Imóvel',
+                              };
+                              navigation.navigate('PropertyDetails', {
+                                property: minimalProperty,
+                              });
+                            }}
+                          >
+                            <MaterialIcons name="home" size={16} color="#4a86e8" />
+                            <Text style={styles.actionChipText}>Ver imóvel</Text>
+                          </TouchableOpacity>
+                        )}
+                        {transaction.tenant_id && (
+                          <TouchableOpacity
+                            style={styles.actionChip}
+                            onPress={() => {
+                              const minimalTenant = {
+                                id: transaction.tenant_id,
+                                full_name: transaction.tenants?.full_name || 'Inquilino',
+                              };
+                              navigation.navigate('TenantDetails', {
+                                tenant: minimalTenant,
+                              });
+                            }}
+                          >
+                            <MaterialIcons name="person" size={16} color="#4a86e8" />
+                            <Text style={styles.actionChipText}>Ver inquilino</Text>
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          style={[styles.actionChip, styles.actionChipDanger]}
+                          onPress={() => handleDeleteTransaction(transaction)}
+                        >
+                          <MaterialIcons name="delete" size={16} color="#F44336" />
+                          <Text style={[styles.actionChipText, { color: '#F44336' }]}>Excluir</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        styles.transactionAmount,
+                        transaction.type === 'income' ? styles.income : styles.expense,
+                      ]}
+                    >
+                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
         </ScrollView>
         <RangeDatePicker
           visible={showRangePicker}

@@ -111,8 +111,18 @@ const SubscriptionScreen = ({ navigation }) => {
         }
       } else {
         // result.error pode ser um objeto com message ou uma string
-        const errorMessage = result.error?.message || result.error || 'Erro ao processar compra';
-        Alert.alert('Erro', errorMessage);
+        let errorMessage = result.error?.message || result.error || 'Erro ao processar compra';
+        
+        // Se for uma string longa (com múltiplas linhas), quebra em múltiplas linhas
+        if (typeof errorMessage === 'string' && errorMessage.includes('\n')) {
+          // Mantém a mensagem como está (já formatada)
+        } else if (typeof errorMessage === 'string') {
+          // Adiciona quebras de linha para melhor legibilidade
+          errorMessage = errorMessage.replace(/\. /g, '.\n\n');
+        }
+        
+        console.error('Erro ao processar compra:', result.error);
+        Alert.alert('Erro na Compra', errorMessage);
       }
     } catch (error) {
       console.error('Erro ao processar compra:', error);

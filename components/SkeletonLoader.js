@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Animated, Easing } from 'react-native';
-import { colors } from '../theme';
+import { colors, radii } from '../theme';
 
 /**
  * Componente de Skeleton Loader para exibir placeholders durante carregamento
@@ -70,12 +70,23 @@ export const PropertyCardSkeleton = () => (
  */
 export const TenantCardSkeleton = () => (
   <View style={styles.tenantCardSkeleton}>
-    <SkeletonLoader width={50} height={50} borderRadius={25} />
+    <SkeletonLoader width={50} height={50} borderRadius={25} style={styles.tenantAvatarSkeleton} />
     <View style={styles.tenantContentSkeleton}>
       <SkeletonLoader width="70%" height={18} style={styles.marginBottom} />
-      <SkeletonLoader width="50%" height={14} />
+      <View style={styles.tenantMetaSkeleton}>
+        <SkeletonLoader width={16} height={16} borderRadius={8} />
+        <SkeletonLoader width="60%" height={14} style={{ marginLeft: 5 }} />
+      </View>
+      <View style={[styles.tenantMetaSkeleton, { marginTop: 4 }]}>
+        <SkeletonLoader width={16} height={16} borderRadius={8} />
+        <SkeletonLoader width="80%" height={14} style={{ marginLeft: 5 }} />
+      </View>
+      <SkeletonLoader width={120} height={22} borderRadius={12} style={{ marginTop: 8, alignSelf: 'flex-start' }} />
     </View>
-    <SkeletonLoader width={80} height={40} borderRadius={8} />
+    <View style={styles.tenantDueDateSkeleton}>
+      <SkeletonLoader width={70} height={12} style={styles.marginBottom} />
+      <SkeletonLoader width={60} height={16} />
+    </View>
   </View>
 );
 
@@ -97,6 +108,55 @@ export const TenantsListSkeleton = ({ count = 5 }) => (
   <View style={styles.tenantsListContainer}>
     {Array.from({ length: count }).map((_, index) => (
       <TenantCardSkeleton key={index} />
+    ))}
+  </View>
+);
+
+/**
+ * Skeleton para cards de visão geral de finanças (Entradas, Despesas, Lucro)
+ */
+export const OverviewSkeleton = () => (
+  <View style={styles.overviewRowSkeleton}>
+    <View style={[styles.overviewCardSkeleton, styles.overviewCardSkeletonFirst]}>
+      <SkeletonLoader width="60%" height={14} style={styles.marginBottom} />
+      <SkeletonLoader width="80%" height={18} />
+    </View>
+    <View style={styles.overviewCardSkeleton}>
+      <SkeletonLoader width="60%" height={14} style={styles.marginBottom} />
+      <SkeletonLoader width="80%" height={18} />
+    </View>
+    <View style={[styles.overviewCardSkeleton, styles.overviewCardSkeletonLast]}>
+      <SkeletonLoader width="60%" height={14} style={styles.marginBottom} />
+      <SkeletonLoader width="80%" height={18} />
+    </View>
+  </View>
+);
+
+/**
+ * Skeleton para card de transação financeira
+ */
+export const TransactionCardSkeleton = () => (
+  <View style={styles.transactionCardSkeleton}>
+    <View style={styles.transactionDetailsSkeleton}>
+      <SkeletonLoader width="75%" height={16} />
+      <SkeletonLoader width="90%" height={13} style={{ marginTop: 4 }} />
+      <View style={styles.transactionActionsSkeleton}>
+        <SkeletonLoader width={85} height={26} borderRadius={12} />
+        <SkeletonLoader width={95} height={26} borderRadius={12} />
+        <SkeletonLoader width={65} height={26} borderRadius={12} />
+      </View>
+    </View>
+    <SkeletonLoader width={85} height={18} />
+  </View>
+);
+
+/**
+ * Skeleton para lista de transações financeiras
+ */
+export const FinancesListSkeleton = ({ count = 5 }) => (
+  <View style={styles.financesListContainer}>
+    {Array.from({ length: count }).map((_, index) => (
+      <TransactionCardSkeleton key={index} />
     ))}
   </View>
 );
@@ -132,7 +192,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface || '#fff',
-    borderRadius: 12,
+    borderRadius: radii.md || 12,
     padding: 15,
     marginBottom: 15,
     shadowColor: '#000',
@@ -140,13 +200,73 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
-    alignSelf: 'stretch',
+    width: '100%',
+  },
+  tenantAvatarSkeleton: {
+    marginRight: 15,
   },
   tenantContentSkeleton: {
     flex: 1,
-    marginLeft: 15,
+  },
+  tenantMetaSkeleton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  tenantDueDateSkeleton: {
+    alignItems: 'center',
+    paddingLeft: 10,
   },
   tenantsListContainer: {
+    width: '100%',
+  },
+  overviewRowSkeleton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  overviewCardSkeleton: {
+    flex: 1,
+    backgroundColor: colors.surface || '#fff',
+    borderRadius: radii.md || 12,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    marginRight: 8,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  overviewCardSkeletonFirst: {
+    // Primeiro card mantém marginRight
+  },
+  overviewCardSkeletonLast: {
+    marginRight: 0,
+  },
+  transactionCardSkeleton: {
+    backgroundColor: colors.surface || '#fff',
+    borderRadius: radii.md || 12,
+    padding: 15,
+    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+  },
+  transactionDetailsSkeleton: {
+    flex: 1,
+    marginRight: 10,
+  },
+  transactionActionsSkeleton: {
+    flexDirection: 'row',
+    marginTop: 8,
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  financesListContainer: {
     width: '100%',
   },
 });

@@ -12,6 +12,7 @@ import {
   Modal,
   Animated,
   Dimensions,
+  Easing,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -67,14 +68,22 @@ const PropertyItem = React.memo(({ item, onPress, isBlocked }) => {
         cachePolicy="memory-disk"
       />
       <View style={styles.propertyInfo}>
-        <Text style={styles.propertyAddress} numberOfLines={2}>{formatPropertyAddress(item)}</Text>
+        <Text style={styles.propertyAddress} numberOfLines={2} ellipsizeMode="tail">
+          {formatPropertyAddress(item)}
+        </Text>
         {item.rent && (
-          <Text style={styles.propertyRent}>{formatCurrency(item.rent)}/mês</Text>
+          <Text style={styles.propertyRent} numberOfLines={1}>
+            {formatCurrency(item.rent)}/mês
+          </Text>
         )}
         <View style={styles.propertyMeta}>
-          <Text style={styles.propertyType}>{item.type}</Text>
+          <Text style={styles.propertyType} numberOfLines={1}>
+            {item.type}
+          </Text>
           <View style={[styles.statusBadge, statusStyle]}>
-            <Text style={[styles.statusText, statusTextStyle]}>{status}</Text>
+            <Text style={[styles.statusText, statusTextStyle]} numberOfLines={1}>
+              {status}
+            </Text>
           </View>
         </View>
       </View>
@@ -108,16 +117,17 @@ const PropertiesScreen = ({ navigation }) => {
   // Animar bottom sheet quando abrir/fechar
   useEffect(() => {
     if (showFiltersModal) {
-      Animated.spring(slideAnim, {
+      Animated.timing(slideAnim, {
         toValue: 0,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
-        tension: 50,
-        friction: 7,
       }).start();
     } else {
       Animated.timing(slideAnim, {
         toValue: Dimensions.get('window').height,
-        duration: 250,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start();
     }
@@ -761,26 +771,33 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 8,
+    flexShrink: 1,
   },
   propertyRent: {
     fontSize: 16,
     fontWeight: '600',
     color: '#4a86e8',
     marginBottom: 8,
+    flexShrink: 1,
   },
   propertyMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 4,
   },
   propertyType: {
     color: '#666',
     fontSize: 14,
+    flex: 1,
+    flexShrink: 1,
+    marginRight: 8,
   },
   statusBadge: {
     paddingVertical: 5,
     paddingHorizontal: 12,
     borderRadius: 15,
+    flexShrink: 0,
   },
   rented: {
     backgroundColor: '#e8f5e9',

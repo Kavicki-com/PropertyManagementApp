@@ -11,6 +11,7 @@ import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits } 
 const SettingsScreen = ({ navigation }) => {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [userPhotoUrl, setUserPhotoUrl] = useState(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [subscription, setSubscription] = useState(null);
   const [propertyCount, setPropertyCount] = useState(0);
@@ -22,12 +23,17 @@ const SettingsScreen = ({ navigation }) => {
         setUserEmail(user.email);
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name')
+          .select('full_name, photo_url')
           .eq('id', user.id)
           .single();
 
-        if (profile && profile.full_name) {
-          setUserName(profile.full_name);
+        if (profile) {
+          if (profile.full_name) {
+            setUserName(profile.full_name);
+          }
+          if (profile.photo_url) {
+            setUserPhotoUrl(profile.photo_url);
+          }
         }
 
         // Carregar dados de assinatura
@@ -156,18 +162,47 @@ const SettingsScreen = ({ navigation }) => {
 
   const handleWhatsAppSupport = async () => {
     const phoneNumber = '5521966087421';
-    const url = `whatsapp://send?phone=${phoneNumber}`;
+    const message = 'Olá! Preciso de ajuda com o aplicativo llord.';
+    
     try {
-      const canOpen = await Linking.canOpenURL(url);
+      // Tenta abrir o WhatsApp app diretamente primeiro
+      const whatsappUrl = `whatsapp://send?phone=${phoneNumber}&text=${encodeURIComponent(message)}`;
+      
+      // Verifica se pode abrir (pode falhar em alguns dispositivos mesmo com WhatsApp instalado)
+      const canOpen = await Linking.canOpenURL(whatsappUrl).catch(() => false);
+      
       if (canOpen) {
-        await Linking.openURL(url);
+        await Linking.openURL(whatsappUrl);
       } else {
-        // Fallback para WhatsApp Web se o app não estiver instalado
-        const webUrl = `https://wa.me/${phoneNumber}`;
-        await Linking.openURL(webUrl);
+        // Fallback: tenta abrir mesmo assim (pode funcionar mesmo se canOpenURL retornar false)
+        try {
+          await Linking.openURL(whatsappUrl);
+        } catch {
+          // Se falhar, usa WhatsApp Web como último recurso
+          const webUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+          const canOpenWeb = await Linking.canOpenURL(webUrl).catch(() => true);
+          if (canOpenWeb) {
+            await Linking.openURL(webUrl);
+          } else {
+            Alert.alert(
+              'Erro',
+              'Não foi possível abrir o WhatsApp. Por favor, instale o aplicativo WhatsApp ou acesse https://wa.me/' + phoneNumber
+            );
+          }
+        }
       }
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível abrir o WhatsApp.');
+      console.error('Erro ao abrir WhatsApp:', error);
+      // Última tentativa com WhatsApp Web
+      try {
+        const webUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+        await Linking.openURL(webUrl);
+      } catch (webError) {
+        Alert.alert(
+          'Erro',
+          'Não foi possível abrir o WhatsApp. Por favor, instale o aplicativo WhatsApp ou acesse https://wa.me/' + phoneNumber
+        );
+      }
     }
   };
 
@@ -216,10 +251,16 @@ const SettingsScreen = ({ navigation }) => {
           <View style={styles.userInfoRow}>
             <View style={styles.avatarContainer}>
               <Image
-                source={require('../assets/avatar-placeholder.png')}
+                source={
+                  userPhotoUrl
+                    ? { uri: userPhotoUrl }
+                    : require('../assets/avatar-placeholder.png')
+                }
                 style={styles.avatar}
                 contentFit="cover"
                 cachePolicy="memory-disk"
+                placeholder={require('../assets/avatar-placeholder.png')}
+                transition={200}
               />
             </View>
             <View style={styles.userTextContainer}>

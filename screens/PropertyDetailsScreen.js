@@ -629,29 +629,33 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             <>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Rua/Avenida</Text>
-                <Text style={styles.infoValue}>
+                <Text style={styles.infoValue} numberOfLines={0} ellipsizeMode="tail">
                   {property.street}{property.number ? `, ${property.number}` : ''}
                 </Text>
               </View>
               {property.complement && (
                 <View style={styles.infoRow}>
                   <Text style={styles.infoLabel}>Complemento</Text>
-                  <Text style={styles.infoValue}>{property.complement}</Text>
+                  <Text style={styles.infoValue} numberOfLines={0} ellipsizeMode="tail">
+                    {property.complement}
+                  </Text>
                 </View>
               )}
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Bairro</Text>
-                <Text style={styles.infoValue}>{property.neighborhood || 'N/A'}</Text>
+                <Text style={styles.infoValue} numberOfLines={0} ellipsizeMode="tail">
+                  {property.neighborhood || 'N/A'}
+                </Text>
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Cidade/Estado</Text>
-                <Text style={styles.infoValue}>
+                <Text style={styles.infoValue} numberOfLines={0} ellipsizeMode="tail">
                   {property.city || 'N/A'}{property.state ? ` - ${property.state}` : ''}
                 </Text>
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>CEP</Text>
-                <Text style={styles.infoValue}>
+                <Text style={styles.infoValue} numberOfLines={0} ellipsizeMode="tail">
                   {property.cep ? `${property.cep.slice(0, 5)}-${property.cep.slice(5)}` : 'N/A'}
                 </Text>
               </View>
@@ -659,7 +663,9 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           ) : (
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Endereço</Text>
-              <Text style={styles.infoValue}>{property.address || 'N/A'}</Text>
+              <Text style={styles.infoValue} numberOfLines={0} ellipsizeMode="tail">
+                {property.address || 'N/A'}
+              </Text>
             </View>
           )}
         </View>
@@ -939,14 +945,21 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
+        alignItems: 'flex-start',
     },
     infoLabel: {
         ...typography.bodyStrong,
         fontSize: 14,
+        minWidth: 120,
+        maxWidth: 140,
+        marginRight: 16,
+        flexShrink: 0,
     },
     infoValue: {
         ...typography.body,
         fontSize: 16,
+        flex: 1,
+        flexShrink: 1,
     },
     tenantCard: {
         backgroundColor: '#f0f7ff',

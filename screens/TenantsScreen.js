@@ -11,6 +11,7 @@ import {
   Modal,
   Animated,
   Dimensions,
+  Easing,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -133,16 +134,17 @@ const TenantsScreen = ({ navigation }) => {
   // Animar bottom sheet quando abrir/fechar
   useEffect(() => {
     if (showFiltersModal) {
-      Animated.spring(slideAnim, {
+      Animated.timing(slideAnim, {
         toValue: 0,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
-        tension: 50,
-        friction: 7,
       }).start();
     } else {
       Animated.timing(slideAnim, {
         toValue: Dimensions.get('window').height,
-        duration: 250,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start();
     }
