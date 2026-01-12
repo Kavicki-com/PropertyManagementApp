@@ -1,5 +1,5 @@
 // screens/LinkTenantScreen.js
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,10 +13,10 @@ import { Image } from 'expo-image';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
-import { radii, colors } from '../theme';
 import { useIsFocused } from '@react-navigation/native';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 
-const TenantItem = ({ item, onPress }) => {
+const TenantItem = ({ item, onPress, styles }) => {
   const isOccupied = !!item.property_id;
 
   return (
@@ -32,7 +32,7 @@ const TenantItem = ({ item, onPress }) => {
       <View style={styles.tenantInfo}>
         <Text style={styles.tenantName}>{item.full_name}</Text>
         <View style={styles.tenantMetaRow}>
-          <MaterialIcons name="phone" size={16} color="#666" />
+          <MaterialIcons name="phone" size={16} color={styles.tenantMetaText.color} />
           <Text style={styles.tenantMetaText}>{item.phone || 'Sem telefone'}</Text>
         </View>
       </View>
@@ -58,6 +58,8 @@ const TenantItem = ({ item, onPress }) => {
 const LinkTenantScreen = ({ route, navigation }) => {
   const { propertyId } = route.params;
   const isFocused = useIsFocused();
+  const { theme } = useAccessibilityTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -183,7 +185,7 @@ const LinkTenantScreen = ({ route, navigation }) => {
   if (loading && tenants.length === 0) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
@@ -197,7 +199,7 @@ const LinkTenantScreen = ({ route, navigation }) => {
       <FlatList
         data={tenants}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <TenantItem item={item} onPress={handleSelectTenant} />}
+        renderItem={({ item }) => <TenantItem item={item} onPress={handleSelectTenant} styles={styles} />}
         contentContainerStyle={styles.listContent}
         removeClippedSubviews={true}
         maxToRenderPerBatch={10}
@@ -214,10 +216,10 @@ const LinkTenantScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   listContent: {
     padding: 15,
@@ -226,29 +228,36 @@ const styles = StyleSheet.create({
   tenantCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderRadius: 12,
     padding: 15,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+    ...(theme.isHighContrast ? {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+      shadowOpacity: 0,
+      elevation: 0,
+    } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 3,
+    }),
   },
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
     marginRight: 15,
+    backgroundColor: theme.colors.borderSubtle,
   },
   tenantInfo: {
     flex: 1,
   },
   tenantName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    ...theme.typography.bodyStrong,
+    color: theme.colors.textPrimary,
   },
   tenantMetaRow: {
     flexDirection: 'row',
@@ -257,29 +266,29 @@ const styles = StyleSheet.create({
   },
   tenantMetaText: {
     marginLeft: 5,
-    fontSize: 13,
-    color: '#666',
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
   },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     borderWidth: 1,
   },
   statusAvailable: {
-    backgroundColor: '#e3f2fd',
-    borderColor: '#bbdefb',
+    backgroundColor: theme.colors.surfaceHighlight || '#e3f2fd',
+    borderColor: theme.colors.primary,
   },
   statusOccupied: {
     backgroundColor: '#e8f5e9',
     borderColor: '#c8e6c9',
   },
   statusText: {
-    fontSize: 11,
+    ...theme.typography.caption,
     fontWeight: '600',
   },
   statusAvailableText: {
-    color: '#1565c0',
+    color: theme.colors.primary,
   },
   statusOccupiedText: {
     color: '#2e7d32',
@@ -289,10 +298,10 @@ const styles = StyleSheet.create({
     left: 15,
     right: 15,
     bottom: 20,
-    backgroundColor: '#4a86e8',
+    backgroundColor: theme.colors.primary,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -306,7 +315,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: 15,
+    ...theme.typography.button,
   },
 });
 

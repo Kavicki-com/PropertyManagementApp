@@ -21,7 +21,8 @@ import { useIsFocused } from '@react-navigation/native';
 import SearchBar from '../components/SearchBar';
 import { getBlockedProperties, getUserSubscription, getActivePropertiesCount, getRequiredPlan, canAddProperty } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
-import { colors, radii, typography } from '../theme';
+import { colors, radii, typography } from '../theme'; // Keep for fallbacks in hooks if needed, or remove if unused. Let's remove if unused.
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { getCache, setCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
 import { PropertiesListSkeleton } from '../components/SkeletonLoader';
 
@@ -42,7 +43,7 @@ const formatCurrency = (value) => {
   return `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
 };
 
-const PropertyItem = React.memo(({ item, onPress, isBlocked }) => {
+const PropertyItem = React.memo(({ item, onPress, isBlocked, styles, theme }) => {
   const hasTenant = item.tenants && item.tenants.length > 0;
   const status = hasTenant ? 'Alugada' : 'Disponível';
   const statusStyle = hasTenant ? styles.rented : styles.available;
@@ -53,12 +54,12 @@ const PropertyItem = React.memo(({ item, onPress, isBlocked }) => {
     : require('../assets/property-placeholder.jpg');
 
   return (
-    <TouchableOpacity 
-      style={[styles.propertyCard, isBlocked && styles.propertyCardBlocked]} 
+    <TouchableOpacity
+      style={[styles.propertyCard, isBlocked && styles.propertyCardBlocked]}
       onPress={() => onPress(item)}
       activeOpacity={isBlocked ? 0.5 : 0.7}
     >
-      <Image 
+      <Image
         source={imageSource}
         style={styles.propertyImage}
         contentFit="cover"
@@ -95,11 +96,15 @@ const PropertyItem = React.memo(({ item, onPress, isBlocked }) => {
     prevProps.item.id === nextProps.item.id &&
     prevProps.isBlocked === nextProps.isBlocked &&
     prevProps.item.image_urls?.[0] === nextProps.item.image_urls?.[0] &&
-    prevProps.item.rent === nextProps.item.rent
+    prevProps.item.rent === nextProps.item.rent &&
+    prevProps.theme === nextProps.theme
   );
 });
 
 const PropertiesScreen = ({ navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -135,14 +140,14 @@ const PropertiesScreen = ({ navigation }) => {
 
   const fetchProperties = async (useCache = true) => {
     setLoading(true);
-    
+
     // Tentar buscar do cache primeiro
     if (useCache) {
       const cachedData = await getCache(CACHE_KEYS.PROPERTIES);
       if (cachedData) {
         setProperties(cachedData);
         setLoading(false);
-        
+
         // Buscar propriedades bloqueadas em background
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
@@ -168,10 +173,10 @@ const PropertiesScreen = ({ navigation }) => {
     } else {
       const propertiesData = data || [];
       setProperties(propertiesData);
-      
+
       // Salvar no cache
       await setCache(CACHE_KEYS.PROPERTIES, propertiesData, CACHE_TTL.DEFAULT);
-      
+
       // Buscar propriedades bloqueadas
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -199,7 +204,7 @@ const PropertiesScreen = ({ navigation }) => {
         const currentPlan = subscription?.subscription_plan || 'free';
         // Se o plano atual é basic, sempre sugere premium
         const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount);
-        
+
         setSubscriptionInfo({
           currentPlan,
           propertyCount,
@@ -227,7 +232,7 @@ const PropertiesScreen = ({ navigation }) => {
       const currentPlan = subscription?.subscription_plan || 'free';
       // Se o plano atual é basic, sempre sugere premium
       const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount + 1);
-      
+
       setSubscriptionInfo({
         currentPlan,
         propertyCount,
@@ -316,7 +321,7 @@ const PropertiesScreen = ({ navigation }) => {
         <View style={styles.headerContainer}>
           <Text style={styles.header}>Propriedades</Text>
         </View>
-        
+
         {loading && properties.length === 0 ? (
           <View style={styles.scrollContainer}>
             <PropertiesListSkeleton count={5} />
@@ -337,17 +342,19 @@ const PropertiesScreen = ({ navigation }) => {
                 style={styles.filterButton}
                 onPress={() => setShowFiltersModal(true)}
               >
-                <MaterialIcons name="tune" size={20} color={colors.primary} />
+                <MaterialIcons name="tune" size={20} color={theme.colors.primary} />
                 <Text style={styles.filterButtonText}>Filtros</Text>
               </TouchableOpacity>
             </View>
             <FlatList
               data={activeProperties}
               renderItem={({ item }) => (
-                <PropertyItem 
-                  item={item} 
+                <PropertyItem
+                  item={item}
                   onPress={handlePropertyPress}
                   isBlocked={blockedPropertyIds.includes(item.id)}
+                  styles={styles}
+                  theme={theme}
                 />
               )}
               keyExtractor={item => item.id.toString()}
@@ -381,6 +388,8 @@ const PropertiesScreen = ({ navigation }) => {
                             key={item.id}
                             item={item}
                             onPress={handlePropertyPress}
+                            styles={styles}
+                            theme={theme}
                           />
                         ))}
                       </View>
@@ -389,9 +398,9 @@ const PropertiesScreen = ({ navigation }) => {
                 ) : null
               }
             />
-            
-            <TouchableOpacity 
-              style={styles.addButton} 
+
+            <TouchableOpacity
+              style={styles.addButton}
               onPress={handleAddProperty}
             >
               <MaterialIcons name="add" size={30} color="white" />
@@ -441,7 +450,7 @@ const PropertiesScreen = ({ navigation }) => {
                     onPress={() => setShowFiltersModal(false)}
                     style={styles.closeButton}
                   >
-                    <MaterialIcons name="close" size={24} color={colors.textPrimary} />
+                    <MaterialIcons name="close" size={24} color={theme.colors.textPrimary} />
                   </TouchableOpacity>
                 </View>
 
@@ -617,22 +626,21 @@ const PropertiesScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   headerContainer: {
     padding: 15,
     paddingTop: 50,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: theme.colors.borderSubtle || '#ddd',
   },
   header: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    ...theme.typography.screenTitle,
+    color: theme.colors.textPrimary || '#333',
   },
   listContent: {
     padding: 15,
@@ -643,14 +651,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingTop: 10,
     paddingBottom: 10,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     marginTop: 4,
     gap: 10,
     alignItems: 'center',
   },
   searchBarContainer: {
     flex: 0.8,
-    minWidth: 0, // Permite que o flex funcione corretamente
+    minWidth: 0,
   },
   filterButton: {
     flex: 0.2,
@@ -659,16 +667,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     borderWidth: 1,
-    borderColor: colors.primary,
-    backgroundColor: colors.surface,
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.surface,
     gap: 6,
   },
   filterButtonText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '600',
+    ...theme.typography.button,
+    color: theme.colors.primary,
   },
   modalOverlay: {
     flex: 1,
@@ -676,9 +683,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomSheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: theme.radii.lg,
+    borderTopRightRadius: theme.radii.lg,
     paddingBottom: 40,
     maxHeight: '80%',
   },
@@ -688,11 +695,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
+    borderBottomColor: theme.colors.borderSubtle,
   },
   bottomSheetTitle: {
-    ...typography.sectionTitle,
-    fontSize: 20,
+    ...theme.typography.sectionTitle,
+    color: theme.colors.textPrimary,
   },
   closeButton: {
     padding: 4,
@@ -704,7 +711,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingTop: 10,
     paddingBottom: 10,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     marginTop: 4,
   },
   filterRow: {
@@ -716,8 +723,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   filterLabel: {
-    fontSize: 12,
-    color: '#666',
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
     marginBottom: 4,
   },
   filterChipsContainer: {
@@ -728,33 +735,40 @@ const styles = StyleSheet.create({
   chip: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.colors.borderSubtle || '#ddd',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
   },
   chipActive: {
-    backgroundColor: '#4a86e8',
-    borderColor: '#4a86e8',
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
   },
   chipText: {
-    fontSize: 12,
-    color: '#555',
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
   },
   chipTextActive: {
     color: '#fff',
     fontWeight: '600',
   },
   propertyCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...(theme.isHighContrast ? {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+      shadowOpacity: 0,
+      elevation: 0,
+    } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    }),
   },
   propertyCardBlocked: {
     opacity: 0.5,
@@ -762,21 +776,20 @@ const styles = StyleSheet.create({
   propertyImage: {
     width: '100%',
     height: 150,
-    backgroundColor: '#e0e0e0', // Cor de fundo para o placeholder
+    backgroundColor: theme.colors.borderSubtle || '#e0e0e0',
   },
   propertyInfo: {
     padding: 15,
   },
   propertyAddress: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...theme.typography.sectionTitle,
     marginBottom: 8,
     flexShrink: 1,
+    color: theme.colors.textPrimary,
   },
   propertyRent: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#4a86e8',
+    ...theme.typography.bodyStrong,
+    color: theme.colors.primary,
     marginBottom: 8,
     flexShrink: 1,
   },
@@ -787,8 +800,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   propertyType: {
-    color: '#666',
-    fontSize: 14,
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
     flex: 1,
     flexShrink: 1,
     marginRight: 8,
@@ -800,20 +813,20 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   rented: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: theme.colors.successSoft || '#e8f5e9',
   },
   available: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: theme.colors.primarySoft || '#e3f2fd', // Assuming primarySoft is bluish
   },
   statusText: {
+    ...theme.typography.caption,
     fontWeight: 'bold',
-    fontSize: 12,
   },
   rentedText: {
-    color: '#2e7d32',
+    color: theme.colors.success || '#2e7d32',
   },
   availableText: {
-    color: '#1565c0',
+    color: theme.colors.primary || '#1565c0',
   },
   archivedSection: {
     marginTop: 10,
@@ -821,15 +834,14 @@ const styles = StyleSheet.create({
   archivedToggleButton: {
     paddingVertical: 6,
     paddingHorizontal: 4,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     borderWidth: 0,
     alignItems: 'center',
     backgroundColor: 'transparent',
   },
   archivedToggleText: {
-    color: '#666',
-    fontWeight: '500',
-    fontSize: 14,
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
     textDecorationLine: 'underline',
   },
   archivedList: {
@@ -839,10 +851,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 30,
     right: 30,
-    backgroundColor: '#4a86e8',
+    backgroundColor: theme.colors.primary,
     width: 60,
     height: 60,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

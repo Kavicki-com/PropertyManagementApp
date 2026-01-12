@@ -18,18 +18,19 @@ import { fetchActiveContractsByTenants } from '../lib/contractsService';
 import { useIsFocused } from '@react-navigation/native';
 import { startOfMonth, endOfMonth, format, differenceInDays, setDate, addMonths } from 'date-fns';
 import ptBR from 'date-fns/locale/pt-BR';
-import { colors, radii, typography } from '../theme';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits, checkSubscriptionStatus, getBlockedProperties } from '../lib/subscriptionService';
 import { getCache, setCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
 import SkeletonLoader, { PropertyCardSkeleton, TenantCardSkeleton } from '../components/SkeletonLoader';
 
 // Componente de gráfico de donut com cores por tipo de imóvel
-const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30 }) => {
+const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30, theme, styles }) => {
+  const { colors } = theme;
   const totalResidencial = occupancyByType.Residencial?.total || 0;
   const occupiedResidencial = occupancyByType.Residencial?.occupied || 0;
   const totalComercial = occupancyByType.Comercial?.total || 0;
   const occupiedComercial = occupancyByType.Comercial?.occupied || 0;
-  
+
   const totalProperties = totalResidencial + totalComercial;
   const totalOccupied = occupiedResidencial + occupiedComercial;
   const occupancyRate = totalProperties > 0 ? (totalOccupied / totalProperties) * 100 : 0;
@@ -94,7 +95,7 @@ const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30 }) => {
           },
         ]}
       />
-      
+
       {/* Segmento Residencial ocupado - azul */}
       {residencialOccupiedAngle > 0 && (
         <View
@@ -115,7 +116,7 @@ const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30 }) => {
           ]}
         />
       )}
-      
+
       {/* Segmento Comercial ocupado - cinza (começa após o residencial) */}
       {comercialOccupiedAngle > 0 && (
         <View
@@ -136,7 +137,7 @@ const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30 }) => {
           ]}
         />
       )}
-      
+
       {/* Centro do donut */}
       <View style={styles.donutCenter}>
         <Text style={styles.donutCenterText}>
@@ -149,6 +150,9 @@ const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30 }) => {
 };
 
 const DashboardScreen = ({ navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const { colors, radii, typography } = theme;
   const [stats, setStats] = useState({
     rentCollected: 0,
     activeTenants: 0,
@@ -279,7 +283,7 @@ const DashboardScreen = ({ navigation }) => {
         setBlockedPropertiesCount(cachedData.blockedPropertiesCount || 0);
         setLoading(false);
         setRefreshing(false);
-        
+
         // Atualizar em background sem bloquear UI
         fetchDashboardData(false);
         return;
@@ -310,13 +314,13 @@ const DashboardScreen = ({ navigation }) => {
       .from('tenants')
       .select('id, full_name, due_date, property_id, properties (address)')
       .eq('user_id', user.id);
-    
+
     const recentTransactionsPromise = supabase
-        .from('finances')
-        .select('id, description, amount, type, date, properties (address)')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false })
-        .limit(5);
+      .from('finances')
+      .select('id, description, amount, type, date, properties (address)')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false })
+      .limit(5);
 
     const propertyCountPromise = supabase
       .from('properties')
@@ -377,7 +381,7 @@ const DashboardScreen = ({ navigation }) => {
       const occupiedPropertyIds = new Set(
         (tenantsData || []).filter(t => t.property_id).map(t => t.property_id)
       );
-      
+
       const occupancyByTypeData = {
         Residencial: { total: 0, occupied: 0 },
         Comercial: { total: 0, occupied: 0 },
@@ -510,7 +514,7 @@ const DashboardScreen = ({ navigation }) => {
         {/* Bloco 1 – KPIs principais */}
         <View style={styles.sectionPlain}>
           <Text style={styles.sectionTitle}>Visão geral</Text>
-          
+
           {/* Card de Assinatura */}
           {subscription && (
             <TouchableOpacity
@@ -534,8 +538,8 @@ const DashboardScreen = ({ navigation }) => {
                 )}
               </View>
               <Text style={styles.subscriptionPlan}>
-                {subscription.subscription_plan === 'free' ? 'Gratuito' : 
-                 subscription.subscription_plan === 'basic' ? 'Básico' : 'Premium'}
+                {subscription.subscription_plan === 'free' ? 'Gratuito' :
+                  subscription.subscription_plan === 'basic' ? 'Básico' : 'Premium'}
               </Text>
               {subscription.subscription_expires_at && subscriptionStatus?.active && (
                 <Text style={styles.subscriptionExpires}>
@@ -573,9 +577,8 @@ const DashboardScreen = ({ navigation }) => {
               </Text>
               <Text style={styles.kpiSubLabel}>
                 {stats.propertyCount > 0
-                  ? `${Math.round((stats.occupancyRate / 100) * stats.propertyCount)} de ${
-                      stats.propertyCount
-                    } imóveis`
+                  ? `${Math.round((stats.occupancyRate / 100) * stats.propertyCount)} de ${stats.propertyCount
+                  } imóveis`
                   : 'Nenhum imóvel cadastrado'}
               </Text>
             </TouchableOpacity>
@@ -717,7 +720,7 @@ const DashboardScreen = ({ navigation }) => {
           <Text style={styles.sectionTitle}>Imóveis e ocupação</Text>
           <View style={styles.occupancyCard}>
             <View style={styles.occupancyChartContainer}>
-              <DonutChart occupancyByType={occupancyByType} />
+              <DonutChart occupancyByType={occupancyByType} theme={theme} styles={styles} />
               <View style={styles.occupancyLegend}>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: colors.primary }]} />
@@ -877,20 +880,20 @@ const DashboardScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: theme.colors.background,
   },
   headerContainer: {
     padding: 15,
     paddingTop: 50,
-    backgroundColor: colors.surface,
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
+    borderBottomColor: theme.colors.borderSubtle,
   },
   header: {
-    ...typography.screenTitle,
+    ...theme.typography.screenTitle,
   },
   scrollContainer: {
     flex: 1,
@@ -900,18 +903,25 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   section: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     padding: 15,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    ...(theme.isHighContrast ? {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+      shadowOpacity: 0,
+      elevation: 0,
+    } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      elevation: 2,
+    }),
   },
   sectionTitle: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     marginBottom: 12,
   },
   sectionTitleRow: {
@@ -923,7 +933,7 @@ const styles = StyleSheet.create({
   sectionTitleDate: {
     fontSize: 14,
     fontWeight: '500',
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -933,7 +943,7 @@ const styles = StyleSheet.create({
   },
   sectionLink: {
     fontSize: 13,
-    color: '#4a86e8',
+    color: theme.colors.primary,
     fontWeight: '500',
   },
   kpiRow: {
@@ -943,22 +953,26 @@ const styles = StyleSheet.create({
   kpiCard: {
     flex: 1,
     marginRight: 10,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     padding: 12,
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   kpiIcon: {
     marginBottom: 6,
   },
   kpiLabel: {
-    ...typography.caption,
+    ...theme.typography.caption,
   },
   kpiValue: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     marginTop: 4,
   },
   kpiSubLabel: {
-    ...typography.caption,
+    ...theme.typography.caption,
     marginTop: 2,
   },
   shortcutsGrid: {
@@ -970,9 +984,13 @@ const styles = StyleSheet.create({
     width: '48%',
     marginBottom: 12,
     padding: 12,
-    borderRadius: radii.md,
-    backgroundColor: '#f9fafb',
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.surfaceHighlight || '#f9fafb',
     alignItems: 'center',
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   shortcutIcon: {
     marginBottom: 6,
@@ -980,7 +998,7 @@ const styles = StyleSheet.create({
   shortcutLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
     textAlign: 'center',
   },
   occupancyCard: {
@@ -1017,11 +1035,11 @@ const styles = StyleSheet.create({
   donutCenterText: {
     fontSize: 24,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   donutCenterLabel: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   donutEmpty: {
@@ -1030,8 +1048,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   donutEmptyText: {
-    ...typography.caption,
-    color: colors.textSecondary,
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
   },
   occupancyLegend: {
     flex: 1,
@@ -1052,23 +1070,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   legendLabel: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     fontSize: 14,
     marginBottom: 2,
   },
   legendValue: {
-    ...typography.caption,
+    ...theme.typography.caption,
     fontSize: 13,
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     marginBottom: 2,
   },
   legendPercentage: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     fontSize: 16,
-    color: colors.primary,
+    color: theme.colors.primary,
   },
   occupancySub: {
-    ...typography.caption,
+    ...theme.typography.caption,
     marginTop: 8,
     textAlign: 'center',
   },
@@ -1078,7 +1096,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: theme.colors.borderSubtle,
   },
   upcomingInfo: {
     flex: 1,
@@ -1087,16 +1105,16 @@ const styles = StyleSheet.create({
   upcomingName: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   upcomingMeta: {
-    ...typography.caption,
+    ...theme.typography.caption,
     marginTop: 2,
   },
   upcomingBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     backgroundColor: '#fff3cd',
   },
   upcomingBadgeText: {
@@ -1108,11 +1126,11 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.colors.textPrimary,
   },
   divider: {
     height: 1,
-    backgroundColor: colors.borderSubtle,
+    backgroundColor: theme.colors.borderSubtle,
     marginBottom: 12,
   },
   summaryRow: {
@@ -1123,57 +1141,61 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   summaryLabel: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     fontSize: 15,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   summaryValue: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     fontSize: 18,
-    color: colors.primary,
+    color: theme.colors.primary,
     fontWeight: '700',
   },
   transactionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     paddingVertical: 10,
     marginBottom: 5,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: theme.colors.borderSubtle,
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   transactionDetails: {
     flex: 1,
     marginRight: 10,
   },
   transactionDesc: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
   },
   transactionProperty: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   transactionAmount: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
   },
   income: {
-    color: colors.income,
+    color: theme.colors.income,
   },
   expense: {
-    color: colors.expense,
+    color: theme.colors.expense,
   },
   emptyText: {
-    ...typography.caption,
+    ...theme.typography.caption,
   },
   errorBanner: {
-    backgroundColor: colors.dangerSoft,
+    backgroundColor: theme.colors.dangerSoft,
     paddingHorizontal: 15,
     paddingVertical: 10,
   },
   errorBannerText: {
-    color: colors.danger,
+    color: theme.colors.danger,
     fontSize: 13,
     marginBottom: 6,
   },
@@ -1181,8 +1203,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: radii.pill,
-    backgroundColor: colors.danger,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.danger,
   },
   errorBannerButtonText: {
     color: '#fff',
@@ -1213,7 +1235,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   bottomSheet: {
-    backgroundColor: colors.surface,
+    backgroundColor: theme.colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: Dimensions.get('window').height * 0.85,
@@ -1225,22 +1247,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
+    borderBottomColor: theme.colors.borderSubtle,
   },
   bottomSheetTitle: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     fontSize: 18,
   },
   bottomSheetList: {
     padding: 15,
   },
   bottomSheetItem: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     marginBottom: 12,
     padding: 15,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: theme.colors.borderSubtle,
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   bottomSheetItemContent: {
     flexDirection: 'row',
@@ -1252,20 +1278,20 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   bottomSheetItemName: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     fontSize: 16,
     marginBottom: 4,
   },
   bottomSheetItemProperty: {
-    ...typography.caption,
+    ...theme.typography.caption,
     fontSize: 14,
     marginBottom: 4,
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   bottomSheetItemDate: {
-    ...typography.caption,
+    ...theme.typography.caption,
     fontSize: 13,
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   bottomSheetItemRight: {
     alignItems: 'flex-end',
@@ -1273,7 +1299,7 @@ const styles = StyleSheet.create({
   bottomSheetBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     backgroundColor: '#fff3cd',
     marginBottom: 8,
   },
@@ -1283,21 +1309,25 @@ const styles = StyleSheet.create({
     color: '#92400e',
   },
   bottomSheetItemAmount: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     fontSize: 16,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   bottomSheetEmpty: {
     padding: 40,
     alignItems: 'center',
   },
   subscriptionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: theme.colors.borderSubtle,
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   subscriptionHeader: {
     flexDirection: 'row',
@@ -1305,35 +1335,40 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   subscriptionTitle: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     marginLeft: 8,
     flex: 1,
   },
   subscriptionBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
   },
   subscriptionBadgeText: {
-    ...typography.caption,
+    ...theme.typography.caption,
     fontSize: 11,
     fontWeight: '600',
   },
   subscriptionPlan: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     fontSize: 18,
     marginBottom: 4,
   },
   subscriptionExpires: {
-    ...typography.caption,
-    color: colors.textSecondary,
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
   },
   subscriptionWarning: {
-    ...typography.caption,
-    color: colors.expense,
+    ...theme.typography.caption,
+    color: theme.colors.expense,
     marginTop: 4,
     fontWeight: '600',
   },
 });
+
+
+
+
+
 
 export default DashboardScreen;

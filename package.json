@@ -19,7 +19,6 @@
     "@supabase/supabase-js": "^2.74.0",
     "date-fns": "^2.29.3",
     "expo": "^54.0.10",
-    "expo-dev-client": "~6.0.19",
     "expo-device": "^8.0.10",
     "expo-image": "~3.0.11",
     "expo-image-manipulator": "~14.0.8",

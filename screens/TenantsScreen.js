@@ -20,7 +20,7 @@ import { useIsFocused } from '@react-navigation/native';
 import ScreenHeader from '../components/ScreenHeader';
 import { fetchActiveContractsByTenants } from '../lib/contractsService';
 import { fetchTenantBillingSummary } from '../lib/financesService';
-import { colors, radii, typography } from '../theme';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import SearchBar from '../components/SearchBar';
 import { getBlockedTenants, getUserSubscription, getActiveTenantsCount, getRequiredPlan, canAddTenant } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
@@ -28,12 +28,12 @@ import { getCache, setCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
 import { TenantsListSkeleton } from '../components/SkeletonLoader';
 
 // TenantItem atualizado para exibir mais informações
-const TenantItem = React.memo(({ item, onPress, onPressPhone, isBlocked, hasActiveContract }) => {
+const TenantItem = React.memo(({ item, onPress, onPressPhone, isBlocked, hasActiveContract, styles, theme }) => {
   const imageSource = item.photo_url || require('../assets/avatar-placeholder.png');
 
   return (
-    <TouchableOpacity 
-      style={[styles.tenantCard, isBlocked && styles.tenantCardBlocked]} 
+    <TouchableOpacity
+      style={[styles.tenantCard, isBlocked && styles.tenantCardBlocked]}
       onPress={() => onPress(item)}
       activeOpacity={isBlocked ? 0.5 : 0.7}
     >
@@ -46,57 +46,57 @@ const TenantItem = React.memo(({ item, onPress, onPressPhone, isBlocked, hasActi
         priority="low"
         cachePolicy="memory-disk"
       />
-    <View style={styles.tenantInfo}>
-      <Text style={styles.tenantName}>{item.full_name}</Text>
+      <View style={styles.tenantInfo}>
+        <Text style={styles.tenantName}>{item.full_name}</Text>
 
-      <View style={styles.tenantMetaRow}>
-        <View style={styles.tenantMeta}>
-          <MaterialIcons name="phone" size={16} color="#666" />
-          <Text style={styles.tenantMetaText}>{item.phone || 'N/A'}</Text>
-        </View>
-      </View>
-
-      {item.properties?.address && (
         <View style={styles.tenantMetaRow}>
-          <MaterialIcons name="home" size={16} color="#666" />
-          <Text
-            style={styles.tenantMetaText}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {item.properties.address}
-          </Text>
+          <View style={styles.tenantMeta}>
+            <MaterialIcons name="phone" size={16} color={theme.colors.textSecondary} />
+            <Text style={styles.tenantMetaText}>{item.phone || 'N/A'}</Text>
+          </View>
         </View>
-      )}
 
-      {hasActiveContract === false && (
-        <View style={styles.invoiceBadgeNoContract}>
-          <Text style={styles.invoiceBadgeTextNoContract}>
-            Sem contrato ativo
-          </Text>
-        </View>
-      )}
+        {item.properties?.address && (
+          <View style={styles.tenantMetaRow}>
+            <MaterialIcons name="home" size={16} color={theme.colors.textSecondary} />
+            <Text
+              style={styles.tenantMetaText}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {item.properties.address}
+            </Text>
+          </View>
+        )}
 
-      {hasActiveContract !== false && typeof item.overdue_invoices === 'number' && (
-        <View style={[
-          styles.invoiceBadge,
-          item.overdue_invoices === 0 && styles.invoiceBadgeSuccess,
-          item.overdue_invoices > 0 && item.overdue_invoices <= 2 && styles.invoiceBadgeWarning,
-          item.overdue_invoices > 2 && styles.invoiceBadgeError,
-        ]}>
-          <Text style={[
-            styles.invoiceBadgeText,
-            item.overdue_invoices === 0 && styles.invoiceBadgeTextSuccess,
-            item.overdue_invoices > 0 && item.overdue_invoices <= 2 && styles.invoiceBadgeTextWarning,
-            item.overdue_invoices > 2 && styles.invoiceBadgeTextError,
+        {hasActiveContract === false && (
+          <View style={styles.invoiceBadgeNoContract}>
+            <Text style={styles.invoiceBadgeTextNoContract}>
+              Sem contrato ativo
+            </Text>
+          </View>
+        )}
+
+        {hasActiveContract !== false && typeof item.overdue_invoices === 'number' && (
+          <View style={[
+            styles.invoiceBadge,
+            item.overdue_invoices === 0 && styles.invoiceBadgeSuccess,
+            item.overdue_invoices > 0 && item.overdue_invoices <= 2 && styles.invoiceBadgeWarning,
+            item.overdue_invoices > 2 && styles.invoiceBadgeError,
           ]}>
-            {item.overdue_invoices > 0
-              ? `${item.overdue_invoices} fatura(s) em atraso`
-              : 'Sem faturas em atraso'}
-          </Text>
-        </View>
-      )}
-    </View>
+            <Text style={[
+              styles.invoiceBadgeText,
+              item.overdue_invoices === 0 && styles.invoiceBadgeTextSuccess,
+              item.overdue_invoices > 0 && item.overdue_invoices <= 2 && styles.invoiceBadgeTextWarning,
+              item.overdue_invoices > 2 && styles.invoiceBadgeTextError,
+            ]}>
+              {item.overdue_invoices > 0
+                ? `${item.overdue_invoices} fatura(s) em atraso`
+                : 'Sem faturas em atraso'}
+            </Text>
+          </View>
+        )}
+      </View>
 
       <View style={styles.dueDateContainer}>
         <Text style={styles.dueDateLabel}>Vencimento</Text>
@@ -116,6 +116,9 @@ const TenantItem = React.memo(({ item, onPress, onPressPhone, isBlocked, hasActi
 });
 
 const TenantsScreen = ({ navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -164,7 +167,7 @@ const TenantsScreen = ({ navigation }) => {
         if (cachedData) {
           setTenants(cachedData);
           setLoading(false);
-          
+
           // Buscar propriedades bloqueadas em background
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
@@ -204,7 +207,7 @@ const TenantsScreen = ({ navigation }) => {
       // 3) Calcular status de pagamento para cada inquilino - otimizado com Promise.allSettled e cache
       const billingPromises = (tenantsData || []).map(async (tenant) => {
         const contract = contractsByTenant?.[tenant.id] || null;
-        
+
         if (!contract || !contract.start_date || !contract.lease_term || !contract.due_day || !tenant.property_id) {
           return {
             tenant,
@@ -217,9 +220,9 @@ const TenantsScreen = ({ navigation }) => {
         // Tentar buscar do cache primeiro
         const cacheKey = `billing_${tenant.id}_${contract.property_id}`;
         const cachedBilling = await getCache(cacheKey);
-        
+
         let overdue_invoices = 0;
-        
+
         if (cachedBilling !== null) {
           overdue_invoices = cachedBilling.overdue || 0;
         } else {
@@ -235,7 +238,7 @@ const TenantsScreen = ({ navigation }) => {
           try {
             const { summary } = await fetchTenantBillingSummary(source);
             overdue_invoices = summary.overdue || 0;
-            
+
             // Cachear resultado com TTL curto (10s) porque é dinâmico
             await setCache(cacheKey, { overdue: overdue_invoices }, CACHE_TTL.SHORT);
           } catch (error) {
@@ -254,7 +257,7 @@ const TenantsScreen = ({ navigation }) => {
 
       // Usar Promise.allSettled para não bloquear se uma falhar
       const billingResults = await Promise.allSettled(billingPromises);
-      
+
       const tenantsWithInvoices = billingResults.map((result, index) => {
         if (result.status === 'fulfilled') {
           const { tenant, overdue_invoices, due_date, hasActiveContract } = result.value;
@@ -337,7 +340,7 @@ const TenantsScreen = ({ navigation }) => {
       const currentPlan = subscription?.subscription_plan || 'free';
       // Se o plano atual é basic, sempre sugere premium
       const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(tenantCount + 1);
-      
+
       setSubscriptionInfo({
         currentPlan,
         propertyCount: tenantCount,
@@ -362,7 +365,7 @@ const TenantsScreen = ({ navigation }) => {
         const currentPlan = subscription?.subscription_plan || 'free';
         // Se o plano atual é basic, sempre sugere premium
         const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(tenantCount);
-        
+
         setSubscriptionInfo({
           currentPlan,
           propertyCount: tenantCount,
@@ -379,7 +382,7 @@ const TenantsScreen = ({ navigation }) => {
     const query = searchQuery.trim().toLowerCase();
 
     let result = [...tenants];
-    
+
     // Filtro por texto (nome ou telefone)
     if (query) {
       result = result.filter((tenant) => {
@@ -409,7 +412,7 @@ const TenantsScreen = ({ navigation }) => {
         if (tenant.hasActiveContract !== true) {
           return false; // Sem contrato não tem status de pagamento
         }
-        
+
         if (paymentStatusFilter === 'paid') {
           return typeof tenant.overdue_invoices === 'number' && tenant.overdue_invoices === 0;
         } else if (paymentStatusFilter === 'overdue') {
@@ -461,18 +464,18 @@ const TenantsScreen = ({ navigation }) => {
             style={styles.filterButton}
             onPress={() => setShowFiltersModal(true)}
           >
-            <MaterialIcons name="tune" size={20} color={colors.primary} />
+            <MaterialIcons name="tune" size={20} color={theme.colors.primary} />
             <Text style={styles.filterButtonText}>Filtros</Text>
           </TouchableOpacity>
         </View>
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <View style={styles.listContent}>
-            <TenantsListSkeleton count={5} />
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <View style={styles.listContent}>
+              <TenantsListSkeleton count={5} />
+            </View>
           </View>
-        </View>
-      ) : error ? (
+        ) : error ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={fetchTenants}>
@@ -488,6 +491,8 @@ const TenantsScreen = ({ navigation }) => {
                 onPress={handleTenantPress}
                 isBlocked={blockedTenantIds.includes(item.id)}
                 hasActiveContract={item.hasActiveContract}
+                styles={styles}
+                theme={theme}
               />
             )}
             keyExtractor={(item) => item.id}
@@ -565,7 +570,7 @@ const TenantsScreen = ({ navigation }) => {
                     onPress={() => setShowFiltersModal(false)}
                     style={styles.closeButton}
                   >
-                    <MaterialIcons name="close" size={24} color={colors.textPrimary} />
+                    <MaterialIcons name="close" size={24} color={theme.colors.textPrimary} />
                   </TouchableOpacity>
                 </View>
 
@@ -725,10 +730,10 @@ const TenantsScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: theme.colors.background,
   },
   listContent: {
     padding: 15,
@@ -738,17 +743,24 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   tenantCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     padding: 15,
     marginBottom: 15,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+    ...(theme.isHighContrast ? {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+      shadowOpacity: 0,
+      elevation: 0,
+    } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 3,
+    }),
   },
   avatar: {
     width: 50,
@@ -765,9 +777,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   tenantName: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     marginBottom: 5,
-    color: '#333',
+    color: theme.colors.textPrimary,
   },
   tenantMeta: {
     flexDirection: 'row',
@@ -775,7 +787,7 @@ const styles = StyleSheet.create({
   },
   tenantMetaText: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     marginLeft: 5,
   },
   dueDateContainer: {
@@ -784,19 +796,19 @@ const styles = StyleSheet.create({
   },
   dueDateLabel: {
     fontSize: 12,
-    color: '#888',
+    color: theme.colors.textSecondary,
   },
   dueDateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.primary,
+    color: theme.colors.primary,
   },
   searchContainer: {
     flexDirection: 'row',
     paddingHorizontal: 15,
     paddingTop: 10,
     paddingBottom: 10,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     marginTop: 4,
     gap: 10,
     alignItems: 'center',
@@ -812,15 +824,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     borderWidth: 1,
-    borderColor: colors.primary,
-    backgroundColor: colors.surface,
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.surface,
     gap: 6,
   },
   filterButtonText: {
     fontSize: 14,
-    color: colors.primary,
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   modalOverlay: {
@@ -829,9 +841,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomSheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: theme.radii.lg,
+    borderTopRightRadius: theme.radii.lg,
     paddingBottom: 40,
     maxHeight: '80%',
   },
@@ -841,11 +853,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle || '#e0e0e0',
+    borderBottomColor: theme.colors.borderSubtle || '#e0e0e0',
   },
   bottomSheetTitle: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     fontSize: 20,
+    color: theme.colors.textPrimary,
   },
   closeButton: {
     padding: 4,
@@ -858,7 +871,7 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     fontSize: 12,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 8,
     fontWeight: '600',
   },
@@ -870,18 +883,18 @@ const styles = StyleSheet.create({
   chip: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.colors.borderSubtle || '#ddd',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
   },
   chipActive: {
-    backgroundColor: colors.primary || '#4a86e8',
-    borderColor: colors.primary || '#4a86e8',
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
   },
   chipText: {
     fontSize: 12,
-    color: '#555',
+    color: theme.colors.textSecondary,
   },
   chipTextActive: {
     color: '#fff',
@@ -891,10 +904,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: theme.colors.background,
   },
   loadingText: {
     marginTop: 8,
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   errorContainer: {
     flex: 1,
@@ -903,15 +917,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   errorText: {
-    color: colors.expense,
+    color: theme.colors.expense,
     marginBottom: 12,
     textAlign: 'center',
   },
   retryButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primary,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.primary,
   },
   retryButtonText: {
     color: '#fff',
@@ -925,19 +939,21 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   emptyTitle: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     marginBottom: 4,
+    color: theme.colors.textPrimary,
   },
   emptySubtitle: {
-    ...typography.body,
+    ...theme.typography.body,
     marginBottom: 12,
     textAlign: 'center',
+    color: theme.colors.textSecondary,
   },
   emptyButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primary,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.primary,
   },
   emptyButtonText: {
     color: '#fff',
@@ -948,8 +964,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: radii.pill,
-    backgroundColor: '#eef7ff',
+    borderRadius: theme.radii.pill,
+    backgroundColor: '#eef7ff', // Could be dynamic
   },
   invoiceBadgeSuccess: {
     backgroundColor: '#e8f5e9',
@@ -978,7 +994,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     backgroundColor: '#e3f2fd',
   },
   invoiceBadgeTextNoContract: {
@@ -989,10 +1005,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 30,
     right: 30,
-    backgroundColor: colors.primary,
+    backgroundColor: theme.colors.primary,
     width: 60,
     height: 60,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

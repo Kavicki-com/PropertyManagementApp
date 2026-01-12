@@ -1,20 +1,26 @@
 // screens/SettingsScreen.js 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch, Linking } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors, typography, radii } from '../theme';
 import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits } from '../lib/subscriptionService';
+import { loadAccessibilitySettings, updateAccessibilitySetting } from '../lib/accessibilityService';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 
 const SettingsScreen = ({ navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userPhotoUrl, setUserPhotoUrl] = useState(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [subscription, setSubscription] = useState(null);
   const [propertyCount, setPropertyCount] = useState(0);
+  const [fontScale, setFontScale] = useState(1.0);
+  const [highContrast, setHighContrast] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -46,6 +52,14 @@ const SettingsScreen = ({ navigation }) => {
       }
     };
     fetchUser();
+
+    // Carregar preferências de acessibilidade
+    const loadAccessibility = async () => {
+      const settings = await loadAccessibilitySettings();
+      setFontScale(settings.fontScale);
+      setHighContrast(settings.highContrast);
+    };
+    loadAccessibility();
   }, []);
 
   const handleLogout = async () => {
@@ -78,7 +92,7 @@ const SettingsScreen = ({ navigation }) => {
     try {
       // Chama a RPC function para deletar a conta do usuário autenticado
       const { data, error } = await supabase.rpc('delete_user_account');
-      
+
       if (error) {
         console.error('Erro ao deletar conta:', error);
         Alert.alert(
@@ -97,7 +111,7 @@ const SettingsScreen = ({ navigation }) => {
       // Se chegou aqui, a exclusão foi bem-sucedida
       // Faz logout antes de redirecionar
       await supabase.auth.signOut();
-      
+
       Alert.alert('Sucesso', 'Sua conta foi deletada com sucesso.', [
         {
           text: 'OK',
@@ -163,14 +177,14 @@ const SettingsScreen = ({ navigation }) => {
   const handleWhatsAppSupport = async () => {
     const phoneNumber = '5521966087421';
     const message = 'Olá! Preciso de ajuda com o aplicativo llord.';
-    
+
     try {
       // Tenta abrir o WhatsApp app diretamente primeiro
       const whatsappUrl = `whatsapp://send?phone=${phoneNumber}&text=${encodeURIComponent(message)}`;
-      
+
       // Verifica se pode abrir (pode falhar em alguns dispositivos mesmo com WhatsApp instalado)
       const canOpen = await Linking.canOpenURL(whatsappUrl).catch(() => false);
-      
+
       if (canOpen) {
         await Linking.openURL(whatsappUrl);
       } else {
@@ -221,14 +235,14 @@ const SettingsScreen = ({ navigation }) => {
         <MaterialIcons
           name={iconName}
           size={24}
-          color={danger ? colors.danger : iconColor || colors.primary}
+          color={danger ? theme.colors.danger : iconColor || theme.colors.primary}
         />
         <View style={styles.itemTextContainer}>
           <Text style={[styles.itemTitle, danger && styles.itemTitleDanger]}>{title}</Text>
           {subtitle ? <Text style={styles.itemSubtitle}>{subtitle}</Text> : null}
         </View>
         {rightElement ? rightElement : onPress ? (
-          <MaterialIcons name="chevron-right" size={24} color={colors.textSecondary} />
+          <MaterialIcons name="chevron-right" size={24} color={theme.colors.textSecondary} />
         ) : null}
       </TouchableOpacity>
     );
@@ -279,7 +293,7 @@ const SettingsScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('EditProfile')}
             activeOpacity={0.7}
           >
-            <MaterialIcons name="edit" size={18} color={colors.primary} />
+            <MaterialIcons name="edit" size={18} color={theme.colors.primary} />
             <Text style={styles.editProfileText}>Editar perfil</Text>
           </TouchableOpacity>
         </View>
@@ -301,11 +315,68 @@ const SettingsScreen = ({ navigation }) => {
             iconName="card-membership"
             title="Assinatura"
             subtitle={
-              subscription 
+              subscription
                 ? `${subscription.subscription_plan === 'free' ? 'Gratuito' : subscription.subscription_plan === 'basic' ? 'Básico' : 'Premium'} • ${propertyCount} imóveis`
                 : 'Gerenciar assinatura'
             }
             onPress={() => navigation.navigate('Subscription')}
+          />
+        </SettingsSection>
+
+        {/* Accessibility Settings */}
+        <SettingsSection title="Acessibilidade">
+          <SettingsItem
+            iconName="contrast"
+            title="Alto Contraste"
+            subtitle="Facilita a leitura com cores mais contrastantes"
+            rightElement={(
+              <Switch
+                value={highContrast}
+                onValueChange={async (value) => {
+                  setHighContrast(value);
+                  await updateAccessibilitySetting('highContrast', value);
+                }}
+              />
+            )}
+          />
+          <SettingsItem
+            iconName="text-fields"
+            title="Tamanho da Fonte"
+            subtitle={
+              fontScale === 1.0 ? 'Normal' :
+                fontScale === 1.2 ? 'Grande' :
+                  fontScale === 1.5 ? 'Extra Grande' : 'Normal'
+            }
+            onPress={() => {
+              Alert.alert(
+                'Tamanho da Fonte',
+                'Escolha o tamanho da fonte:',
+                [
+                  {
+                    text: 'Normal',
+                    onPress: async () => {
+                      setFontScale(1.0);
+                      await updateAccessibilitySetting('fontScale', 1.0);
+                    },
+                  },
+                  {
+                    text: 'Grande',
+                    onPress: async () => {
+                      setFontScale(1.2);
+                      await updateAccessibilitySetting('fontScale', 1.2);
+                    },
+                  },
+                  {
+                    text: 'Extra Grande',
+                    onPress: async () => {
+                      setFontScale(1.5);
+                      await updateAccessibilitySetting('fontScale', 1.5);
+                    },
+                  },
+                  { text: 'Cancelar', style: 'cancel' },
+                ]
+              );
+            }}
           />
         </SettingsSection>
 
@@ -351,10 +422,10 @@ const SettingsScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
     flex: 1,
@@ -364,18 +435,25 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   userCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.lg,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    ...(theme.isHighContrast ? {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+      shadowOpacity: 0,
+      elevation: 0,
+    } : {
+      shadowColor: '#000',
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+    }),
   },
   userCardTitle: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     marginBottom: 12,
   },
   userInfoRow: {
@@ -389,7 +467,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     overflow: 'hidden',
     marginRight: 12,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: theme.colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -402,14 +480,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
   },
   userEmail: {
-    ...typography.body,
+    ...theme.typography.body,
     marginTop: 2,
   },
   userSubtitle: {
-    ...typography.body,
+    ...theme.typography.body,
     marginTop: 4,
   },
   editProfileButton: {
@@ -418,72 +496,76 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 8,
     paddingVertical: 10,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primarySoft,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.primarySoft,
   },
   editProfileText: {
     marginLeft: 6,
     fontSize: 13,
     fontWeight: '600',
-    color: colors.primary,
+    color: theme.colors.primary,
   },
   section: {
     marginBottom: 16,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   sectionTitle: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     marginBottom: 8,
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
   },
   itemTextContainer: {
     flex: 1,
     marginLeft: 12,
   },
   itemTitle: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
   },
   itemTitleDanger: {
-    color: colors.danger,
+    color: theme.colors.danger,
   },
   itemSubtitle: {
-    ...typography.caption,
+    ...theme.typography.caption,
     marginTop: 2,
   },
   logoutButton: {
     backgroundColor: 'transparent',
     paddingVertical: 14,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     alignItems: 'center',
     marginTop: 8,
   },
   logoutButtonText: {
-    ...typography.button,
-    color: colors.primary,
+    ...theme.typography.button,
+    color: theme.colors.primary,
   },
   deleteButton: {
     backgroundColor: 'transparent',
     paddingVertical: 14,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     alignItems: 'center',
     marginTop: 8,
   },
   deleteButtonText: {
     fontSize: 16,
     fontWeight: 'normal',
-    color: colors.danger,
+    color: theme.colors.danger,
   },
   divider: {
     height: 1,
-    backgroundColor: colors.borderSubtle || '#e5e7eb',
+    backgroundColor: theme.colors.borderSubtle || '#e5e7eb',
     marginVertical: 8,
   },
 });

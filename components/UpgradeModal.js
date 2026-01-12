@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,12 @@ import {
   ScrollView,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { colors, typography, radii } from '../theme';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 
 const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount, requiredPlan, customMessage }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const planNames = {
     free: 'Gratuito',
     basic: 'Básico',
@@ -41,7 +44,7 @@ const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount,
           <View style={styles.header}>
             <Text style={styles.title}>Upgrade Necessário</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <MaterialIcons name="close" size={24} color={colors.textPrimary} />
+              <MaterialIcons name="close" size={24} color={theme.colors.textPrimary} />
             </TouchableOpacity>
           </View>
 
@@ -52,7 +55,7 @@ const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount,
 
             <View style={styles.planComparison}>
               <View style={[
-                styles.planCard, 
+                styles.planCard,
                 (currentPlan === 'free' || currentPlan === 'basic') && styles.planCardNoBackground
               ]}>
                 <Text style={styles.planName}>{planNames[currentPlan]}</Text>
@@ -60,7 +63,7 @@ const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount,
                   Até {planLimits[currentPlan]} {typeof planLimits[currentPlan] === 'number' ? 'imóveis' : ''}
                 </Text>
                 <Text style={[
-                  styles.planPrice, 
+                  styles.planPrice,
                   currentPlan === 'basic' && styles.planPriceDefault
                 ]}>
                   {planPrices[currentPlan]}
@@ -70,12 +73,12 @@ const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount,
                 </View>
               </View>
 
-              <MaterialIcons name="arrow-forward" size={24} color={colors.primary} style={styles.arrow} />
+              <MaterialIcons name="arrow-forward" size={24} color={theme.colors.primary} style={styles.arrow} />
 
               <View style={[styles.planCard, styles.recommendedCard]}>
                 <Text style={styles.planName}>{planNames[requiredPlan]}</Text>
                 <Text style={styles.planLimit}>
-                  {typeof planLimits[requiredPlan] === 'number' 
+                  {typeof planLimits[requiredPlan] === 'number'
                     ? `Até ${planLimits[requiredPlan]} imóveis`
                     : planLimits[requiredPlan]}
                 </Text>
@@ -91,19 +94,19 @@ const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount,
             <View style={styles.features}>
               <Text style={styles.featuresTitle}>Benefícios do plano {planNames[requiredPlan]}:</Text>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check-circle" size={20} color={colors.primary} />
+                <MaterialIcons name="check-circle" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>
-                  {typeof planLimits[requiredPlan] === 'number' 
+                  {typeof planLimits[requiredPlan] === 'number'
                     ? `Até ${planLimits[requiredPlan]} imóveis`
                     : 'Ilimitado imóveis'}
                 </Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check-circle" size={20} color={colors.primary} />
+                <MaterialIcons name="check-circle" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Acesso completo a todas as funcionalidades</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check-circle" size={20} color={colors.primary} />
+                <MaterialIcons name="check-circle" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Suporte prioritário</Text>
               </View>
             </View>
@@ -123,7 +126,7 @@ const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount,
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -132,11 +135,15 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContainer: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.lg,
     width: '100%',
     maxWidth: 516, // 500 + 16px (8px de cada lado)
     maxHeight: '80%',
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   header: {
     flexDirection: 'row',
@@ -144,10 +151,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
+    borderBottomColor: theme.colors.borderSubtle,
   },
   title: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     fontSize: 20,
   },
   closeButton: {
@@ -157,7 +164,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   message: {
-    ...typography.body,
+    ...theme.typography.body,
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -171,13 +178,17 @@ const styles = StyleSheet.create({
   },
   planCard: {
     flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.radii.md,
     padding: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: theme.colors.borderSubtle,
     maxWidth: '48%',
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   planCardNoBackground: {
     backgroundColor: 'transparent',
@@ -185,33 +196,36 @@ const styles = StyleSheet.create({
   currentBadge: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: theme.colors.borderSubtle,
   },
   recommendedCard: {
-    borderColor: colors.primary,
+    borderColor: theme.colors.primary,
     borderWidth: 2,
+    ...(theme.isHighContrast && {
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   planName: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     fontSize: 16,
     marginBottom: 6,
     textAlign: 'center',
   },
   planLimit: {
-    ...typography.body,
+    ...theme.typography.body,
     fontSize: 12,
     marginBottom: 6,
     textAlign: 'center',
   },
   planPrice: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     fontSize: 14,
-    color: colors.primary,
+    color: theme.colors.primary,
     marginBottom: 10,
     textAlign: 'center',
   },
   planPriceDefault: {
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   planPriceGreen: {
     color: '#4CAF50',
@@ -219,20 +233,20 @@ const styles = StyleSheet.create({
   badge: {
     paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
   },
   currentBadge: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: theme.colors.borderSubtle,
   },
   recommendedBadge: {
-    backgroundColor: colors.primarySoft,
+    backgroundColor: theme.colors.primarySoft,
   },
   badgeText: {
-    ...typography.caption,
+    ...theme.typography.caption,
     fontSize: 10,
-    color: colors.primary,
+    color: theme.colors.primary,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -243,7 +257,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   featuresTitle: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     marginBottom: 12,
   },
   featureItem: {
@@ -252,39 +266,39 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   featureText: {
-    ...typography.body,
+    ...theme.typography.body,
     marginLeft: 8,
   },
   actions: {
     flexDirection: 'row',
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
+    borderTopColor: theme.colors.borderSubtle,
     gap: 12,
   },
   cancelButton: {
     flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: theme.colors.borderSubtle,
     alignItems: 'center',
   },
   cancelButtonText: {
-    ...typography.button,
-    color: colors.textPrimary,
+    ...theme.typography.button,
+    color: theme.colors.textPrimary,
   },
   upgradeButton: {
     flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primary,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.primary,
     alignItems: 'center',
   },
   upgradeButtonText: {
-    ...typography.button,
+    ...theme.typography.button,
     color: '#fff',
   },
 });
