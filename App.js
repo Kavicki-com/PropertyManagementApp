@@ -5,9 +5,11 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from './lib/supabase';
-import { View, ActivityIndicator, Linking as RNLinking } from 'react-native';
+import { View, ActivityIndicator, Linking as RNLinking, AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { colors, typography } from './theme';
+import { useAccessibilityTheme } from './lib/useAccessibilityTheme';
 import {
   initializeNotifications,
   setupNotificationListeners,
@@ -57,16 +59,19 @@ const linking = {
   },
 };
 
+
 function MainTabs() {
+  const { theme } = useAccessibilityTheme();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: 'gray',
+        tabBarActiveTintColor: theme.isHighContrast ? theme.colors.textPrimary : theme.colors.primary,
+        tabBarInactiveTintColor: theme.isHighContrast ? '#444444' : 'gray',
         tabBarLabelStyle: {
-          ...typography.caption,
-          fontSize: 11,
+          ...theme.typography.caption,
+          fontSize: Math.min(theme.typography.caption.fontSize, 16),
           marginBottom: 5,
         },
         tabBarIcon: ({ color, size }) => {
@@ -78,6 +83,12 @@ function MainTabs() {
           else if (route.name === 'Configurações') iconName = 'cog-outline';
           return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
         },
+        tabBarStyle: {
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.isHighContrast ? theme.colors.textPrimary : theme.colors.borderSubtle,
+          borderTopWidth: theme.isHighContrast ? 2 : 1,
+          paddingTop: theme.fontScale !== 1 ? 8 : 0,
+        }
       })}
     >
       <Tab.Screen name="Início" component={DashboardScreen} />
@@ -155,24 +166,65 @@ export default function App() {
 
     // Inicializa notificações quando há sessão
     let cleanup = null;
-    
+    let appStateSubscription = null;
+    const LAST_NOTIFICATION_CHECK_KEY = 'last_notification_check_date';
+
     const setupNotifications = async () => {
       await initializeNotifications(navigationRef.current);
-      
+
       // Configura listeners
       cleanup = setupNotificationListeners(navigationRef.current);
-      
+
       // Verifica e cria notificações ao abrir o app
       setTimeout(async () => {
         await checkAndCreateNotifications();
+        // Salva data da última verificação
+        await AsyncStorage.setItem(LAST_NOTIFICATION_CHECK_KEY, new Date().toISOString().split('T')[0]);
       }, 2000);
+    };
+
+    // Função para verificar se deve executar verificação de notificações
+    const shouldCheckNotifications = async () => {
+      try {
+        const lastCheckDate = await AsyncStorage.getItem(LAST_NOTIFICATION_CHECK_KEY);
+        const today = new Date().toISOString().split('T')[0];
+
+        // Se não há última verificação ou foi em outro dia, deve verificar
+        if (!lastCheckDate || lastCheckDate !== today) {
+          return true;
+        }
+        return false;
+      } catch (error) {
+        console.error('Erro ao verificar última data de verificação:', error);
+        // Em caso de erro, permite verificação
+        return true;
+      }
+    };
+
+    // Função para verificar notificações quando app volta ao foreground
+    const handleAppStateChange = async (nextAppState) => {
+      if (nextAppState === 'active') {
+        const shouldCheck = await shouldCheckNotifications();
+        if (shouldCheck) {
+          console.log('Verificando notificações (app voltou ao foreground)');
+          await checkAndCreateNotifications();
+          // Salva data da última verificação
+          await AsyncStorage.setItem(LAST_NOTIFICATION_CHECK_KEY, new Date().toISOString().split('T')[0]);
+        }
+      }
     };
 
     setupNotifications();
 
+    // Adiciona listener de AppState para verificar notificações quando app volta ao foreground
+    appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
     return () => {
       if (cleanup) {
         cleanup();
+      }
+      if (appStateSubscription) {
+        appStateSubscription.remove();
       }
     };
   }, [session]);
@@ -219,7 +271,7 @@ export default function App() {
     // Linking.parse e, se necessário, fazemos um parse manual.
     const parsed = Linking.parse(url);
     console.log('Parsed URL:', JSON.stringify(parsed, null, 2));
-    
+
     let queryParams = parsed.queryParams || {};
 
     // Se não encontrou parâmetros no queryParams, tenta extrair do hash
@@ -257,7 +309,7 @@ export default function App() {
     if (type === 'signup' && access_token && refresh_token) {
       console.log('✅ Detected signup confirmation link');
       console.log('Setting session from signup confirmation link');
-      
+
       try {
         const { error } = await supabase.auth.setSession({
           access_token,
@@ -302,7 +354,7 @@ export default function App() {
       console.log('⚠️ Not a signup confirmation link or missing tokens');
       console.log('Type check:', type === 'signup' ? '✅' : '❌');
       console.log('Tokens check:', (access_token && refresh_token) ? '✅' : '❌');
-      
+
       // Fallback: Se a URL contém "confirm-email" no path, pode ser uma confirmação
       // mesmo sem os parâmetros (pode ter sido processada pelo Supabase)
       if (url.includes('confirm-email') || parsed.path?.includes('confirm-email')) {
@@ -357,8 +409,8 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer 
-      ref={navigationRef} 
+    <NavigationContainer
+      ref={navigationRef}
       linking={{
         ...linking,
         getInitialURL: () => {
@@ -371,11 +423,11 @@ export default function App() {
             handleDeepLink(url);
             listener(url);
           };
-          
+
           // Retorna função de limpeza
-          return () => {};
+          return () => { };
         }
-      }} 
+      }}
       fallback={<ActivityIndicator color={colors.primary} />}
     >
       <Stack.Navigator screenOptions={{ headerShown: false }}>

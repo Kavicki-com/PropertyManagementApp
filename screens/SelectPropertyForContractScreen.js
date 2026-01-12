@@ -12,7 +12,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors, radii, typography } from '../theme';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { fetchActiveContractByProperty } from '../lib/contractsService';
 
 // Função para formatar valor monetário
@@ -21,7 +21,7 @@ const formatCurrency = (value) => {
   return `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
 };
 
-const PropertyItem = ({ item, onPress }) => {
+const PropertyItem = ({ item, onPress, styles, theme }) => {
   const hasTenant = item.tenants && item.tenants.length > 0;
   const status = hasTenant ? 'Alugada' : 'Disponível';
   const statusStyle = hasTenant ? styles.rented : styles.available;
@@ -44,12 +44,14 @@ const PropertyItem = ({ item, onPress }) => {
           </Text>
         )}
       </View>
-      <MaterialIcons name="chevron-right" size={24} color={colors.textSecondary} />
+      <MaterialIcons name="chevron-right" size={24} color={theme.colors.textSecondary} />
     </TouchableOpacity>
   );
 };
 
 const SelectPropertyForContractScreen = ({ navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -60,7 +62,7 @@ const SelectPropertyForContractScreen = ({ navigation }) => {
   const fetchProperties = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       Alert.alert('Erro', 'Você precisa estar logado.');
       navigation.goBack();
@@ -106,7 +108,7 @@ const SelectPropertyForContractScreen = ({ navigation }) => {
   if (loading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
@@ -128,27 +130,27 @@ const SelectPropertyForContractScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       ) : (
-          <FlatList
-            data={properties}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <PropertyItem item={item} onPress={handleSelectProperty} />
-            )}
-            contentContainerStyle={styles.listContent}
-            removeClippedSubviews={true}
-            maxToRenderPerBatch={10}
-            initialNumToRender={10}
-            windowSize={10}
-          />
+        <FlatList
+          data={properties}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <PropertyItem item={item} onPress={handleSelectProperty} styles={styles} theme={theme} />
+          )}
+          contentContainerStyle={styles.listContent}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          initialNumToRender={10}
+          windowSize={10}
+        />
       )}
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: theme.colors.background,
   },
   centerContent: {
     flex: 1,
@@ -162,8 +164,8 @@ const styles = StyleSheet.create({
   propertyCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     padding: 15,
     marginBottom: 12,
     shadowColor: '#000',
@@ -177,8 +179,8 @@ const styles = StyleSheet.create({
   },
   propertyAddress: {
     fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    ...theme.typography.bodyStrong,
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   propertyMeta: {
@@ -188,50 +190,55 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   propertyType: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     fontSize: 14,
+    ...theme.typography.caption,
   },
   propertyRent: {
     fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
+    ...theme.typography.bodyStrong,
+    color: theme.colors.primary,
     marginTop: 4,
   },
   statusBadge: {
     paddingVertical: 4,
     paddingHorizontal: 10,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
   },
   rented: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: theme.colors.successSoft || '#e8f5e9',
   },
   available: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: theme.colors.primarySoft || '#e3f2fd',
   },
   statusText: {
     fontSize: 11,
     fontWeight: '600',
+    ...theme.typography.caption,
   },
   rentedText: {
-    color: '#2e7d32',
+    color: theme.colors.success || '#2e7d32',
   },
   availableText: {
-    color: '#1565c0',
+    color: theme.colors.primaryDark || '#1565c0',
   },
   emptyText: {
-    ...typography.body,
+    ...theme.typography.body,
     marginBottom: 20,
     textAlign: 'center',
+    color: theme.colors.textSecondary,
   },
   addButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
+    marginTop: 20, // Added to separate from text
   },
   addButtonText: {
-    ...typography.button,
+    ...theme.typography.button,
     fontSize: 16,
+    color: theme.colors.surface,
   },
 });
 

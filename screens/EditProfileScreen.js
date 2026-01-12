@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,8 +19,13 @@ import { colors, typography, radii } from '../theme';
 import { validatePassword, getPasswordStrength } from '../lib/validation';
 import { SelectList } from 'react-native-dropdown-select-list';
 import { optimizeImage, base64ToArrayBuffer, IMAGE_PICKER_OPTIONS, CAMERA_OPTIONS } from '../lib/imageUtils';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
+
 
 const EditProfileScreen = ({ navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const [loading, setLoading] = useState(true);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -31,10 +36,10 @@ const EditProfileScreen = ({ navigation }) => {
   const [maritalStatus, setMaritalStatus] = useState('');
   const [profession, setProfession] = useState('');
   const [accountType, setAccountType] = useState(null);
-  
+
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+
   const [isSaving, setIsSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -103,14 +108,14 @@ const EditProfileScreen = ({ navigation }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setEmail(user.email);
-        
+
         // Primeiro tenta buscar apenas os campos básicos que sabemos que existem
         let { data: profile, error } = await supabase
           .from('profiles')
           .select('full_name, phone, photo_url')
           .eq('id', user.id)
           .single();
-        
+
         // Se a query básica funcionou, tenta buscar os campos novos (pode falhar se não existirem)
         if (!error && profile) {
           try {
@@ -119,7 +124,7 @@ const EditProfileScreen = ({ navigation }) => {
               .select('cpf, rg, nationality, marital_status, profession, account_type, photo_url')
               .eq('id', user.id)
               .single();
-            
+
             // Se os campos novos existirem, mescla os dados
             if (!extendedError && extendedProfile) {
               profile = { ...profile, ...extendedProfile };
@@ -129,7 +134,7 @@ const EditProfileScreen = ({ navigation }) => {
             console.log('Campos novos não disponíveis ainda:', err);
           }
         }
-        
+
         if (error) {
           console.error('Error fetching profile:', error);
           // Se houver erro crítico, mostra alerta apenas se não conseguir carregar nada
@@ -137,7 +142,7 @@ const EditProfileScreen = ({ navigation }) => {
             Alert.alert('Erro', 'Não foi possível carregar o perfil. Verifique sua conexão.');
           }
         }
-        
+
         if (profile) {
           setFullName(profile.full_name || '');
           setPhone(profile.phone ? formatPhone(profile.phone) : '');
@@ -158,8 +163,8 @@ const EditProfileScreen = ({ navigation }) => {
       setLoading(false);
     };
 
-    if(isFocused){
-        fetchProfile();
+    if (isFocused) {
+      fetchProfile();
     }
   }, [isFocused]);
 
@@ -291,14 +296,14 @@ const EditProfileScreen = ({ navigation }) => {
         .from('profiles')
         .update(extendedUpdateData)
         .eq('id', user.id);
-      
+
       // Se os campos novos não existirem, apenas loga o erro mas não bloqueia
       if (extendedError) {
         console.log('Alguns campos novos não puderam ser atualizados (podem não existir ainda):', extendedError.message);
         // Avisa o usuário que alguns campos podem não ter sido salvos se as colunas não existirem
         if (extendedError.message && extendedError.message.includes('column')) {
           Alert.alert(
-            'Aviso', 
+            'Aviso',
             'Os dados básicos foram salvos, mas alguns campos novos não puderam ser atualizados. Execute o script SQL para adicionar as novas colunas.'
           );
         }
@@ -313,13 +318,13 @@ const EditProfileScreen = ({ navigation }) => {
 
     // 2. Update Email if it has changed
     if (email !== user.email) {
-        const { error: emailError } = await supabase.auth.updateUser({ email: email });
-        if (emailError) {
-            Alert.alert('Erro ao atualizar email', emailError.message);
-            setIsSaving(false);
-            return;
-        }
-        Alert.alert('Sucesso', 'Verifique seu novo email para confirmar a alteração.');
+      const { error: emailError } = await supabase.auth.updateUser({ email: email });
+      if (emailError) {
+        Alert.alert('Erro ao atualizar email', emailError.message);
+        setIsSaving(false);
+        return;
+      }
+      Alert.alert('Sucesso', 'Verifique seu novo email para confirmar a alteração.');
     }
 
     // 3. Update Password if a new one is provided
@@ -331,13 +336,13 @@ const EditProfileScreen = ({ navigation }) => {
         setIsSaving(false);
         return;
       }
-      
+
       if (newPassword !== confirmPassword) {
         Alert.alert('Erro', 'As senhas não coincidem');
         setIsSaving(false);
         return;
       }
-      
+
       const { error: passwordError } = await supabase.auth.updateUser({ password: newPassword });
       if (passwordError) {
         Alert.alert('Erro ao atualizar senha', passwordError.message);
@@ -360,7 +365,7 @@ const EditProfileScreen = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
       >
         {loading ? (
-          <ActivityIndicator style={styles.loader} color={colors.primary} />
+          <ActivityIndicator style={styles.loader} color={theme.colors.primary} />
         ) : (
           <View style={styles.formContainer}>
             {/* Seção de Foto do Perfil */}
@@ -386,8 +391,8 @@ const EditProfileScreen = ({ navigation }) => {
                       photoPreview
                         ? { uri: photoPreview }
                         : currentPhotoUrl
-                        ? { uri: currentPhotoUrl }
-                        : require('../assets/avatar-placeholder.png')
+                          ? { uri: currentPhotoUrl }
+                          : require('../assets/avatar-placeholder.png')
                     }
                     style={styles.avatar}
                     contentFit="cover"
@@ -412,6 +417,7 @@ const EditProfileScreen = ({ navigation }) => {
                   value={fullName}
                   onChangeText={setFullName}
                   placeholder="Digite seu nome completo"
+                  placeholderTextColor={theme.colors.textMuted}
                 />
               </View>
               <View style={styles.inputGroup}>
@@ -421,6 +427,7 @@ const EditProfileScreen = ({ navigation }) => {
                   value={cpf}
                   onChangeText={(text) => setCpf(formatCPF(text))}
                   placeholder="000.000.000-00"
+                  placeholderTextColor={theme.colors.textMuted}
                   keyboardType="numeric"
                   maxLength={14}
                 />
@@ -432,6 +439,7 @@ const EditProfileScreen = ({ navigation }) => {
                   value={rg}
                   onChangeText={setRg}
                   placeholder="Digite seu RG"
+                  placeholderTextColor={theme.colors.textMuted}
                   keyboardType="numeric"
                 />
               </View>
@@ -442,6 +450,7 @@ const EditProfileScreen = ({ navigation }) => {
                   value={nationality}
                   onChangeText={setNationality}
                   placeholder="Ex: Brasileiro(a)"
+                  placeholderTextColor={theme.colors.textMuted}
                 />
               </View>
               <View style={styles.inputGroup}>
@@ -470,6 +479,7 @@ const EditProfileScreen = ({ navigation }) => {
                   value={profession}
                   onChangeText={setProfession}
                   placeholder="Ex: Engenheiro, Professora"
+                  placeholderTextColor={theme.colors.textMuted}
                 />
               </View>
               <View style={styles.inputGroup}>
@@ -479,6 +489,7 @@ const EditProfileScreen = ({ navigation }) => {
                   value={phone}
                   onChangeText={(text) => setPhone(formatPhone(text))}
                   placeholder="(00) 00000-0000"
+                  placeholderTextColor={theme.colors.textMuted}
                   keyboardType="phone-pad"
                   maxLength={15}
                 />
@@ -492,6 +503,7 @@ const EditProfileScreen = ({ navigation }) => {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   placeholder="Digite seu email"
+                  placeholderTextColor={theme.colors.textMuted}
                 />
               </View>
               <View style={styles.inputGroup}>
@@ -540,6 +552,7 @@ const EditProfileScreen = ({ navigation }) => {
                 <TextInput
                   style={styles.input}
                   placeholder="Deixe em branco para não alterar"
+                  placeholderTextColor={theme.colors.textMuted}
                   value={newPassword}
                   onChangeText={setNewPassword}
                   secureTextEntry
@@ -555,10 +568,10 @@ const EditProfileScreen = ({ navigation }) => {
                             width: `${Math.min(100, (getPasswordStrength(newPassword).score / 8) * 100)}%`,
                             backgroundColor:
                               getPasswordStrength(newPassword).strength === 'weak'
-                                ? '#F44336'
+                                ? theme.colors.expense
                                 : getPasswordStrength(newPassword).strength === 'medium'
-                                ? '#FF9800'
-                                : '#4CAF50',
+                                  ? '#FF9800'
+                                  : theme.colors.income,
                           },
                         ]}
                       />
@@ -569,10 +582,10 @@ const EditProfileScreen = ({ navigation }) => {
                         {
                           color:
                             getPasswordStrength(newPassword).strength === 'weak'
-                              ? '#F44336'
+                              ? theme.colors.expense
                               : getPasswordStrength(newPassword).strength === 'medium'
-                              ? '#FF9800'
-                              : '#4CAF50',
+                                ? '#FF9800'
+                                : theme.colors.income,
                         },
                       ]}
                     >
@@ -586,6 +599,7 @@ const EditProfileScreen = ({ navigation }) => {
                 <TextInput
                   style={styles.input}
                   placeholder="Deixe em branco para não alterar"
+                  placeholderTextColor={theme.colors.textMuted}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry
@@ -599,7 +613,7 @@ const EditProfileScreen = ({ navigation }) => {
               disabled={isSaving}
             >
               {isSaving ? (
-                <ActivityIndicator color={colors.primary} />
+                <ActivityIndicator color={theme.colors.surface} />
               ) : (
                 <Text style={styles.buttonText}>Salvar alterações</Text>
               )}
@@ -611,10 +625,10 @@ const EditProfileScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
     flex: 1,
@@ -630,34 +644,47 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   section: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     padding: 20,
     marginBottom: 20,
+    ...(theme.isHighContrast ? {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+      shadowOpacity: 0,
+      elevation: 0,
+    } : {
+      shadowColor: '#000',
+      shadowOpacity: 0.1,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 3,
+    }),
   },
   sectionTitle: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     marginBottom: 15,
   },
   inputGroup: {
     marginBottom: 15,
   },
   label: {
-    ...typography.label,
+    ...theme.typography.label,
     marginBottom: 8,
   },
   input: {
     height: 50,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.sm,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: theme.radii.sm,
     paddingHorizontal: 15,
     fontSize: 16,
-    backgroundColor: colors.surface,
+    color: theme.colors.textPrimary,
+    backgroundColor: theme.colors.surface,
   },
   passwordHint: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     marginBottom: 12,
     fontStyle: 'italic',
   },
@@ -669,7 +696,7 @@ const styles = StyleSheet.create({
   passwordStrengthBar: {
     flex: 1,
     height: 4,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: theme.colors.borderSubtle,
     borderRadius: 2,
     overflow: 'hidden',
     marginRight: 10,
@@ -684,13 +711,13 @@ const styles = StyleSheet.create({
     minWidth: 50,
   },
   saveButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: theme.colors.primary,
     padding: 15,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     alignItems: 'center',
   },
   buttonText: {
-    ...typography.button,
+    ...theme.typography.button,
     fontSize: 16,
   },
   radioContainer: {
@@ -707,7 +734,7 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: colors.borderSubtle,
+    borderColor: theme.colors.borderSubtle,
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -716,30 +743,30 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: colors.primary,
+    backgroundColor: theme.colors.primary,
   },
   radioLabel: {
-    ...typography.body,
+    ...theme.typography.body,
     fontSize: 16,
   },
   dropdown: {
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.sm,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: theme.radii.sm,
     minHeight: 50,
     overflow: 'hidden',
     width: '100%',
-    backgroundColor: colors.surface,
+    backgroundColor: theme.colors.surface,
   },
   dropdownText: {
     fontSize: 16,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   dropdownContainer: {
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.sm,
-    backgroundColor: colors.surface,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.surface,
   },
   avatarContainer: {
     alignItems: 'center',
@@ -753,7 +780,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 12,
     borderWidth: 3,
-    borderColor: colors.primarySoft,
+    borderColor: theme.colors.primarySoft,
   },
   avatar: {
     width: '100%',
@@ -770,9 +797,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarHint: {
-    ...typography.caption,
+    ...theme.typography.caption,
     textAlign: 'center',
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
 });
 

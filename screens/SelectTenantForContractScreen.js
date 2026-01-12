@@ -13,15 +13,15 @@ import { Image } from 'expo-image';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors, radii, typography } from '../theme';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 
-const TenantItem = ({ item, onPress }) => {
+const TenantItem = ({ item, onPress, styles, theme }) => {
   const isOccupied = !!item.property_id;
 
   return (
     <TouchableOpacity style={styles.tenantCard} onPress={() => onPress(item)}>
       <Image
-        source={item.photo_url 
+        source={item.photo_url
           ? { uri: item.photo_url }
           : require('../assets/avatar-placeholder.png')
         }
@@ -30,7 +30,7 @@ const TenantItem = ({ item, onPress }) => {
       <View style={styles.tenantInfo}>
         <Text style={styles.tenantName}>{item.full_name}</Text>
         <View style={styles.tenantMetaRow}>
-          <MaterialIcons name="phone" size={16} color={colors.textSecondary} />
+          <MaterialIcons name="phone" size={16} color={theme.colors.textSecondary} />
           <Text style={styles.tenantMetaText}>{item.phone || 'Sem telefone'}</Text>
         </View>
       </View>
@@ -49,12 +49,14 @@ const TenantItem = ({ item, onPress }) => {
           {isOccupied ? 'Ocupado' : 'Disponível'}
         </Text>
       </View>
-      <MaterialIcons name="chevron-right" size={24} color={colors.textSecondary} />
+      <MaterialIcons name="chevron-right" size={24} color={theme.colors.textSecondary} />
     </TouchableOpacity>
   );
 };
 
 const SelectTenantForContractScreen = ({ route, navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   const { propertyId, property } = route.params;
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,7 @@ const SelectTenantForContractScreen = ({ route, navigation }) => {
   const fetchTenants = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       Alert.alert('Erro', 'Você precisa estar logado.');
       navigation.goBack();
@@ -103,7 +105,7 @@ const SelectTenantForContractScreen = ({ route, navigation }) => {
   if (loading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
@@ -130,7 +132,7 @@ const SelectTenantForContractScreen = ({ route, navigation }) => {
             data={tenants}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <TenantItem item={item} onPress={handleSelectTenant} />
+              <TenantItem item={item} onPress={handleSelectTenant} styles={styles} theme={theme} />
             )}
             contentContainerStyle={styles.listContent}
             removeClippedSubviews={true}
@@ -148,10 +150,10 @@ const SelectTenantForContractScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: theme.colors.background,
   },
   centerContent: {
     flex: 1,
@@ -166,8 +168,8 @@ const styles = StyleSheet.create({
   tenantCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     padding: 15,
     marginBottom: 12,
     shadowColor: '#000',
@@ -181,14 +183,15 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     marginRight: 15,
+    backgroundColor: '#ccc', // Add fallback
   },
   tenantInfo: {
     flex: 1,
   },
   tenantName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    ...theme.typography.bodyStrong,
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   tenantMetaRow: {
@@ -198,57 +201,61 @@ const styles = StyleSheet.create({
   tenantMetaText: {
     marginLeft: 5,
     fontSize: 13,
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
+    ...theme.typography.caption,
   },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     borderWidth: 1,
     marginRight: 10,
   },
   statusAvailable: {
-    backgroundColor: '#e3f2fd',
-    borderColor: '#bbdefb',
+    backgroundColor: theme.colors.primarySoft || '#e3f2fd',
+    borderColor: theme.colors.primarySoft || '#bbdefb',
   },
   statusOccupied: {
-    backgroundColor: '#e8f5e9',
-    borderColor: '#c8e6c9',
+    backgroundColor: theme.colors.successSoft || '#e8f5e9',
+    borderColor: theme.colors.successSoft || '#c8e6c9',
   },
   statusText: {
     fontSize: 11,
     fontWeight: '600',
+    ...theme.typography.caption,
   },
   statusAvailableText: {
-    color: '#1565c0',
+    color: theme.colors.primaryDark || '#1565c0',
   },
   statusOccupiedText: {
-    color: '#2e7d32',
+    color: theme.colors.success || '#2e7d32',
   },
   emptyText: {
-    ...typography.body,
+    ...theme.typography.body,
     marginBottom: 20,
     textAlign: 'center',
+    color: theme.colors.textSecondary,
   },
   addButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
   },
   addButtonText: {
-    ...typography.button,
+    ...theme.typography.button,
     fontSize: 16,
+    color: theme.colors.surface,
   },
   fab: {
     position: 'absolute',
     left: 15,
     right: 15,
     bottom: 20,
-    backgroundColor: colors.primary,
+    backgroundColor: theme.colors.primary,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -260,9 +267,10 @@ const styles = StyleSheet.create({
   },
   fabText: {
     marginLeft: 8,
-    color: '#fff',
+    color: theme.colors.surface,
     fontWeight: 'bold',
     fontSize: 15,
+    ...theme.typography.button,
   },
 });
 

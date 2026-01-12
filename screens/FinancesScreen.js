@@ -6,7 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { fetchAllFinances, calculateOverview } from '../lib/financesService';
 import { supabase } from '../lib/supabase';
 import RangeDatePicker from '../components/RangeDatePicker';
-import { colors, radii, typography } from '../theme';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import SearchBar from '../components/SearchBar';
 import { canAddFinancialTransaction, getUserSubscription, getActivePropertiesCount } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
@@ -14,6 +14,8 @@ import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 import SkeletonLoader, { OverviewSkeleton, FinancesListSkeleton } from '../components/SkeletonLoader';
 
 const FinancesScreen = ({ navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -115,7 +117,7 @@ const FinancesScreen = ({ navigation }) => {
       const currentPlan = subscription?.subscription_plan || 'free';
       // Se o plano atual é basic, sempre sugere premium
       const requiredPlan = currentPlan === 'basic' ? 'premium' : 'basic';
-      
+
       setSubscriptionInfo({
         currentPlan,
         propertyCount,
@@ -171,286 +173,288 @@ const FinancesScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-        <View style={styles.headerContainer}>
-            <Text style={styles.header}>Finanças</Text>
-        </View>
-        <ScrollView style={styles.scrollContainer}>
-          {loading ? (
-            <>
-              <View style={styles.section}>
-                <SkeletonLoader width="40%" height={18} style={{ marginBottom: 15 }} />
-                <OverviewSkeleton />
-                
-                <View style={styles.filtersRow}>
-                  <SkeletonLoader width={70} height={28} borderRadius={radii.pill} style={{ marginRight: 8 }} />
-                  <SkeletonLoader width={80} height={28} borderRadius={radii.pill} style={{ marginRight: 8 }} />
-                  <SkeletonLoader width={90} height={28} borderRadius={radii.pill} />
-                </View>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>Finanças</Text>
+      </View>
+      <ScrollView style={styles.scrollContainer}>
+        {loading ? (
+          <>
+            <View style={styles.section}>
+              <SkeletonLoader width="40%" height={18} style={{ marginBottom: 15 }} />
+              <OverviewSkeleton />
 
-                <View style={styles.dateFilterRow}>
-                  <SkeletonLoader width={60} height={14} style={{ marginBottom: 4 }} />
-                  <SkeletonLoader width="100%" height={40} borderRadius={radii.pill} />
-                </View>
+              <View style={styles.filtersRow}>
+                <SkeletonLoader width={70} height={28} borderRadius={theme.radii.pill} style={{ marginRight: 8 }} />
+                <SkeletonLoader width={80} height={28} borderRadius={theme.radii.pill} style={{ marginRight: 8 }} />
+                <SkeletonLoader width={90} height={28} borderRadius={theme.radii.pill} />
+              </View>
 
-                <View style={styles.searchAndDateContainer}>
-                  <SkeletonLoader width="100%" height={50} borderRadius={radii.pill} />
+              <View style={styles.dateFilterRow}>
+                <SkeletonLoader width={60} height={14} style={{ marginBottom: 4 }} />
+                <SkeletonLoader width="100%" height={40} borderRadius={theme.radii.pill} />
+              </View>
+
+              <View style={styles.searchAndDateContainer}>
+                <SkeletonLoader width="100%" height={50} borderRadius={theme.radii.pill} />
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <SkeletonLoader width="50%" height={18} style={{ marginBottom: 15 }} />
+              <FinancesListSkeleton count={5} />
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Visão geral</Text>
+              <View style={styles.overviewRow}>
+                <View style={[styles.overviewCard, styles.overviewCardIncome]}>
+                  <Text style={styles.overviewLabel}>Entradas</Text>
+                  <Text style={styles.incomeAmount}>{formatCurrency(overview.totalIncome)}</Text>
+                </View>
+                <View style={[styles.overviewCard, styles.overviewCardExpense]}>
+                  <Text style={styles.overviewLabel}>Despesas</Text>
+                  <Text style={styles.expenseAmount}>{formatCurrency(overview.totalExpenses)}</Text>
+                </View>
+                <View style={[styles.overviewCard, styles.overviewCardProfit]}>
+                  <Text style={styles.overviewLabel}>Lucro</Text>
+                  <Text style={styles.profitAmount}>{formatCurrency(overview.netProfit)}</Text>
                 </View>
               </View>
 
-              <View style={styles.section}>
-                <SkeletonLoader width="50%" height={18} style={{ marginBottom: 15 }} />
-                <FinancesListSkeleton count={5} />
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Visão geral</Text>
-                <View style={styles.overviewRow}>
-                  <View style={[styles.overviewCard, styles.overviewCardIncome]}>
-                    <Text style={styles.overviewLabel}>Entradas</Text>
-                    <Text style={styles.incomeAmount}>{formatCurrency(overview.totalIncome)}</Text>
-                  </View>
-                  <View style={[styles.overviewCard, styles.overviewCardExpense]}>
-                    <Text style={styles.overviewLabel}>Despesas</Text>
-                    <Text style={styles.expenseAmount}>{formatCurrency(overview.totalExpenses)}</Text>
-                  </View>
-                  <View style={[styles.overviewCard, styles.overviewCardProfit]}>
-                    <Text style={styles.overviewLabel}>Lucro</Text>
-                    <Text style={styles.profitAmount}>{formatCurrency(overview.netProfit)}</Text>
-                  </View>
-                </View>
-
-                    <View style={styles.filtersRow}>
-                  <TouchableOpacity
-                    style={[styles.filterChip, filterType === 'all' && styles.filterChipActive]}
-                    onPress={() => setFilterType('all')}
-                  >
-                    <Text style={[styles.filterChipText, filterType === 'all' && styles.filterChipTextActive]}>
-                      Todos
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.filterChip, filterType === 'income' && styles.filterChipActive]}
-                    onPress={() => setFilterType('income')}
-                  >
-                    <Text style={[styles.filterChipText, filterType === 'income' && styles.filterChipTextActive]}>
-                      Entradas
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.filterChip, filterType === 'expense' && styles.filterChipActive]}
-                    onPress={() => setFilterType('expense')}
-                  >
-                    <Text style={[styles.filterChipText, filterType === 'expense' && styles.filterChipTextActive]}>
-                      Despesas
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.dateFilterRow}>
-                  <Text style={styles.dateFilterLabel}>Período</Text>
-                  <TouchableOpacity
-                    style={styles.periodField}
-                    onPress={() => setShowRangePicker(true)}
-                  >
-                    <MaterialIcons name="date-range" size={18} color="#666" />
-                    <Text style={styles.periodFieldText}>
-                      {customStartDate && customEndDate
-                        ? `${formatDate(customStartDate)} - ${formatDate(customEndDate)}`
-                        : customStartDate
-                          ? `${formatDate(customStartDate)} - ...`
-                          : 'Selecionar período'}
-                    </Text>
-                    {(customStartDate || customEndDate) && (
-                      <TouchableOpacity
-                        style={styles.periodClearButton}
-                        onPress={() => {
-                          setCustomStartDate(null);
-                          setCustomEndDate(null);
-                        }}
-                      >
-                        <MaterialIcons name="close" size={16} color="#666" />
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.searchAndDateContainer}>
-                  <SearchBar
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder="Buscar por descrição ou imóvel"
-                  />
-                </View>
+              <View style={styles.filtersRow}>
+                <TouchableOpacity
+                  style={[styles.filterChip, filterType === 'all' && styles.filterChipActive]}
+                  onPress={() => setFilterType('all')}
+                >
+                  <Text style={[styles.filterChipText, filterType === 'all' && styles.filterChipTextActive]}>
+                    Todos
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterChip, filterType === 'income' && styles.filterChipActive]}
+                  onPress={() => setFilterType('income')}
+                >
+                  <Text style={[styles.filterChipText, filterType === 'income' && styles.filterChipTextActive]}>
+                    Entradas
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterChip, filterType === 'expense' && styles.filterChipActive]}
+                  onPress={() => setFilterType('expense')}
+                >
+                  <Text style={[styles.filterChipText, filterType === 'expense' && styles.filterChipTextActive]}>
+                    Despesas
+                  </Text>
+                </TouchableOpacity>
               </View>
 
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Lançamentos</Text>
-                {error && (
-                  <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{error}</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={fetchFinances}>
-                      <Text style={styles.retryButtonText}>Tentar novamente</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {!error && getFilteredTransactions.length === 0 && (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyTitle}>Nenhum lançamento neste período</Text>
-                    <Text style={styles.emptySubtitle}>
-                      Ajuste os filtros ou adicione o primeiro lançamento financeiro.
-                    </Text>
+              <View style={styles.dateFilterRow}>
+                <Text style={styles.dateFilterLabel}>Período</Text>
+                <TouchableOpacity
+                  style={styles.periodField}
+                  onPress={() => setShowRangePicker(true)}
+                >
+                  <MaterialIcons name="date-range" size={18} color={theme.colors.textSecondary} />
+                  <Text style={styles.periodFieldText}>
+                    {customStartDate && customEndDate
+                      ? `${formatDate(customStartDate)} - ${formatDate(customEndDate)}`
+                      : customStartDate
+                        ? `${formatDate(customStartDate)} - ...`
+                        : 'Selecionar período'}
+                  </Text>
+                  {(customStartDate || customEndDate) && (
                     <TouchableOpacity
-                      style={styles.emptyButton}
-                      onPress={handleAddTransaction}
+                      style={styles.periodClearButton}
+                      onPress={() => {
+                        setCustomStartDate(null);
+                        setCustomEndDate(null);
+                      }}
                     >
-                      <Text style={styles.emptyButtonText}>Adicionar lançamento</Text>
+                      <MaterialIcons name="close" size={16} color={theme.colors.textSecondary} />
                     </TouchableOpacity>
-                  </View>
-                )}
-
-                {!error && getFilteredTransactions.length > 0 && getFilteredTransactions.map((transaction) => (
-                  <View key={transaction.id} style={styles.transactionCard}>
-                    <View style={styles.transactionDetails}>
-                      <Text style={styles.transactionDesc}>{transaction.description}</Text>
-                      <Text style={styles.transactionMeta}>
-                        {transaction.properties?.address || 'Sem imóvel vinculado'}
-                        {transaction.tenants?.full_name
-                          ? ` • ${transaction.tenants.full_name}`
-                          : ' • Sem inquilino'}
-                        {' • '}
-                        {formatDate(transaction.date)}
-                      </Text>
-                      <View style={styles.transactionActionsRow}>
-                        {transaction.property_id && (
-                          <TouchableOpacity
-                            style={styles.actionChip}
-                            onPress={() => {
-                              const minimalProperty = {
-                                id: transaction.property_id,
-                                address: transaction.properties?.address || 'Imóvel',
-                              };
-                              navigation.navigate('PropertyDetails', {
-                                property: minimalProperty,
-                              });
-                            }}
-                          >
-                            <MaterialIcons name="home" size={16} color="#4a86e8" />
-                            <Text style={styles.actionChipText}>Ver imóvel</Text>
-                          </TouchableOpacity>
-                        )}
-                        {transaction.tenant_id && (
-                          <TouchableOpacity
-                            style={styles.actionChip}
-                            onPress={() => {
-                              const minimalTenant = {
-                                id: transaction.tenant_id,
-                                full_name: transaction.tenants?.full_name || 'Inquilino',
-                              };
-                              navigation.navigate('TenantDetails', {
-                                tenant: minimalTenant,
-                              });
-                            }}
-                          >
-                            <MaterialIcons name="person" size={16} color="#4a86e8" />
-                            <Text style={styles.actionChipText}>Ver inquilino</Text>
-                          </TouchableOpacity>
-                        )}
-                        <TouchableOpacity
-                          style={[styles.actionChip, styles.actionChipDanger]}
-                          onPress={() => handleDeleteTransaction(transaction)}
-                        >
-                          <MaterialIcons name="delete" size={16} color="#F44336" />
-                          <Text style={[styles.actionChipText, { color: '#F44336' }]}>Excluir</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                    <Text
-                      style={[
-                        styles.transactionAmount,
-                        transaction.type === 'income' ? styles.income : styles.expense,
-                      ]}
-                    >
-                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                    </Text>
-                  </View>
-                ))}
+                  )}
+                </TouchableOpacity>
               </View>
-            </>
-          )}
-        </ScrollView>
-        <RangeDatePicker
-          visible={showRangePicker}
-          startDate={
-            customStartDate
-              ? (typeof customStartDate === 'string'
-                ? customStartDate
-                : customStartDate.toISOString().split('T')[0])
-              : null
-          }
-          endDate={
-            customEndDate
-              ? (typeof customEndDate === 'string'
-                ? customEndDate
-                : customEndDate.toISOString().split('T')[0])
-              : null
-          }
-          onConfirm={(start, end) => {
-            setCustomStartDate(start);
-            setCustomEndDate(end);
-          }}
-          onClose={() => setShowRangePicker(false)}
-        />
-        <TouchableOpacity 
-            style={styles.addButton} 
-            onPress={handleAddTransaction}
-        >
-            <MaterialIcons name="add" size={30} color="white" />
-        </TouchableOpacity>
 
-        <UpgradeModal
-          visible={showUpgradeModal}
-          onClose={() => setShowUpgradeModal(false)}
-          onUpgrade={() => {
-            setShowUpgradeModal(false);
-            navigation.navigate('Subscription');
-          }}
-          currentPlan={subscriptionInfo?.currentPlan || 'free'}
-          propertyCount={subscriptionInfo?.propertyCount || 0}
-          requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
-          customMessage="O plano Gratuito não permite lançamentos financeiros. Faça upgrade para o plano Básico ou Premium para registrar recebimentos e despesas."
-        />
+              <View style={styles.searchAndDateContainer}>
+                <SearchBar
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Buscar por descrição ou imóvel"
+                />
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Lançamentos</Text>
+              {error && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{error}</Text>
+                  <TouchableOpacity style={styles.retryButton} onPress={fetchFinances}>
+                    <Text style={styles.retryButtonText}>Tentar novamente</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {!error && getFilteredTransactions.length === 0 && (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyTitle}>Nenhum lançamento neste período</Text>
+                  <Text style={styles.emptySubtitle}>
+                    Ajuste os filtros ou adicione o primeiro lançamento financeiro.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.emptyButton}
+                    onPress={handleAddTransaction}
+                  >
+                    <Text style={styles.emptyButtonText}>Adicionar lançamento</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {!error && getFilteredTransactions.length > 0 && getFilteredTransactions.map((transaction) => (
+                <View key={transaction.id} style={styles.transactionCard}>
+                  <View style={styles.transactionDetails}>
+                    <Text style={styles.transactionDesc}>{transaction.description}</Text>
+                    <Text style={styles.transactionMeta}>
+                      {transaction.properties?.address || 'Sem imóvel vinculado'}
+                      {transaction.tenants?.full_name
+                        ? ` • ${transaction.tenants.full_name}`
+                        : ' • Sem inquilino'}
+                      {' • '}
+                      {formatDate(transaction.date)}
+                    </Text>
+                    <View style={styles.transactionActionsRow}>
+                      {transaction.property_id && (
+                        <TouchableOpacity
+                          style={styles.actionChip}
+                          onPress={() => {
+                            const minimalProperty = {
+                              id: transaction.property_id,
+                              address: transaction.properties?.address || 'Imóvel',
+                            };
+                            navigation.navigate('PropertyDetails', {
+                              property: minimalProperty,
+                            });
+                          }}
+                        >
+                          <MaterialIcons name="home" size={16} color={theme.colors.primary} />
+                          <Text style={styles.actionChipText}>Ver imóvel</Text>
+                        </TouchableOpacity>
+                      )}
+                      {transaction.tenant_id && (
+                        <TouchableOpacity
+                          style={styles.actionChip}
+                          onPress={() => {
+                            const minimalTenant = {
+                              id: transaction.tenant_id,
+                              full_name: transaction.tenants?.full_name || 'Inquilino',
+                            };
+                            navigation.navigate('TenantDetails', {
+                              tenant: minimalTenant,
+                            });
+                          }}
+                        >
+                          <MaterialIcons name="person" size={16} color={theme.colors.primary} />
+                          <Text style={styles.actionChipText}>Ver inquilino</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        style={[styles.actionChip, styles.actionChipDanger]}
+                        onPress={() => handleDeleteTransaction(transaction)}
+                      >
+                        <MaterialIcons name="delete" size={16} color={theme.colors.error || "#F44336"} />
+                        <Text style={[styles.actionChipText, { color: theme.colors.error || '#F44336' }]}>Excluir</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <Text
+                    style={[
+                      styles.transactionAmount,
+                      transaction.type === 'income' ? styles.income : styles.expense,
+                    ]}
+                  >
+                    {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+      </ScrollView>
+      <RangeDatePicker
+        visible={showRangePicker}
+        startDate={
+          customStartDate
+            ? (typeof customStartDate === 'string'
+              ? customStartDate
+              : customStartDate.toISOString().split('T')[0])
+            : null
+        }
+        endDate={
+          customEndDate
+            ? (typeof customEndDate === 'string'
+              ? customEndDate
+              : customEndDate.toISOString().split('T')[0])
+            : null
+        }
+        onConfirm={(start, end) => {
+          setCustomStartDate(start);
+          setCustomEndDate(end);
+        }}
+        onClose={() => setShowRangePicker(false)}
+      />
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={handleAddTransaction}
+      >
+        <MaterialIcons name="add" size={30} color="white" />
+      </TouchableOpacity>
+
+      <UpgradeModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        onUpgrade={() => {
+          setShowUpgradeModal(false);
+          navigation.navigate('Subscription');
+        }}
+        currentPlan={subscriptionInfo?.currentPlan || 'free'}
+        propertyCount={subscriptionInfo?.propertyCount || 0}
+        requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+        customMessage="O plano Gratuito não permite lançamentos financeiros. Faça upgrade para o plano Básico ou Premium para registrar recebimentos e despesas."
+      />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
-      flex: 1,
-      padding: 15,
+    flex: 1,
+    padding: 15,
   },
   headerContainer: {
     padding: 15,
     paddingTop: 50,
-    backgroundColor: colors.surface,
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
+    borderBottomColor: theme.colors.borderSubtle,
   },
   header: {
-    ...typography.screenTitle,
+    ...theme.typography.screenTitle,
+    color: theme.colors.textPrimary,
   },
   section: {
     marginBottom: 20,
   },
   sectionTitle: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     marginBottom: 15,
+    color: theme.colors.textPrimary,
   },
   overviewRow: {
     flexDirection: 'row',
@@ -459,42 +463,48 @@ const styles = StyleSheet.create({
   },
   overviewCard: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     paddingVertical: 14,
     paddingHorizontal: 10,
     marginRight: 8,
     alignItems: 'flex-start',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
+    ...(theme.isHighContrast ? {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+      shadowOpacity: 0,
+      elevation: 0,
+    } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.06,
+      shadowRadius: 3,
+      elevation: 2,
+    }),
   },
   overviewCardIncome: {
-    // Mantém card branco; cor fica apenas no texto de valor
   },
   overviewCardExpense: {
-    // Mantém card branco; cor fica apenas no texto de valor
   },
   overviewCardProfit: {
     marginRight: 0,
   },
   overviewLabel: {
-    ...typography.body,
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
   },
   incomeAmount: {
-    ...typography.bodyStrong,
-    color: colors.income,
+    ...theme.typography.bodyStrong,
+    color: theme.colors.income,
   },
   expenseAmount: {
-    ...typography.bodyStrong,
-    color: colors.expense,
+    ...theme.typography.bodyStrong,
+    color: theme.colors.expense,
   },
   profitAmount: {
-    ...typography.bodyStrong,
-    color: '#2196F3',
+    ...theme.typography.bodyStrong,
+    color: theme.colors.info || '#2196F3',
   },
   filtersRow: {
     flexDirection: 'row',
@@ -503,18 +513,19 @@ const styles = StyleSheet.create({
   filterChip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.colors.borderSubtle || '#ddd',
     marginRight: 8,
+    backgroundColor: theme.colors.surface,
   },
   filterChipActive: {
-    backgroundColor: '#4a86e8',
-    borderColor: '#4a86e8',
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
   },
   filterChipText: {
     fontSize: 13,
-    color: colors.textMuted,
+    color: theme.colors.textMuted || theme.colors.textSecondary,
   },
   filterChipTextActive: {
     color: '#fff',
@@ -527,40 +538,45 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   dateFilterLabel: {
-    ...typography.caption,
+    ...theme.typography.caption,
     marginBottom: 4,
+    color: theme.colors.textSecondary,
   },
   periodField: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: radii.pill,
+    borderColor: theme.colors.borderSubtle || '#ddd',
+    borderRadius: theme.radii.pill,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
   },
   periodFieldText: {
     flex: 1,
     marginLeft: 6,
-    ...typography.caption,
-    color: colors.textPrimary,
+    ...theme.typography.caption,
+    color: theme.colors.textPrimary,
   },
   periodClearButton: {
     width: 24,
     height: 24,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   transactionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     padding: 15,
     marginBottom: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   transactionDetails: {
     flex: 1,
@@ -579,46 +595,47 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#4a86e8',
-    backgroundColor: '#e3f2fd',
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primarySoft || '#e3f2fd',
     marginRight: 8,
     marginBottom: 4,
   },
   actionChipDanger: {
-    borderColor: '#F44336',
-    backgroundColor: '#ffebee',
+    borderColor: theme.colors.error || '#F44336',
+    backgroundColor: theme.colors.dangerSoft || '#ffebee',
   },
   actionChipText: {
     marginLeft: 4,
     fontSize: 12,
-    color: '#1e88e5',
+    color: theme.colors.primary,
     fontWeight: '500',
   },
   transactionDesc: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
+    color: theme.colors.textPrimary,
   },
   transactionMeta: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   transactionAmount: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
   },
   income: {
-    color: colors.income,
+    color: theme.colors.income,
   },
   expense: {
-    color: colors.expense,
+    color: theme.colors.expense,
   },
   addButton: {
     position: 'absolute',
     bottom: 30,
     right: 30,
-    backgroundColor: colors.primary,
+    backgroundColor: theme.colors.primary,
     width: 60,
     height: 60,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -630,19 +647,19 @@ const styles = StyleSheet.create({
   errorContainer: {
     padding: 16,
     borderRadius: 8,
-    backgroundColor: colors.dangerSoft,
+    backgroundColor: theme.colors.dangerSoft,
     marginBottom: 16,
   },
   errorText: {
-    color: colors.danger,
+    color: theme.colors.danger || theme.colors.expense,
     marginBottom: 8,
   },
   retryButton: {
     alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: radii.pill,
-    backgroundColor: colors.danger,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.danger || theme.colors.expense,
   },
   retryButtonText: {
     color: '#fff',
@@ -653,20 +670,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyTitle: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     marginBottom: 4,
+    color: theme.colors.textPrimary,
   },
   emptySubtitle: {
-    ...typography.body,
+    ...theme.typography.body,
     marginBottom: 12,
     textAlign: 'center',
     paddingHorizontal: 20,
+    color: theme.colors.textSecondary,
   },
   emptyButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primary,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.primary,
   },
   emptyButtonText: {
     color: '#fff',

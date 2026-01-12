@@ -1,5 +1,5 @@
 // screens/TenantDetailsScreen.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal, TextInput, InteractionManager, Animated, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { WebView } from 'react-native-webview';
@@ -10,6 +10,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import { fetchTenantBillingSummary } from '../lib/financesService';
 import { fetchActiveContractByTenant, endContract } from '../lib/contractsService';
 import { colors, radii, typography } from '../theme';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
 import { Buffer } from 'buffer';
@@ -24,9 +25,674 @@ const formatCurrency = (value) => {
   return `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
 };
 
+const createStyles = (theme) => StyleSheet.create({
+  blockedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  blockedTitle: {
+    ...theme.typography.sectionTitle,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  blockedMessage: {
+    ...theme.typography.body,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  blockedSubMessage: {
+    ...theme.typography.body,
+    textAlign: 'center',
+    color: theme.colors.textSecondary,
+    marginBottom: 24,
+  },
+  upgradeButtonBlocked: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: theme.radii.pill,
+  },
+  upgradeButtonTextBlocked: {
+    ...theme.typography.button,
+    color: theme.colors.surface,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
+  avatarContainer: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  avatarTouchable: {
+    position: 'relative',
+    marginBottom: 15,
+  },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  avatarEditIcon: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20,
+    padding: 6,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+  },
+  section: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
+    padding: 15,
+    marginHorizontal: 15,
+    marginTop: 20,
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+      elevation: 0,
+    }),
+  },
+  sectionTitle: {
+    ...theme.typography.sectionTitle,
+    marginBottom: 15,
+  },
+  contractPropertyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f0f7ff',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+      backgroundColor: theme.colors.surface,
+    }),
+  },
+  contractPropertyInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  contractPropertyAddress: {
+    ...theme.typography.bodyStrong,
+    marginBottom: 4,
+  },
+  contractPropertySub: {
+    ...theme.typography.body,
+  },
+  contractPropertyAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: theme.radii.pill,
+    backgroundColor: '#ffebee',
+  },
+  contractPropertyActionText: {
+    marginLeft: 4,
+    color: '#F44336',
+    fontWeight: '600',
+  },
+  contractPropertyEmpty: {
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: '#f5f5f5',
+    marginBottom: 12,
+  },
+  contractPropertyEmptyText: {
+    ...theme.typography.body,
+    color: '#777',
+    fontStyle: 'italic',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  infoLabel: {
+    ...theme.typography.bodyStrong,
+  },
+  infoValue: {
+    ...theme.typography.body,
+    flex: 1,
+    textAlign: 'right',
+  },
+  linkText: {
+    color: '#4a86e8',
+    textDecorationLine: 'underline',
+  },
+  buttonContainer: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    padding: 15,
+    gap: 8,
+    marginBottom: 20,
+  },
+  editButton: {
+    backgroundColor: 'transparent',
+    padding: 15,
+    borderRadius: theme.radii.pill,
+    flex: 1,
+    alignItems: 'center',
+    borderWidth: 0,
+  },
+  deleteButton: {
+    backgroundColor: 'transparent',
+    padding: 15,
+    borderRadius: theme.radii.pill,
+    flex: 1,
+    alignItems: 'center',
+  },
+  buttonText: {
+    ...theme.typography.button,
+    color: '#fff',
+  },
+  editButtonText: {
+    ...theme.typography.button,
+    color: theme.colors.primary,
+  },
+  deleteButtonText: {
+    color: theme.colors.expense,
+  },
+  tenantActions: {
+    marginTop: 10,
+  },
+  tenantActionButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    alignItems: 'center',
+  },
+  tenantActionText: {
+    ...theme.typography.button,
+    color: theme.colors.primary,
+  },
+  primaryContractButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  primaryContractButtonText: {
+    ...theme.typography.button,
+    color: '#fff',
+  },
+  timelineTitle: {
+    ...theme.typography.caption,
+    marginTop: 10,
+    fontWeight: '600',
+    color: '#555',
+  },
+  timelineContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 6,
+    gap: 4,
+  },
+  timelinePill: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fafafa',
+  },
+  timelinePillPaid: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50',
+  },
+  timelinePillOverdue: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#F44336',
+  },
+  timelinePillDueSoon: {
+    backgroundColor: '#FFF3E0',
+    borderColor: '#FF9800',
+  },
+  timelinePillText: {
+    ...theme.typography.caption,
+    color: '#666',
+  },
+  timelinePillTextEmphasis: {
+    fontWeight: '600',
+    color: '#333',
+  },
+  timelineLegend: {
+    flexDirection: 'row',
+    marginTop: 8,
+    justifyContent: 'space-between',
+  },
+  timelineLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 4,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  legendDotPaid: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  legendDotOverdue: {
+    backgroundColor: '#F44336',
+    borderColor: '#F44336',
+  },
+  legendDotDueSoon: {
+    backgroundColor: '#FF9800',
+    borderColor: '#FF9800',
+  },
+  legendDotFuture: {
+    backgroundColor: '#ddd',
+  },
+  legendText: {
+    ...theme.typography.caption,
+    color: '#555',
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  phoneActions: {
+    flexDirection: 'row',
+    marginLeft: 10,
+    gap: 8,
+  },
+  phoneActionButton: {
+    padding: 8,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.primarySoft,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  addDocumentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.primarySoft || '#f0f7ff',
+    gap: 4,
+    ...(theme.isHighContrast && {
+      backgroundColor: theme.colors.surface,
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
+  },
+  addDocumentButtonText: {
+    ...theme.typography.button,
+    color: theme.isHighContrast ? theme.colors.textPrimary : theme.colors.primary,
+  },
+  documentsLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    gap: 10,
+  },
+  documentsLoadingText: {
+    color: '#666',
+    fontSize: 14,
+  },
+  documentsEmpty: {
+    alignItems: 'center',
+    padding: 30,
+  },
+  documentsEmptyText: {
+    ...theme.typography.body,
+    marginTop: 10,
+    color: '#999',
+  },
+  documentsList: {
+    gap: 8,
+  },
+  documentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#eee',
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
+  },
+  documentInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  documentDetails: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  documentName: {
+    ...theme.typography.bodyStrong,
+    marginBottom: 2,
+  },
+  documentMeta: {
+    ...theme.typography.caption,
+    color: '#666',
+  },
+  documentActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  documentActionButton: {
+    padding: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: theme.radii.lg,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    ...theme.typography.sectionTitle,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalBody: {
+    padding: 20,
+  },
+  documentTypeOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    marginBottom: 8,
+    minHeight: 56,
+  },
+  documentTypeOptionText: {
+    ...theme.typography.body,
+  },
+  modalLabel: {
+    ...theme.typography.bodyStrong,
+    marginBottom: 8,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 20,
+    color: theme.colors.textPrimary,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: theme.radii.pill,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#f0f0f0',
+  },
+  modalButtonConfirm: {
+    backgroundColor: theme.colors.primary,
+  },
+  modalButtonCancelText: {
+    ...theme.typography.button,
+    color: '#333',
+  },
+  modalButtonConfirmText: {
+    ...theme.typography.button,
+    color: '#fff',
+  },
+  customNameModalContent: {
+    marginBottom: 52,
+  },
+  bottomSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheetContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    paddingBottom: 20,
+  },
+  bottomSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#ccc',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  bottomSheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  bottomSheetTitle: {
+    ...theme.typography.sectionTitle,
+    flex: 1,
+  },
+  bottomSheetCloseButton: {
+    padding: 4,
+    marginLeft: 10,
+  },
+  bottomSheetBody: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  documentTypeOptionLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  documentTypeOptionDisabled: {
+    opacity: 0.6,
+    backgroundColor: '#f5f5f5',
+  },
+  documentTypeOptionTextDisabled: {
+    color: '#999',
+  },
+  documentExistsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  documentExistsText: {
+    ...theme.typography.caption,
+    color: '#4CAF50',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  documentCountBadge: {
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  documentCountText: {
+    ...theme.typography.caption,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  documentViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  documentViewerContainer: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#000',
+  },
+  documentViewerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingTop: 50,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  documentViewerTitle: {
+    ...theme.typography.sectionTitle,
+    color: '#fff',
+    flex: 1,
+    marginRight: 12,
+  },
+  documentViewerCloseButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  documentViewerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  documentViewerLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  documentViewerLoadingText: {
+    ...theme.typography.body,
+    color: '#fff',
+    marginTop: 12,
+  },
+  documentImageContainer: {
+    flex: 1,
+    width: '100%',
+  },
+  documentImageContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  documentImage: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height - 150,
+  },
+  documentPdfContainer: {
+    flex: 1,
+    width: '100%',
+  },
+  documentPdfWebView: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  documentViewerUnsupported: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  documentViewerUnsupportedText: {
+    ...theme.typography.body,
+    color: '#fff',
+    marginTop: 16,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  documentViewerOpenButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: theme.radii.pill,
+  },
+  documentViewerOpenButtonText: {
+    ...theme.typography.button,
+    color: '#fff',
+    fontWeight: '600',
+  },
+});
+
 const TenantDetailsScreen = ({ route, navigation }) => {
   const { tenant: initialTenant } = route.params;
-  
+  const { theme: accessibilityTheme, isLoading: themeLoading } = useAccessibilityTheme();
+
+  // Usa tema de acessibilidade se disponível, senão usa tema padrão
+  const theme = accessibilityTheme || { colors, radii, typography };
+
+
+
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const [tenant, setTenant] = useState(initialTenant);
   const [loading, setLoading] = useState(true);
   const [billingSummary, setBillingSummary] = useState({
@@ -91,7 +757,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
           const currentPlan = subscription?.subscription_plan || 'free';
           // Se o plano atual é basic, sempre sugere premium
           const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(tenantCount);
-          
+
           setSubscriptionInfo({
             currentPlan,
             tenantCount,
@@ -104,7 +770,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
           setIsBlocked(false);
         }
       }
-      
+
       const { data: tenantData, error: tenantError } = await supabase
         .from('tenants')
         .select(`
@@ -124,7 +790,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
         console.error('Error fetching details:', tenantError);
         return;
       }
-      
+
       setTenant(tenantData);
       setLoading(false);
     };
@@ -207,8 +873,8 @@ const TenantDetailsScreen = ({ route, navigation }) => {
       "Você tem certeza que quer deletar este inquilino?",
       [
         { text: "Cancelar", style: "cancel" },
-        { 
-          text: "Deletar", 
+        {
+          text: "Deletar",
           onPress: async () => {
             // 1) Limpar lançamentos financeiros de aluguel (receitas) ligados a este inquilino
             const { error: financesError } = await supabase
@@ -235,7 +901,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
               navigation.goBack();
             }
           },
-          style: 'destructive' 
+          style: 'destructive'
         }
       ]
     );
@@ -441,7 +1107,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
   };
 
   if (loading || !tenant) {
-    return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={colors.primary} /></View>;
+    return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={theme.colors.primary} /></View>;
   }
 
   // Tela de bloqueio quando inquilino está bloqueado
@@ -462,7 +1128,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
             Você está usando {subscriptionInfo?.tenantCount || 0} {subscriptionInfo?.tenantCount === 1 ? 'inquilino' : 'inquilinos'}.
             Faça upgrade para acessar todos os seus inquilinos.
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.upgradeButtonBlocked}
             onPress={() => setShowUpgradeModal(true)}
           >
@@ -513,14 +1179,90 @@ const TenantDetailsScreen = ({ route, navigation }) => {
     Linking.openURL(`https://wa.me/${formattedNumber}`);
   };
 
+  // Função para verificar se hoje é o dia de vencimento
+  const isDueDateToday = () => {
+    if (!contract?.due_day) return false;
+
+    const today = new Date();
+    const todayDay = today.getDate();
+    const dueDay = contract.due_day;
+
+    // Verifica se hoje é o dia de vencimento
+    // Considera casos especiais (ex: dia 31 em meses com menos dias)
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const effectiveDueDay = Math.min(dueDay, lastDayOfMonth);
+
+    return todayDay === effectiveDueDay;
+  };
+
+  // Função para verificar se o vencimento já passou
+  const isDueDatePassed = () => {
+    if (!contract?.due_day) return false;
+
+    const today = new Date();
+    const todayDay = today.getDate();
+    const dueDay = contract.due_day;
+
+    // Verifica se o dia de vencimento já passou este mês
+    // Considera casos especiais (ex: dia 31 em meses com menos dias)
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const effectiveDueDay = Math.min(dueDay, lastDayOfMonth);
+
+    return todayDay > effectiveDueDay;
+  };
+
+  // Função para cobrar aluguel via WhatsApp
+  const handleRentReminder = () => {
+    if (!tenant.phone) {
+      Alert.alert('Aviso', 'Telefone não informado.');
+      return;
+    }
+
+    if (!contract && !tenant.properties) {
+      Alert.alert('Aviso', 'Não há informações de contrato ou propriedade.');
+      return;
+    }
+
+    // Obtém valor do aluguel (prioridade: contract.rent_amount, fallback: property.rent)
+    const rentAmount = contract?.rent_amount || tenant.properties?.rent || 0;
+    const rentFormatted = formatCurrency(rentAmount);
+
+    // Obtém nome do inquilino
+    const tenantName = tenant.full_name || 'Inquilino';
+
+    // Determina mensagem baseada na data
+    let messageText;
+    if (isDueDateToday()) {
+      messageText = `Olá ${tenantName}, seu aluguel de ${rentFormatted} vence hoje (dia ${contract.due_day}).`;
+    } else if (isDueDatePassed() || billingSummary.overdue > 0) {
+      const today = new Date();
+      const todayDay = today.getDate();
+      const dueDay = contract?.due_day || 0;
+      messageText = `Olá ${tenantName}, seu aluguel de ${rentFormatted} venceu dia ${dueDay}.`;
+    } else {
+      // Se ainda não chegou, usa mensagem genérica
+      messageText = `Olá ${tenantName}, seu aluguel de ${rentFormatted} vence dia ${contract.due_day}.`;
+    }
+
+    // Formata número de telefone
+    const phoneNumber = filterOnlyNumbers(tenant.phone);
+    const formattedNumber = phoneNumber.startsWith('55') ? phoneNumber : `55${phoneNumber}`;
+
+    // Codifica mensagem para URL
+    const encodedMessage = encodeURIComponent(messageText);
+
+    // Abre WhatsApp com mensagem pré-formatada
+    Linking.openURL(`https://wa.me/${formattedNumber}?text=${encodedMessage}`);
+  };
+
   // Funções de documentos
   const checkDocumentExists = (documentType, customName = null) => {
     if (documentType === 'outros' && customName) {
       // Para documentos "outros", verificar por custom_name
       return documents.some(
-        doc => doc.document_type === 'outros' && 
-        doc.custom_name && 
-        doc.custom_name.toLowerCase().trim() === customName.toLowerCase().trim()
+        doc => doc.document_type === 'outros' &&
+          doc.custom_name &&
+          doc.custom_name.toLowerCase().trim() === customName.toLowerCase().trim()
       );
     } else {
       // Para outros tipos, verificar por document_type
@@ -535,7 +1277,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
 
   const handleSelectDocumentType = (documentType) => {
     console.log('handleSelectDocumentType chamado com:', documentType);
-    
+
     // Para documentos "outros", verificar se já existem 3 ou mais
     if (documentType === 'outros') {
       const count = countOtherDocuments();
@@ -559,12 +1301,12 @@ const TenantDetailsScreen = ({ route, navigation }) => {
         return;
       }
     }
-    
+
     // Salvar no ref para garantir que não seja perdido
     documentTypeRef.current = documentType;
     setSelectedDocumentType(documentType);
     handleCloseDocumentTypeModal();
-    
+
     if (documentType === 'outros') {
       // Se for "outros", mostra modal para nome customizado
       // Pequeno delay para garantir que o modal anterior feche
@@ -583,10 +1325,10 @@ const TenantDetailsScreen = ({ route, navigation }) => {
   const handleConfirmCustomName = () => {
     if (customDocumentName && customDocumentName.trim()) {
       const trimmedName = customDocumentName.trim();
-      
+
       // Verificar quantos documentos "outros" já existem no total
       const count = countOtherDocuments();
-      
+
       // Permitir até 3 documentos na categoria "outros" no total
       if (count >= 3) {
         Alert.alert(
@@ -597,7 +1339,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
         setCustomDocumentName('');
         return;
       }
-      
+
       setCustomDocumentName(trimmedName);
       documentTypeRef.current = 'outros';
       setSelectedDocumentType('outros');
@@ -636,17 +1378,17 @@ const TenantDetailsScreen = ({ route, navigation }) => {
   const handleDocumentPicker = (documentType = null) => {
     // Usar o parâmetro, ref ou o estado (nesta ordem de prioridade)
     const typeToUse = documentType || documentTypeRef.current || selectedDocumentType;
-    
+
     // Verificar se o tipo foi selecionado
     if (!typeToUse) {
       console.warn('Tipo de documento não selecionado');
       Alert.alert('Erro', 'Tipo de documento não selecionado. Tente novamente.');
       return;
     }
-    
+
     // Garantir que o ref esteja atualizado
     documentTypeRef.current = typeToUse;
-    
+
     // Abrir ActionSheet nativo para escolher entre câmera e galeria
     Alert.alert(
       'Escolha a origem',
@@ -676,17 +1418,17 @@ const TenantDetailsScreen = ({ route, navigation }) => {
   const handleImageSourceSelection = async (useCamera) => {
     try {
       const typeToUse = documentTypeRef.current || selectedDocumentType;
-      
+
       if (!typeToUse) {
         Alert.alert('Erro', 'Tipo de documento não selecionado. Tente novamente.');
         return;
       }
-      
+
       // Solicitar permissão apropriada
       const permission = useCamera
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (permission.status !== 'granted') {
         Alert.alert('Permissão necessária', 'Você precisa permitir o acesso para adicionar documentos.');
         setSelectedDocumentType(null);
@@ -750,7 +1492,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
         const currentPlan = subscription?.subscription_plan || 'free';
         // Se o plano atual é basic, sempre sugere premium
         const requiredPlan = currentPlan === 'basic' ? 'premium' : 'basic';
-        
+
         setSubscriptionInfo({
           currentPlan,
           propertyCount: documentCount,
@@ -840,1266 +1582,649 @@ const TenantDetailsScreen = ({ route, navigation }) => {
     return type ? type.label : documentType;
   };
 
+
+
   return (
     <View style={styles.container}>
-        <ScreenHeader
-          title={tenant.full_name}
-          onBack={() => navigation.goBack()}
-        />
-        <ScrollView style={styles.scrollContainer}>
-            <View style={styles.avatarContainer}>
-                <TouchableOpacity
-                  onPress={() => {
-                    Alert.alert(
-                      'Foto do Inquilino',
-                      'Escolha uma opção',
-                      [
-                        { text: 'Cancelar', style: 'cancel' },
-                        { text: 'Câmera', onPress: () => handlePhotoPicker(true) },
-                        { text: 'Galeria', onPress: () => handlePhotoPicker(false) },
-                        tenant.photo_url && { text: 'Remover foto', style: 'destructive', onPress: handleRemovePhoto },
-                      ].filter(Boolean)
-                    );
-                  }}
-                  disabled={uploadingPhoto}
-                  style={styles.avatarTouchable}
-                >
-                  {uploadingPhoto ? (
-                    <ActivityIndicator size="large" color={colors.primary} />
-                  ) : (
-                    <>
-                      <Image 
-                        source={tenant.photo_url || require('../assets/avatar-placeholder.png')}
-                        style={styles.avatar}
-                        contentFit="cover"
-                        transition={200}
-                        placeholder={require('../assets/avatar-placeholder.png')}
-                        cachePolicy="memory-disk"
-                      />
-                      <View style={styles.avatarEditIcon}>
-                        <MaterialIcons name="camera-alt" size={24} color={colors.primary} />
-                      </View>
-                    </>
-                  )}
-                </TouchableOpacity>
-            </View>
-            
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Dados do Inquilino</Text>
-                <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Nome completo</Text>
-                    <Text style={styles.infoValue}>{tenant.full_name || 'N/A'}</Text>
+      <ScreenHeader
+        title={tenant.full_name}
+        onBack={() => navigation.goBack()}
+      />
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.avatarContainer}>
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert(
+                'Foto do Inquilino',
+                'Escolha uma opção',
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Câmera', onPress: () => handlePhotoPicker(true) },
+                  { text: 'Galeria', onPress: () => handlePhotoPicker(false) },
+                  tenant.photo_url && { text: 'Remover foto', style: 'destructive', onPress: handleRemovePhoto },
+                ].filter(Boolean)
+              );
+            }}
+            disabled={uploadingPhoto}
+            style={styles.avatarTouchable}
+          >
+            {uploadingPhoto ? (
+              <ActivityIndicator size="large" color={colors.primary} />
+            ) : (
+              <>
+                <Image
+                  source={tenant.photo_url || require('../assets/avatar-placeholder.png')}
+                  style={styles.avatar}
+                  contentFit="cover"
+                  transition={200}
+                  placeholder={require('../assets/avatar-placeholder.png')}
+                  cachePolicy="memory-disk"
+                />
+                <View style={styles.avatarEditIcon}>
+                  <MaterialIcons name="camera-alt" size={24} color={colors.primary} />
                 </View>
-                <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>CPF</Text>
-                    <Text style={styles.infoValue}>{tenant.cpf || 'N/A'}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>RG</Text>
-                    <Text style={styles.infoValue}>{tenant.rg || 'N/A'}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Nacionalidade</Text>
-                    <Text style={styles.infoValue}>{tenant.nationality || 'N/A'}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Estado civil</Text>
-                    <Text style={styles.infoValue}>{tenant.marital_status || 'N/A'}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Profissão</Text>
-                    <Text style={styles.infoValue}>{tenant.profession || 'N/A'}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Telefone</Text>
-                    <View style={styles.phoneRow}>
-                        <Text style={styles.infoValue}>{tenant.phone || 'N/A'}</Text>
-                        {tenant.phone && (
-                            <View style={styles.phoneActions}>
-                                <TouchableOpacity
-                                    style={styles.phoneActionButton}
-                                    onPress={handleCall}
-                                >
-                                    <MaterialIcons name="phone" size={20} color={colors.primary} />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.phoneActionButton}
-                                    onPress={handleWhatsApp}
-                                >
-                                    <MaterialCommunityIcons name="whatsapp" size={20} color="#25D366" />
-                                </TouchableOpacity>
-                            </View>
-                        )}
-                    </View>
-                </View>
-                <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Email</Text>
-                    <Text style={styles.infoValue}>{tenant.email || 'N/A'}</Text>
-                </View>
-            </View>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
 
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Contrato</Text>
-
-                {/* Propriedade vinculada */}
-
-                {tenant.properties ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Dados do Inquilino</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Nome completo</Text>
+            <Text style={styles.infoValue}>{tenant.full_name || 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>CPF</Text>
+            <Text style={styles.infoValue}>{tenant.cpf || 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>RG</Text>
+            <Text style={styles.infoValue}>{tenant.rg || 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Nacionalidade</Text>
+            <Text style={styles.infoValue}>{tenant.nationality || 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Estado civil</Text>
+            <Text style={styles.infoValue}>{tenant.marital_status || 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Profissão</Text>
+            <Text style={styles.infoValue}>{tenant.profession || 'N/A'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Telefone</Text>
+            <View style={styles.phoneRow}>
+              <Text style={styles.infoValue}>{tenant.phone || 'N/A'}</Text>
+              {tenant.phone && (
+                <View style={styles.phoneActions}>
                   <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={handleOpenProperty}
+                    style={styles.phoneActionButton}
+                    onPress={handleCall}
                   >
-                    <View style={styles.contractPropertyCard}>
-                      <View style={styles.contractPropertyInfo}>
-                        <Text style={styles.contractPropertyAddress} numberOfLines={1} ellipsizeMode="tail">
-                          {tenant.properties.address}
-                        </Text>
-                        <Text style={styles.contractPropertySub}>
-                          {formatCurrency(tenant.properties.rent || 0)}/mês
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.contractPropertyAction}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          handleEndTenancy();
-                        }}
-                      >
-                        <MaterialIcons name="close" size={16} color="#F44336" />
-                        <Text style={styles.contractPropertyActionText}>Encerrar locação</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <MaterialIcons name="phone" size={20} color={colors.primary} />
                   </TouchableOpacity>
-                ) : (
-                  <View style={styles.contractPropertyEmpty}>
-                    <Text style={styles.contractPropertyEmptyText}>
-                      Nenhum imóvel alugado no momento
-                    </Text>
-                  </View>
-                )}
+                  <TouchableOpacity
+                    style={styles.phoneActionButton}
+                    onPress={handleWhatsApp}
+                  >
+                    <MaterialCommunityIcons name="whatsapp" size={20} color="#25D366" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Email</Text>
+            <Text style={styles.infoValue}>{tenant.email || 'N/A'}</Text>
+          </View>
+        </View>
 
-                {/* Dados do contrato */}
-                {contractLoading ? (
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Contrato</Text>
-                    <Text style={styles.infoValue}>Carregando...</Text>
-                  </View>
-                ) : contract ? (
-                  <>
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Duração do Contrato</Text>
-                      <Text style={styles.infoValue}>
-                        {contract.lease_term != null ? `${contract.lease_term} meses` : 'N/A'}
-                      </Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Vencimento</Text>
-                      <Text style={styles.infoValue}>
-                        {contract.due_day ? `Todo dia ${contract.due_day}` : 'N/A'}
-                      </Text>
-                    </View>
-                  </>
-                ) : (
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Contrato ativo</Text>
-                    <Text style={styles.infoValue}>Nenhum contrato ativo</Text>
-                  </View>
-                )}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Contrato</Text>
 
-                {/* Resumo financeiro do contrato */}
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Faturas esperadas (contrato)</Text>
-                  <Text style={styles.infoValue}>
-                    {billingLoading ? '...' : billingSummary.expected}
+          {/* Propriedade vinculada */}
+
+          {tenant.properties ? (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleOpenProperty}
+            >
+              <View style={styles.contractPropertyCard}>
+                <View style={styles.contractPropertyInfo}>
+                  <Text style={styles.contractPropertyAddress} numberOfLines={1} ellipsizeMode="tail">
+                    {tenant.properties.address}
+                  </Text>
+                  <Text style={styles.contractPropertySub}>
+                    {formatCurrency(tenant.properties.rent || 0)}/mês
                   </Text>
                 </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Faturas registradas</Text>
-                  <Text style={styles.infoValue}>
-                    {billingLoading ? '...' : billingSummary.paid}
-                  </Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Em atraso</Text>
-                  <Text
+                <TouchableOpacity
+                  style={styles.contractPropertyAction}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleEndTenancy();
+                  }}
+                >
+                  <MaterialIcons name="close" size={16} color="#F44336" />
+                  <Text style={styles.contractPropertyActionText}>Encerrar locação</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.contractPropertyEmpty}>
+              <Text style={styles.contractPropertyEmptyText}>
+                Nenhum imóvel alugado no momento
+              </Text>
+            </View>
+          )}
+
+          {/* Dados do contrato */}
+          {contractLoading ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Contrato</Text>
+              <Text style={styles.infoValue}>Carregando...</Text>
+            </View>
+          ) : contract ? (
+            <>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Duração do Contrato</Text>
+                <Text style={styles.infoValue}>
+                  {contract.lease_term != null ? `${contract.lease_term} meses` : 'N/A'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Vencimento</Text>
+                <Text style={styles.infoValue}>
+                  {contract.due_day ? `Todo dia ${contract.due_day}` : 'N/A'}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Contrato ativo</Text>
+              <Text style={styles.infoValue}>Nenhum contrato ativo</Text>
+            </View>
+          )}
+
+          {/* Resumo financeiro do contrato */}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Faturas esperadas (contrato)</Text>
+            <Text style={styles.infoValue}>
+              {billingLoading ? '...' : billingSummary.expected}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Faturas registradas</Text>
+            <Text style={styles.infoValue}>
+              {billingLoading ? '...' : billingSummary.paid}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Em atraso</Text>
+            <Text
+              style={[
+                styles.infoValue,
+                !billingLoading && billingSummary.overdue > 0 && { color: '#F44336', fontWeight: '600' },
+              ]}
+            >
+              {billingLoading ? '...' : billingSummary.overdue}
+            </Text>
+          </View>
+
+          {/* Linha do tempo simples das faturas */}
+          {billingSchedule.length > 0 && (
+            <View style={{ marginTop: 10 }}>
+              <Text style={styles.timelineTitle}>Meses do contrato</Text>
+              <View style={styles.timelineContainer}>
+                {billingSchedule.map((item) => (
+                  <View
+                    key={item.monthIndex}
                     style={[
-                      styles.infoValue,
-                      !billingLoading && billingSummary.overdue > 0 && { color: '#F44336', fontWeight: '600' },
+                      styles.timelinePill,
+                      item.status === 'paid' && styles.timelinePillPaid,
+                      item.status === 'overdue' && styles.timelinePillOverdue,
+                      item.status === 'due_soon' && styles.timelinePillDueSoon,
                     ]}
                   >
-                    {billingLoading ? '...' : billingSummary.overdue}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.timelinePillText,
+                        (item.status === 'paid' || item.status === 'overdue' || item.status === 'due_soon') &&
+                        styles.timelinePillTextEmphasis,
+                      ]}
+                    >
+                      {item.monthIndex}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <View style={styles.timelineLegend}>
+                <View style={styles.timelineLegendItem}>
+                  <View style={[styles.legendDot, styles.legendDotPaid]} />
+                  <Text style={styles.legendText}>Pago</Text>
                 </View>
+                <View style={styles.timelineLegendItem}>
+                  <View style={[styles.legendDot, styles.legendDotOverdue]} />
+                  <Text style={styles.legendText}>Em atraso</Text>
+                </View>
+                <View style={styles.timelineLegendItem}>
+                  <View style={[styles.legendDot, styles.legendDotDueSoon]} />
+                  <Text style={styles.legendText}>À vencer</Text>
+                </View>
+                <View style={styles.timelineLegendItem}>
+                  <View style={[styles.legendDot, styles.legendDotFuture]} />
+                  <Text style={styles.legendText}>Futuro</Text>
+                </View>
+              </View>
+            </View>
+          )}
 
-                {/* Linha do tempo simples das faturas */}
-                {billingSchedule.length > 0 && (
-                  <View style={{ marginTop: 10 }}>
-                    <Text style={styles.timelineTitle}>Meses do contrato</Text>
-                    <View style={styles.timelineContainer}>
-                      {billingSchedule.map((item) => (
-                        <View
-                          key={item.monthIndex}
-                          style={[
-                            styles.timelinePill,
-                            item.status === 'paid' && styles.timelinePillPaid,
-                            item.status === 'overdue' && styles.timelinePillOverdue,
-                            item.status === 'due_soon' && styles.timelinePillDueSoon,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.timelinePillText,
-                              (item.status === 'paid' || item.status === 'overdue' || item.status === 'due_soon') &&
-                                styles.timelinePillTextEmphasis,
-                            ]}
-                          >
-                            {item.monthIndex}
+          {/* Ações de contrato */}
+          <View style={styles.tenantActions}>
+            {tenant.properties && (
+              <TouchableOpacity
+                style={styles.primaryContractButton}
+                onPress={handleRegisterRentPayment}
+              >
+                <Text style={styles.primaryContractButtonText}>
+                  Registrar pagamento de aluguel
+                </Text>
+              </TouchableOpacity>
+            )}
+            {/* Botão Cobrar aluguel via WhatsApp - aparece quando é dia de vencimento */}
+            {contract &&
+              contract.due_day &&
+              tenant.phone &&
+              (isDueDateToday() || isDueDatePassed() || billingSummary.overdue > 0) && (
+                <TouchableOpacity
+                  style={[
+                    styles.primaryContractButton,
+                    {
+                      marginTop: tenant.properties ? 8 : 0,
+                      backgroundColor: '#25D366',
+                    },
+                  ]}
+                  onPress={handleRentReminder}
+                >
+                  <MaterialCommunityIcons name="whatsapp" size={20} color="#fff" style={{ marginRight: 8 }} />
+                  <Text style={styles.primaryContractButtonText}>
+                    Cobrar aluguel
+                  </Text>
+                </TouchableOpacity>
+              )}
+            <TouchableOpacity
+              style={[
+                styles.primaryContractButton,
+                {
+                  marginTop: (tenant.properties || (contract && contract.due_day && tenant.phone && (isDueDateToday() || isDueDatePassed() || billingSummary.overdue > 0))) ? 8 : 0,
+                  backgroundColor: theme.colors.surface,
+                  borderWidth: theme.isHighContrast ? 2 : 1,
+                  borderColor: theme.isHighContrast ? theme.colors.textPrimary : theme.colors.primary,
+                },
+              ]}
+              onPress={() =>
+                navigation.navigate('AddContract', {
+                  tenantId: tenant.id,
+                  contract,
+                  // Não passamos mais a propriedade; ela será escolhida na tela de contrato
+                })
+              }
+            >
+              <Text style={[
+                styles.primaryContractButtonText,
+                { color: theme.isHighContrast ? theme.colors.textPrimary : theme.colors.primary }
+              ]}>
+                {contract ? 'Renovar / editar contrato' : 'Criar contrato'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Seção de Documentos */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Documentos</Text>
+            <TouchableOpacity
+              style={styles.addDocumentButton}
+              onPress={handleAddDocument}
+              disabled={uploadingDocument}
+            >
+              {uploadingDocument ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <>
+                  <MaterialIcons name="add" size={20} color={colors.primary} />
+                  <Text style={styles.addDocumentButtonText}>Adicionar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {documentsLoading ? (
+            <View style={styles.documentsLoading}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text style={styles.documentsLoadingText}>Carregando documentos...</Text>
+            </View>
+          ) : documents.length === 0 ? (
+            <View style={styles.documentsEmpty}>
+              <MaterialIcons name="description" size={48} color={theme.isHighContrast ? theme.colors.textSecondary : "#ccc"} />
+              <Text style={styles.documentsEmptyText}>Nenhum documento adicionado</Text>
+            </View>
+          ) : (
+            <View style={styles.documentsList}>
+              {documents.map((doc) => (
+                <View key={doc.id} style={styles.documentItem}>
+                  <View style={styles.documentInfo}>
+                    <MaterialIcons
+                      name={doc.mime_type === 'application/pdf' ? 'picture-as-pdf' : 'image'}
+                      size={24}
+                      color={theme.isHighContrast ? theme.colors.textPrimary : theme.colors.primary}
+                    />
+                    <View style={styles.documentDetails}>
+                      <Text style={styles.documentName} numberOfLines={1}>
+                        {getDocumentTypeLabel(doc.document_type, doc.custom_name)}
+                      </Text>
+                      <Text style={styles.documentMeta} numberOfLines={1}>
+                        {doc.file_name} • {(doc.file_size / 1024).toFixed(1)} KB
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.documentActions}>
+                    <TouchableOpacity
+                      style={styles.documentActionButton}
+                      onPress={() => handleViewDocument(doc)}
+                    >
+                      <MaterialIcons name="visibility" size={20} color={theme.isHighContrast ? theme.colors.textPrimary : theme.colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.documentActionButton}
+                      onPress={() => handleDeleteDocument(doc.id)}
+                    >
+                      <MaterialIcons name="delete" size={20} color="#F44336" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => navigation.navigate('EditTenant', { tenant: tenant })}
+          >
+            <Text style={styles.editButtonText}>Editar Inquilino</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteTenant}>
+            <Text style={[styles.buttonText, styles.deleteButtonText]}>Deletar Inquilino</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      {/* Bottom Sheet de seleção de tipo de documento */}
+      <Modal
+        visible={showDocumentTypeModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseDocumentTypeModal}
+      >
+        <TouchableOpacity
+          style={styles.bottomSheetOverlay}
+          activeOpacity={1}
+          onPress={handleCloseDocumentTypeModal}
+        >
+          <Animated.View
+            style={[
+              styles.bottomSheetContainer,
+              {
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+            onStartShouldSetResponder={() => true}
+          >
+            {/* Handle do bottom sheet */}
+            <View style={styles.bottomSheetHandle} />
+
+            {/* Header */}
+            <View style={styles.bottomSheetHeader}>
+              <Text style={styles.bottomSheetTitle}>Selecione o tipo de documento</Text>
+              <TouchableOpacity
+                onPress={handleCloseDocumentTypeModal}
+                style={styles.bottomSheetCloseButton}
+              >
+                <MaterialIcons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Lista de documentos */}
+            <ScrollView
+              style={styles.bottomSheetBody}
+              showsVerticalScrollIndicator={false}
+            >
+              {DOCUMENT_TYPES.map((type) => {
+                // Para "outros", verificar se já existem 3 ou mais documentos
+                let exists = false;
+                let disabled = false;
+                let outrosCount = 0;
+                if (type.key === 'outros') {
+                  outrosCount = countOtherDocuments();
+                  exists = outrosCount >= 3;
+                  disabled = outrosCount >= 3;
+                } else {
+                  exists = checkDocumentExists(type.key);
+                  disabled = exists;
+                }
+                return (
+                  <TouchableOpacity
+                    key={type.key}
+                    style={[
+                      styles.documentTypeOption,
+                      disabled && styles.documentTypeOptionDisabled,
+                    ]}
+                    onPress={() => !disabled && handleSelectDocumentType(type.key)}
+                    disabled={disabled}
+                  >
+                    <View style={styles.documentTypeOptionLeft}>
+                      <Text style={[
+                        styles.documentTypeOptionText,
+                        disabled && styles.documentTypeOptionTextDisabled,
+                      ]}>
+                        {type.label}
+                      </Text>
+                      {type.key === 'outros' && outrosCount > 0 && outrosCount < 3 && (
+                        <View style={styles.documentCountBadge}>
+                          <Text style={styles.documentCountText}>
+                            {outrosCount}/3
                           </Text>
                         </View>
-                      ))}
-                    </View>
-                    <View style={styles.timelineLegend}>
-                      <View style={styles.timelineLegendItem}>
-                        <View style={[styles.legendDot, styles.legendDotPaid]} />
-                        <Text style={styles.legendText}>Pago</Text>
-                      </View>
-                      <View style={styles.timelineLegendItem}>
-                        <View style={[styles.legendDot, styles.legendDotOverdue]} />
-                        <Text style={styles.legendText}>Em atraso</Text>
-                      </View>
-                      <View style={styles.timelineLegendItem}>
-                        <View style={[styles.legendDot, styles.legendDotDueSoon]} />
-                        <Text style={styles.legendText}>À vencer</Text>
-                      </View>
-                      <View style={styles.timelineLegendItem}>
-                        <View style={[styles.legendDot, styles.legendDotFuture]} />
-                        <Text style={styles.legendText}>Futuro</Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-
-                {/* Ações de contrato */}
-                <View style={styles.tenantActions}>
-                  {tenant.properties && (
-                    <TouchableOpacity
-                      style={styles.primaryContractButton}
-                      onPress={handleRegisterRentPayment}
-                    >
-                      <Text style={styles.primaryContractButtonText}>
-                        Registrar pagamento de aluguel
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    style={[
-                      styles.primaryContractButton,
-                      {
-                        marginTop: tenant.properties ? 8 : 0,
-                        backgroundColor: '#fff',
-                        borderWidth: 1,
-                        borderColor: '#4a86e8',
-                      },
-                    ]}
-                    onPress={() =>
-                      navigation.navigate('AddContract', {
-                        tenantId: tenant.id,
-                        contract,
-                        // Não passamos mais a propriedade; ela será escolhida na tela de contrato
-                      })
-                    }
-                  >
-                    <Text style={[styles.primaryContractButtonText, { color: '#4a86e8' }]}>
-                      {contract ? 'Renovar / editar contrato' : 'Criar contrato'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-            </View>
-
-            {/* Seção de Documentos */}
-            <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Documentos</Text>
-                    <TouchableOpacity
-                        style={styles.addDocumentButton}
-                        onPress={handleAddDocument}
-                        disabled={uploadingDocument}
-                    >
-                        {uploadingDocument ? (
-                            <ActivityIndicator size="small" color={colors.primary} />
-                        ) : (
-                            <>
-                                <MaterialIcons name="add" size={20} color={colors.primary} />
-                                <Text style={styles.addDocumentButtonText}>Adicionar</Text>
-                            </>
-                        )}
-                    </TouchableOpacity>
-                </View>
-
-                {documentsLoading ? (
-                    <View style={styles.documentsLoading}>
-                        <ActivityIndicator size="small" color={colors.primary} />
-                        <Text style={styles.documentsLoadingText}>Carregando documentos...</Text>
-                    </View>
-                ) : documents.length === 0 ? (
-                    <View style={styles.documentsEmpty}>
-                        <MaterialIcons name="description" size={48} color="#ccc" />
-                        <Text style={styles.documentsEmptyText}>Nenhum documento adicionado</Text>
-                    </View>
-                ) : (
-                    <View style={styles.documentsList}>
-                        {documents.map((doc) => (
-                            <View key={doc.id} style={styles.documentItem}>
-                                <View style={styles.documentInfo}>
-                                    <MaterialIcons
-                                        name={doc.mime_type === 'application/pdf' ? 'picture-as-pdf' : 'image'}
-                                        size={24}
-                                        color={colors.primary}
-                                    />
-                                    <View style={styles.documentDetails}>
-                                        <Text style={styles.documentName} numberOfLines={1}>
-                                            {getDocumentTypeLabel(doc.document_type, doc.custom_name)}
-                                        </Text>
-                                        <Text style={styles.documentMeta} numberOfLines={1}>
-                                            {doc.file_name} • {(doc.file_size / 1024).toFixed(1)} KB
-                                        </Text>
-                                    </View>
-                                </View>
-                                <View style={styles.documentActions}>
-                                    <TouchableOpacity
-                                        style={styles.documentActionButton}
-                                        onPress={() => handleViewDocument(doc)}
-                                    >
-                                        <MaterialIcons name="visibility" size={20} color={colors.primary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={styles.documentActionButton}
-                                        onPress={() => handleDeleteDocument(doc.id)}
-                                    >
-                                        <MaterialIcons name="delete" size={20} color="#F44336" />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        ))}
-                    </View>
-                )}
-            </View>
-            
-            <View style={styles.buttonContainer}>
-                <TouchableOpacity 
-                  style={styles.editButton}
-                  onPress={() => navigation.navigate('EditTenant', { tenant: tenant })}
-                >
-                  <Text style={styles.editButtonText}>Editar Inquilino</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteTenant}>
-                  <Text style={[styles.buttonText, styles.deleteButtonText]}>Deletar Inquilino</Text>
-                </TouchableOpacity>
-            </View>
-        </ScrollView>
-
-        {/* Bottom Sheet de seleção de tipo de documento */}
-        <Modal
-            visible={showDocumentTypeModal}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={handleCloseDocumentTypeModal}
-        >
-            <TouchableOpacity
-                style={styles.bottomSheetOverlay}
-                activeOpacity={1}
-                onPress={handleCloseDocumentTypeModal}
-            >
-                <Animated.View
-                    style={[
-                        styles.bottomSheetContainer,
-                        {
-                            transform: [{ translateY: slideAnim }],
-                        },
-                    ]}
-                    onStartShouldSetResponder={() => true}
-                >
-                    {/* Handle do bottom sheet */}
-                    <View style={styles.bottomSheetHandle} />
-                    
-                    {/* Header */}
-                    <View style={styles.bottomSheetHeader}>
-                        <Text style={styles.bottomSheetTitle}>Selecione o tipo de documento</Text>
-                        <TouchableOpacity
-                            onPress={handleCloseDocumentTypeModal}
-                            style={styles.bottomSheetCloseButton}
-                        >
-                            <MaterialIcons name="close" size={24} color="#333" />
-                        </TouchableOpacity>
-                    </View>
-                    
-                    {/* Lista de documentos */}
-                    <ScrollView 
-                        style={styles.bottomSheetBody}
-                        showsVerticalScrollIndicator={false}
-                    >
-                        {DOCUMENT_TYPES.map((type) => {
-                            // Para "outros", verificar se já existem 3 ou mais documentos
-                            let exists = false;
-                            let disabled = false;
-                            let outrosCount = 0;
-                            if (type.key === 'outros') {
-                                outrosCount = countOtherDocuments();
-                                exists = outrosCount >= 3;
-                                disabled = outrosCount >= 3;
-                            } else {
-                                exists = checkDocumentExists(type.key);
-                                disabled = exists;
-                            }
-                            return (
-                                <TouchableOpacity
-                                    key={type.key}
-                                    style={[
-                                        styles.documentTypeOption,
-                                        disabled && styles.documentTypeOptionDisabled,
-                                    ]}
-                                    onPress={() => !disabled && handleSelectDocumentType(type.key)}
-                                    disabled={disabled}
-                                >
-                                    <View style={styles.documentTypeOptionLeft}>
-                                        <Text style={[
-                                            styles.documentTypeOptionText,
-                                            disabled && styles.documentTypeOptionTextDisabled,
-                                        ]}>
-                                            {type.label}
-                                        </Text>
-                                        {type.key === 'outros' && outrosCount > 0 && outrosCount < 3 && (
-                                            <View style={styles.documentCountBadge}>
-                                                <Text style={styles.documentCountText}>
-                                                    {outrosCount}/3
-                                                </Text>
-                                            </View>
-                                        )}
-                                        {exists && (
-                                            <View style={styles.documentExistsBadge}>
-                                                <MaterialIcons name="check-circle" size={16} color="#4CAF50" />
-                                                <Text style={styles.documentExistsText}>
-                                                    {type.key === 'outros' ? 'Limite atingido' : 'Enviado'}
-                                                </Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                    {!disabled && (
-                                        <MaterialIcons name="chevron-right" size={20} color="#999" />
-                                    )}
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </ScrollView>
-                </Animated.View>
-            </TouchableOpacity>
-        </Modal>
-
-        {/* Modal de nome customizado para documento "outros" */}
-        <Modal
-            visible={showCustomNameModal}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={() => {
-                setShowCustomNameModal(false);
-                setCustomDocumentName('');
-                setSelectedDocumentType(null);
-            }}
-        >
-            <View style={styles.modalOverlay}>
-                <View style={[styles.modalContent, styles.customNameModalContent]}>
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>Nome do documento</Text>
-                        <TouchableOpacity
-                            onPress={() => {
-                                setShowCustomNameModal(false);
-                                setCustomDocumentName('');
-                                setSelectedDocumentType(null);
-                            }}
-                            style={styles.modalCloseButton}
-                        >
-                            <MaterialIcons name="close" size={24} color="#333" />
-                        </TouchableOpacity>
-                    </View>
-                    <View style={styles.modalBody}>
-                        <Text style={styles.modalLabel}>Digite o nome do documento:</Text>
-                        <TextInput
-                            style={styles.modalInput}
-                            value={customDocumentName}
-                            onChangeText={setCustomDocumentName}
-                            placeholder="Ex: Certidão de Casamento"
-                            autoFocus={true}
-                        />
-                        <View style={styles.modalButtons}>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.modalButtonCancel]}
-                                onPress={() => {
-                                    setShowCustomNameModal(false);
-                                    setCustomDocumentName('');
-                                    setSelectedDocumentType(null);
-                                }}
-                            >
-                                <Text style={styles.modalButtonCancelText}>Cancelar</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.modalButtonConfirm]}
-                                onPress={handleConfirmCustomName}
-                            >
-                                <Text style={styles.modalButtonConfirmText}>Continuar</Text>
-                            </TouchableOpacity>
+                      )}
+                      {exists && (
+                        <View style={styles.documentExistsBadge}>
+                          <MaterialIcons name="check-circle" size={16} color="#4CAF50" />
+                          <Text style={styles.documentExistsText}>
+                            {type.key === 'outros' ? 'Limite atingido' : 'Enviado'}
+                          </Text>
                         </View>
+                      )}
                     </View>
-                </View>
-            </View>
-        </Modal>
+                    {!disabled && (
+                      <MaterialIcons name="chevron-right" size={20} color="#999" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Animated.View>
+        </TouchableOpacity>
+      </Modal>
 
-        {/* Modal de visualização de documentos */}
-        <Modal
-            visible={showDocumentViewer}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={handleCloseDocumentViewer}
-        >
-            <View style={styles.documentViewerOverlay}>
-                <View style={styles.documentViewerContainer}>
-                    {/* Header */}
-                    <View style={styles.documentViewerHeader}>
-                        <Text style={styles.documentViewerTitle} numberOfLines={1}>
-                            {selectedDocument ? getDocumentTypeLabel(selectedDocument.document_type, selectedDocument.custom_name) : ''}
-                        </Text>
-                        <TouchableOpacity
-                            style={styles.documentViewerCloseButton}
-                            onPress={handleCloseDocumentViewer}
-                        >
-                            <MaterialIcons name="close" size={24} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Conteúdo do documento */}
-                    <View style={styles.documentViewerContent}>
-                        {documentLoading && (
-                            <View style={styles.documentViewerLoading}>
-                                <ActivityIndicator size="large" color={colors.primary} />
-                                <Text style={styles.documentViewerLoadingText}>Carregando documento...</Text>
-                            </View>
-                        )}
-                        
-                        {selectedDocument && (
-                            <>
-                                {selectedDocument.mime_type && selectedDocument.mime_type.startsWith('image/') ? (
-                                    <ScrollView
-                                        style={styles.documentImageContainer}
-                                        contentContainerStyle={styles.documentImageContent}
-                                        maximumZoomScale={3}
-                                        minimumZoomScale={1}
-                                        showsHorizontalScrollIndicator={false}
-                                        showsVerticalScrollIndicator={false}
-                                    >
-                                        <Image
-                                            source={selectedDocument.file_url}
-                                            style={styles.documentImage}
-                                            contentFit="contain"
-                                            onLoadStart={() => setDocumentLoading(true)}
-                                            onLoadEnd={() => setDocumentLoading(false)}
-                                            onError={() => {
-                                                setDocumentLoading(false);
-                                                Alert.alert('Erro', 'Não foi possível carregar a imagem.');
-                                            }}
-                                            cachePolicy="memory-disk"
-                                        />
-                                    </ScrollView>
-                                ) : selectedDocument.mime_type === 'application/pdf' ? (
-                                    <View style={styles.documentPdfContainer}>
-                                        {documentLoading && (
-                                            <View style={styles.documentViewerLoading}>
-                                                <ActivityIndicator size="large" color={colors.primary} />
-                                                <Text style={styles.documentViewerLoadingText}>Carregando PDF...</Text>
-                                            </View>
-                                        )}
-                                        <WebView
-                                            source={{ uri: selectedDocument.file_url }}
-                                            style={styles.documentPdfWebView}
-                                            onLoadStart={() => setDocumentLoading(true)}
-                                            onLoadEnd={() => setDocumentLoading(false)}
-                                            onError={() => {
-                                                setDocumentLoading(false);
-                                                Alert.alert('Erro', 'Não foi possível carregar o PDF. Tente abrir no navegador.');
-                                            }}
-                                            startInLoadingState={true}
-                                            scalesPageToFit={true}
-                                        />
-                                    </View>
-                                ) : (
-                                    <View style={styles.documentViewerUnsupported}>
-                                        <MaterialIcons name="description" size={48} color="#ccc" />
-                                        <Text style={styles.documentViewerUnsupportedText}>
-                                            Tipo de documento não suportado para visualização
-                                        </Text>
-                                        <TouchableOpacity
-                                            style={styles.documentViewerOpenButton}
-                                            onPress={() => {
-                                                if (selectedDocument.file_url) {
-                                                    Linking.openURL(selectedDocument.file_url);
-                                                }
-                                            }}
-                                        >
-                                            <Text style={styles.documentViewerOpenButtonText}>Abrir no navegador</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                )}
-                            </>
-                        )}
-                    </View>
-                </View>
+      {/* Modal de nome customizado para documento "outros" */}
+      <Modal
+        visible={showCustomNameModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowCustomNameModal(false);
+          setCustomDocumentName('');
+          setSelectedDocumentType(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.customNameModalContent]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Nome do documento</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowCustomNameModal(false);
+                  setCustomDocumentName('');
+                  setSelectedDocumentType(null);
+                }}
+                style={styles.modalCloseButton}
+              >
+                <MaterialIcons name="close" size={24} color="#333" />
+              </TouchableOpacity>
             </View>
-        </Modal>
+            <View style={styles.modalBody}>
+              <Text style={styles.modalLabel}>Digite o nome do documento:</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={customDocumentName}
+                onChangeText={setCustomDocumentName}
+                placeholder="Ex: Certidão de Casamento"
+                autoFocus={true}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => {
+                    setShowCustomNameModal(false);
+                    setCustomDocumentName('');
+                    setSelectedDocumentType(null);
+                  }}
+                >
+                  <Text style={styles.modalButtonCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonConfirm]}
+                  onPress={handleConfirmCustomName}
+                >
+                  <Text style={styles.modalButtonConfirmText}>Continuar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de visualização de documentos */}
+      <Modal
+        visible={showDocumentViewer}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseDocumentViewer}
+      >
+        <View style={styles.documentViewerOverlay}>
+          <View style={styles.documentViewerContainer}>
+            {/* Header */}
+            <View style={styles.documentViewerHeader}>
+              <Text style={styles.documentViewerTitle} numberOfLines={1}>
+                {selectedDocument ? getDocumentTypeLabel(selectedDocument.document_type, selectedDocument.custom_name) : ''}
+              </Text>
+              <TouchableOpacity
+                style={styles.documentViewerCloseButton}
+                onPress={handleCloseDocumentViewer}
+              >
+                <MaterialIcons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Conteúdo do documento */}
+            <View style={styles.documentViewerContent}>
+              {documentLoading && (
+                <View style={styles.documentViewerLoading}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={styles.documentViewerLoadingText}>Carregando documento...</Text>
+                </View>
+              )}
+
+              {selectedDocument && (
+                <>
+                  {selectedDocument.mime_type && selectedDocument.mime_type.startsWith('image/') ? (
+                    <ScrollView
+                      style={styles.documentImageContainer}
+                      contentContainerStyle={styles.documentImageContent}
+                      maximumZoomScale={3}
+                      minimumZoomScale={1}
+                      showsHorizontalScrollIndicator={false}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      <Image
+                        source={selectedDocument.file_url}
+                        style={styles.documentImage}
+                        contentFit="contain"
+                        onLoadStart={() => setDocumentLoading(true)}
+                        onLoadEnd={() => setDocumentLoading(false)}
+                        onError={() => {
+                          setDocumentLoading(false);
+                          Alert.alert('Erro', 'Não foi possível carregar a imagem.');
+                        }}
+                        cachePolicy="memory-disk"
+                      />
+                    </ScrollView>
+                  ) : selectedDocument.mime_type === 'application/pdf' ? (
+                    <View style={styles.documentPdfContainer}>
+                      {documentLoading && (
+                        <View style={styles.documentViewerLoading}>
+                          <ActivityIndicator size="large" color={colors.primary} />
+                          <Text style={styles.documentViewerLoadingText}>Carregando PDF...</Text>
+                        </View>
+                      )}
+                      <WebView
+                        source={{ uri: selectedDocument.file_url }}
+                        style={styles.documentPdfWebView}
+                        onLoadStart={() => setDocumentLoading(true)}
+                        onLoadEnd={() => setDocumentLoading(false)}
+                        onError={() => {
+                          setDocumentLoading(false);
+                          Alert.alert('Erro', 'Não foi possível carregar o PDF. Tente abrir no navegador.');
+                        }}
+                        startInLoadingState={true}
+                        scalesPageToFit={true}
+                      />
+                    </View>
+                  ) : (
+                    <View style={styles.documentViewerUnsupported}>
+                      <MaterialIcons name="description" size={48} color="#ccc" />
+                      <Text style={styles.documentViewerUnsupportedText}>
+                        Tipo de documento não suportado para visualização
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.documentViewerOpenButton}
+                        onPress={() => {
+                          if (selectedDocument.file_url) {
+                            Linking.openURL(selectedDocument.file_url);
+                          }
+                        }}
+                      >
+                        <Text style={styles.documentViewerOpenButtonText}>Abrir no navegador</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  blockedContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  blockedTitle: {
-    ...typography.sectionTitle,
-    marginTop: 20,
-    marginBottom: 12,
-  },
-  blockedMessage: {
-    ...typography.body,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  blockedSubMessage: {
-    ...typography.body,
-    textAlign: 'center',
-    color: colors.textSecondary,
-    marginBottom: 24,
-  },
-  upgradeButtonBlocked: {
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: radii.pill,
-  },
-  upgradeButtonTextBlocked: {
-    ...typography.button,
-    color: colors.surface,
-  },
-    container: { 
-        flex: 1, 
-        backgroundColor: colors.background,
-    },
-    scrollContainer: {
-        flex: 1,
-    },
-    loadingContainer: { 
-        flex: 1, 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        backgroundColor: colors.background,
-    },
-    avatarContainer: {
-        alignItems: 'center',
-        marginTop: 20,
-    },
-    avatarTouchable: {
-        position: 'relative',
-        marginBottom: 15,
-    },
-    avatar: { 
-        width: 100, 
-        height: 100, 
-        borderRadius: 50,
-    },
-    avatarEditIcon: {
-        position: 'absolute',
-        bottom: 0,
-        right: 0,
-        backgroundColor: colors.surface,
-        borderRadius: 20,
-        padding: 6,
-        borderWidth: 2,
-        borderColor: colors.primary,
-    },
-    section: { 
-        backgroundColor: colors.surface, 
-        borderRadius: radii.md, 
-        padding: 15, 
-        marginHorizontal: 15,
-        marginTop: 20
-    },
-    sectionTitle: { 
-        ...typography.sectionTitle,
-        marginBottom: 15,
-    },
-    contractPropertyCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: '#f0f7ff',
-        borderRadius: 10,
-        padding: 12,
-        marginBottom: 12,
-    },
-    contractPropertyInfo: {
-        flex: 1,
-        marginRight: 8,
-    },
-    contractPropertyAddress: {
-        ...typography.bodyStrong,
-        marginBottom: 4,
-    },
-    contractPropertySub: {
-        ...typography.body,
-    },
-    contractPropertyAction: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: radii.pill,
-        backgroundColor: '#ffebee',
-    },
-    contractPropertyActionText: {
-        marginLeft: 4,
-        fontSize: 12,
-        color: '#F44336',
-        fontWeight: '600',
-    },
-    contractPropertyEmpty: {
-        borderRadius: 10,
-        padding: 12,
-        backgroundColor: '#f5f5f5',
-        marginBottom: 12,
-    },
-    contractPropertyEmptyText: {
-        fontSize: 14,
-        color: '#777',
-        fontStyle: 'italic',
-    },
-    infoRow: { 
-        flexDirection: 'row', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        paddingVertical: 12, 
-        borderBottomWidth: 1, 
-        borderBottomColor: '#eee',
-    },
-    infoLabel: { 
-        ...typography.bodyStrong,
-        fontSize: 14,
-    },
-    infoValue: { 
-        ...typography.body,
-        fontSize: 16,
-        flex: 1, 
-        textAlign: 'right',
-    },
-    linkText: {
-        color: '#4a86e8',
-        textDecorationLine: 'underline',
-    },
-    buttonContainer: { 
-        flexDirection: 'column', 
-        justifyContent: 'center', 
-        padding: 15, 
-        gap: 8,
-        marginBottom: 20,
-    },
-    editButton: { 
-        backgroundColor: 'transparent', 
-        padding: 15, 
-        borderRadius: radii.pill, 
-        flex: 1,  
-        alignItems: 'center',
-        borderWidth: 0,
-    },
-    deleteButton: { 
-        backgroundColor: 'transparent', 
-        padding: 15, 
-        borderRadius: radii.pill, 
-        flex: 1,  
-        alignItems: 'center',
-    },
-    buttonText: { 
-        ...typography.button,
-        color: '#fff', 
-    },
-    editButtonText: {
-        ...typography.button,
-        color: colors.primary,
-    },
-    deleteButtonText: {
-        color: colors.expense,
-    },
-    tenantActions: {
-        marginTop: 10,
-    },
-    tenantActionButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderRadius: radii.pill,
-        borderWidth: 1,
-        borderColor: colors.primary,
-        alignItems: 'center',
-    },
-    tenantActionText: {
-        ...typography.button,
-        color: colors.primary,
-    },
-    primaryContractButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderRadius: radii.pill,
-        backgroundColor: colors.primary,
-        alignItems: 'center',
-        marginTop: 10,
-    },
-    primaryContractButtonText: {
-        ...typography.button,
-        color: '#fff',
-    },
-    timelineTitle: {
-        marginTop: 10,
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#555',
-    },
-    timelineContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginTop: 6,
-        gap: 4,
-    },
-    timelinePill: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: '#ddd',
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#fafafa',
-    },
-    timelinePillPaid: {
-        backgroundColor: '#E8F5E9',
-        borderColor: '#4CAF50',
-    },
-    timelinePillOverdue: {
-        backgroundColor: '#FFEBEE',
-        borderColor: '#F44336',
-    },
-    timelinePillDueSoon: {
-        backgroundColor: '#FFF3E0',
-        borderColor: '#FF9800',
-    },
-    timelinePillText: {
-        fontSize: 12,
-        color: '#666',
-    },
-    timelinePillTextEmphasis: {
-        fontWeight: '600',
-        color: '#333',
-    },
-    timelineLegend: {
-        flexDirection: 'row',
-        marginTop: 8,
-        justifyContent: 'space-between',
-    },
-    timelineLegendItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    legendDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        marginRight: 4,
-        borderWidth: 1,
-        borderColor: '#ccc',
-    },
-    legendDotPaid: {
-        backgroundColor: '#4CAF50',
-        borderColor: '#4CAF50',
-    },
-    legendDotOverdue: {
-        backgroundColor: '#F44336',
-        borderColor: '#F44336',
-    },
-    legendDotDueSoon: {
-        backgroundColor: '#FF9800',
-        borderColor: '#FF9800',
-    },
-    legendDotFuture: {
-        backgroundColor: '#ddd',
-    },
-    legendText: {
-        fontSize: 11,
-        color: '#555',
-    },
-    phoneRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-        justifyContent: 'flex-end',
-    },
-    phoneActions: {
-        flexDirection: 'row',
-        marginLeft: 10,
-        gap: 8,
-    },
-    phoneActionButton: {
-        padding: 8,
-        borderRadius: radii.pill,
-        backgroundColor: colors.primarySoft,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 15,
-    },
-    addDocumentButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: radii.pill,
-        backgroundColor: '#f0f7ff',
-        gap: 4,
-    },
-    addDocumentButtonText: {
-        color: colors.primary,
-        fontWeight: '600',
-        fontSize: 14,
-    },
-    documentsLoading: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-        gap: 10,
-    },
-    documentsLoadingText: {
-        color: '#666',
-        fontSize: 14,
-    },
-    documentsEmpty: {
-        alignItems: 'center',
-        padding: 30,
-    },
-    documentsEmptyText: {
-        marginTop: 10,
-        color: '#999',
-        fontSize: 14,
-    },
-    documentsList: {
-        gap: 8,
-    },
-    documentItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 12,
-        backgroundColor: '#f9f9f9',
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#eee',
-    },
-    documentInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-        marginRight: 10,
-    },
-    documentDetails: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    documentName: {
-        ...typography.bodyStrong,
-        fontSize: 14,
-        marginBottom: 2,
-    },
-    documentMeta: {
-        ...typography.body,
-        fontSize: 12,
-        color: '#666',
-    },
-    documentActions: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    documentActionButton: {
-        padding: 6,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 16,
-    },
-    modalContent: {
-        backgroundColor: '#fff',
-        borderRadius: radii.lg,
-        width: '100%',
-        maxWidth: 500,
-        maxHeight: '80%',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-    },
-    modalTitle: {
-        ...typography.sectionTitle,
-        fontSize: 18,
-    },
-    modalCloseButton: {
-        padding: 4,
-    },
-    modalBody: {
-        padding: 20,
-    },
-    documentTypeOption: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 16,
-        backgroundColor: '#f9f9f9',
-        borderRadius: 8,
-        marginBottom: 8,
-        minHeight: 56,
-    },
-    documentTypeOptionText: {
-        ...typography.body,
-        fontSize: 16,
-    },
-    modalLabel: {
-        ...typography.bodyStrong,
-        marginBottom: 8,
-        fontSize: 14,
-    },
-    modalInput: {
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 8,
-        padding: 12,
-        fontSize: 16,
-        marginBottom: 20,
-    },
-    modalButtons: {
-        flexDirection: 'row',
-        gap: 10,
-    },
-    modalButton: {
-        flex: 1,
-        padding: 12,
-        borderRadius: radii.pill,
-        alignItems: 'center',
-    },
-    modalButtonCancel: {
-        backgroundColor: '#f0f0f0',
-    },
-    modalButtonConfirm: {
-        backgroundColor: colors.primary,
-    },
-    modalButtonCancelText: {
-        ...typography.button,
-        color: '#333',
-    },
-    modalButtonConfirmText: {
-        ...typography.button,
-        color: '#fff',
-    },
-    customNameModalContent: {
-        marginBottom: 52,
-    },
-    bottomSheetOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'flex-end',
-    },
-    bottomSheetContainer: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        maxHeight: '80%',
-        paddingBottom: 20,
-    },
-    bottomSheetHandle: {
-        width: 40,
-        height: 4,
-        backgroundColor: '#ccc',
-        borderRadius: 2,
-        alignSelf: 'center',
-        marginTop: 8,
-        marginBottom: 8,
-    },
-    bottomSheetHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-    },
-    bottomSheetTitle: {
-        ...typography.sectionTitle,
-        fontSize: 18,
-        flex: 1,
-    },
-    bottomSheetCloseButton: {
-        padding: 4,
-        marginLeft: 10,
-    },
-    bottomSheetBody: {
-        paddingHorizontal: 20,
-        paddingTop: 8,
-    },
-    documentTypeOptionLeft: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    documentTypeOptionDisabled: {
-        opacity: 0.6,
-        backgroundColor: '#f5f5f5',
-    },
-    documentTypeOptionTextDisabled: {
-        color: '#999',
-    },
-    documentExistsBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#E8F5E9',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-        marginLeft: 8,
-    },
-    documentExistsText: {
-        fontSize: 12,
-        color: '#4CAF50',
-        fontWeight: '600',
-        marginLeft: 4,
-    },
-    documentCountBadge: {
-        backgroundColor: '#E3F2FD',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-        marginLeft: 8,
-    },
-    documentCountText: {
-        fontSize: 12,
-        color: colors.primary,
-        fontWeight: '600',
-    },
-    documentViewerOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    documentViewerContainer: {
-        flex: 1,
-        width: '100%',
-        backgroundColor: '#000',
-    },
-    documentViewerHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        paddingTop: 50,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    },
-    documentViewerTitle: {
-        ...typography.sectionTitle,
-        fontSize: 16,
-        color: '#fff',
-        flex: 1,
-        marginRight: 12,
-    },
-    documentViewerCloseButton: {
-        padding: 8,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    },
-    documentViewerContent: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    documentViewerLoading: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-    },
-    documentViewerLoadingText: {
-        color: '#fff',
-        marginTop: 12,
-        fontSize: 14,
-    },
-    documentImageContainer: {
-        flex: 1,
-        width: '100%',
-    },
-    documentImageContent: {
-        flexGrow: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    documentImage: {
-        width: Dimensions.get('window').width,
-        height: Dimensions.get('window').height - 150,
-    },
-    documentPdfContainer: {
-        flex: 1,
-        width: '100%',
-    },
-    documentPdfWebView: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
-    documentViewerUnsupported: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 40,
-    },
-    documentViewerUnsupportedText: {
-        color: '#fff',
-        marginTop: 16,
-        fontSize: 16,
-        textAlign: 'center',
-        marginBottom: 24,
-    },
-    documentViewerOpenButton: {
-        backgroundColor: colors.primary,
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: radii.pill,
-    },
-    documentViewerOpenButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-});
+
 
 export default TenantDetailsScreen;

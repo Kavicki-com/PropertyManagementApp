@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,25 +10,28 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
-import { 
-  getUserSubscription, 
+import {
+  getUserSubscription,
   getActivePropertiesCount,
-  getActiveTenantsCount, 
+  getActiveTenantsCount,
   getSubscriptionLimits,
   checkSubscriptionStatus,
   getRequiredPlan,
 } from '../lib/subscriptionService';
-import { 
-  getAvailableProducts, 
-  purchaseSubscription, 
+import {
+  getAvailableProducts,
+  purchaseSubscription,
   restorePurchases,
   handlePurchaseSuccess,
   getProductIdForPlan,
 } from '../lib/iapService';
 import ScreenHeader from '../components/ScreenHeader';
-import { colors, typography, radii } from '../theme';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 
 const SubscriptionScreen = ({ navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState(null);
   const [propertyCount, setPropertyCount] = useState(0);
@@ -57,7 +60,7 @@ const SubscriptionScreen = ({ navigation }) => {
 
       setSubscription(subscriptionData);
       setPropertyCount(count);
-      
+
       if (productsData.success) {
         setProducts(productsData.products || []);
       }
@@ -92,12 +95,12 @@ const SubscriptionScreen = ({ navigation }) => {
       }
 
       const result = await purchaseSubscription(productId);
-      
+
       if (result.success && result.purchase) {
         const updateResult = await handlePurchaseSuccess(result.purchase, user.id);
         if (updateResult.success) {
           Alert.alert(
-            'Sucesso', 
+            'Sucesso',
             'Assinatura ativada com sucesso! Todos os seus imóveis e inquilinos existentes já estão disponíveis no novo limite.'
           );
           // Recarregar dados para aplicar novas regras
@@ -112,7 +115,7 @@ const SubscriptionScreen = ({ navigation }) => {
       } else {
         // result.error pode ser um objeto com message ou uma string
         let errorMessage = result.error?.message || result.error || 'Erro ao processar compra';
-        
+
         // Se for uma string longa (com múltiplas linhas), quebra em múltiplas linhas
         if (typeof errorMessage === 'string' && errorMessage.includes('\n')) {
           // Mantém a mensagem como está (já formatada)
@@ -120,7 +123,7 @@ const SubscriptionScreen = ({ navigation }) => {
           // Adiciona quebras de linha para melhor legibilidade
           errorMessage = errorMessage.replace(/\. /g, '.\n\n');
         }
-        
+
         console.error('Erro ao processar compra:', result.error);
         Alert.alert('Erro na Compra', errorMessage);
       }
@@ -158,7 +161,7 @@ const SubscriptionScreen = ({ navigation }) => {
         message += `• Você terá acesso apenas aos primeiros ${freeLimit} inquilinos (${tenantCount - freeLimit} serão bloqueados)\n`;
       }
       message += '\nOs itens bloqueados ficarão disponíveis novamente quando você fizer upgrade. Deseja continuar?';
-      
+
       Alert.alert('Atenção', message, [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -237,18 +240,18 @@ const SubscriptionScreen = ({ navigation }) => {
         let hasUpdates = false;
         for (const purchase of result.purchases) {
           const updateResult = await handlePurchaseSuccess(
-            { 
-              productId: purchase.productId, 
+            {
+              productId: purchase.productId,
               transactionId: purchase.transactionId,
-              purchaseTime: purchase.purchaseTime 
-            }, 
+              purchaseTime: purchase.purchaseTime
+            },
             user.id
           );
           if (updateResult.success) {
             hasUpdates = true;
           }
         }
-        
+
         if (hasUpdates) {
           Alert.alert('Sucesso', 'Compras restauradas com sucesso!');
           await loadSubscriptionData();
@@ -277,10 +280,10 @@ const SubscriptionScreen = ({ navigation }) => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      active: { color: colors.primary, text: 'Ativo' },
-      expired: { color: colors.expense, text: 'Expirado' },
-      cancelled: { color: colors.textSecondary, text: 'Cancelado' },
-      trial: { color: colors.primary, text: 'Teste' },
+      active: { color: theme.colors.primary, text: 'Ativo' },
+      expired: { color: theme.colors.expense, text: 'Expirado' },
+      cancelled: { color: theme.colors.textSecondary, text: 'Cancelado' },
+      trial: { color: theme.colors.primary, text: 'Teste' },
     };
 
     const config = statusConfig[status] || statusConfig.active;
@@ -296,7 +299,7 @@ const SubscriptionScreen = ({ navigation }) => {
       <View style={styles.container}>
         <ScreenHeader title="Assinatura" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       </View>
     );
@@ -326,11 +329,11 @@ const SubscriptionScreen = ({ navigation }) => {
               </Text>
               {typeof limits.maxProperties === 'number' && (
                 <View style={styles.progressBar}>
-                  <View 
+                  <View
                     style={[
-                      styles.progressFill, 
+                      styles.progressFill,
                       { width: `${Math.min((propertyCount / limits.maxProperties) * 100, 100)}%` }
-                    ]} 
+                    ]}
                   />
                 </View>
               )}
@@ -346,7 +349,7 @@ const SubscriptionScreen = ({ navigation }) => {
         {/* Planos Disponíveis */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Planos Disponíveis</Text>
-          
+
           {/* Plano Gratuito */}
           <View style={[styles.planCard, currentPlan === 'free' && styles.currentPlanCard]}>
             <View style={styles.planCardHeader}>
@@ -356,23 +359,23 @@ const SubscriptionScreen = ({ navigation }) => {
             <Text style={styles.planCardDescription}>Ideal para começar</Text>
             <View style={styles.planFeatures}>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Até 2 imóveis</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Até 2 inquilinos</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Gestão de contratos</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>1 documento de inquilino</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="close" size={20} color={colors.textSecondary} />
+                <MaterialIcons name="close" size={20} color={theme.colors.textSecondary} />
                 <Text style={[styles.featureText, styles.featureDisabled]}>Lançamentos financeiros</Text>
               </View>
             </View>
@@ -381,20 +384,20 @@ const SubscriptionScreen = ({ navigation }) => {
                 <Text style={styles.currentButtonText}>Plano Atual</Text>
               </View>
             ) : (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.downgradeButton}
                 onPress={handleDowngrade}
                 disabled={purchasing}
               >
                 {purchasing ? (
-                  <ActivityIndicator color={colors.primary} />
+                  <ActivityIndicator color={theme.colors.primary} />
                 ) : (
                   <Text style={styles.downgradeButtonText}>Fazer Downgrade</Text>
                 )}
               </TouchableOpacity>
             )}
           </View>
-          
+
           {/* Plano Básico */}
           <View style={[styles.planCard, currentPlan === 'basic' && styles.currentPlanCard]}>
             <View style={styles.planCardHeader}>
@@ -404,27 +407,27 @@ const SubscriptionScreen = ({ navigation }) => {
             <Text style={styles.planCardDescription}>Para pequenos portfólios</Text>
             <View style={styles.planFeatures}>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Até 10 imóveis</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Até 10 inquilinos</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Gestão de contratos</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Documentos dos inquilinos</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Lançamentos financeiros</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Relatórios e dashboard</Text>
               </View>
             </View>
@@ -433,13 +436,13 @@ const SubscriptionScreen = ({ navigation }) => {
                 <Text style={styles.currentButtonText}>Plano Atual</Text>
               </View>
             ) : (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.upgradeButton}
                 onPress={() => handlePurchase('basic')}
                 disabled={purchasing}
               >
                 {purchasing ? (
-                  <ActivityIndicator color={colors.primary} />
+                  <ActivityIndicator color={theme.colors.primary} />
                 ) : (
                   <Text style={styles.upgradeButtonText}>Assinar</Text>
                 )}
@@ -456,31 +459,31 @@ const SubscriptionScreen = ({ navigation }) => {
             <Text style={styles.planCardDescription}>Para grandes portfólios</Text>
             <View style={styles.planFeatures}>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Ilimitado imóveis</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Ilimitado inquilinos</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Gestão de contratos</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Documentos dos inquilinos</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Lançamentos financeiros</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Relatórios e dashboard</Text>
               </View>
               <View style={styles.featureItem}>
-                <MaterialIcons name="check" size={20} color={colors.primary} />
+                <MaterialIcons name="check" size={20} color={theme.colors.primary} />
                 <Text style={styles.featureText}>Suporte prioritário</Text>
               </View>
             </View>
@@ -489,13 +492,13 @@ const SubscriptionScreen = ({ navigation }) => {
                 <Text style={styles.currentButtonText}>Plano Atual</Text>
               </View>
             ) : (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.upgradeButton}
                 onPress={() => handlePurchase('premium')}
                 disabled={purchasing}
               >
                 {purchasing ? (
-                  <ActivityIndicator color={colors.primary} />
+                  <ActivityIndicator color={theme.colors.primary} />
                 ) : (
                   <Text style={styles.upgradeButtonText}>Assinar</Text>
                 )}
@@ -506,12 +509,12 @@ const SubscriptionScreen = ({ navigation }) => {
 
         {/* Restaurar Compras */}
         <View style={styles.section}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.restoreButton}
             onPress={handleRestore}
             disabled={purchasing}
           >
-            <MaterialIcons name="restore" size={20} color={colors.primary} />
+            <MaterialIcons name="restore" size={20} color={theme.colors.primary} />
             <Text style={styles.restoreButtonText}>Restaurar Compras</Text>
           </TouchableOpacity>
         </View>
@@ -520,10 +523,10 @@ const SubscriptionScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
     flex: 1,
@@ -538,15 +541,20 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     marginBottom: 12,
   },
   currentPlanCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     padding: 16,
     borderWidth: 2,
-    borderColor: colors.primary,
+    borderColor: theme.colors.primary,
+    ...(theme.isHighContrast && {
+      borderColor: theme.colors.textPrimary,
+      elevation: 0,
+      shadowOpacity: 0,
+    }),
   },
   planHeader: {
     flexDirection: 'row',
@@ -555,47 +563,51 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   planName: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     fontSize: 20,
   },
   badge: {
     paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
   },
   badgeText: {
-    ...typography.caption,
+    ...theme.typography.caption,
     fontWeight: '600',
   },
   usageContainer: {
     marginBottom: 8,
   },
   usageText: {
-    ...typography.body,
+    ...theme.typography.body,
     marginBottom: 8,
   },
   progressBar: {
     height: 8,
-    backgroundColor: colors.background,
+    backgroundColor: theme.colors.background,
     borderRadius: 4,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.primary,
+    backgroundColor: theme.colors.primary,
   },
   expiresText: {
-    ...typography.caption,
-    color: colors.textSecondary,
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
     marginTop: 8,
   },
   planCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: theme.colors.borderSubtle,
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   planCardHeader: {
     flexDirection: 'row',
@@ -604,18 +616,18 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   planCardName: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     fontSize: 18,
   },
   planCardPrice: {
-    ...typography.bodyStrong,
+    ...theme.typography.bodyStrong,
     fontSize: 18,
-    color: colors.primary,
+    color: theme.colors.primary,
   },
   planCardDescription: {
-    ...typography.body,
+    ...theme.typography.body,
     marginBottom: 12,
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   planFeatures: {
     marginBottom: 16,
@@ -626,45 +638,45 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   featureText: {
-    ...typography.body,
+    ...theme.typography.body,
     marginLeft: 8,
   },
   upgradeButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: theme.colors.primary,
     paddingVertical: 12,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     alignItems: 'center',
   },
   upgradeButtonText: {
-    ...typography.button,
+    ...theme.typography.button,
     color: '#fff',
   },
   currentButton: {
-    backgroundColor: colors.background,
+    backgroundColor: theme.colors.background,
     paddingVertical: 12,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: theme.colors.borderSubtle,
   },
   currentButtonText: {
-    ...typography.button,
-    color: colors.textSecondary,
+    ...theme.typography.button,
+    color: theme.colors.textSecondary,
   },
   downgradeButton: {
     backgroundColor: 'transparent',
     paddingVertical: 12,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.textSecondary,
+    borderColor: theme.colors.textSecondary,
   },
   downgradeButtonText: {
-    ...typography.button,
-    color: colors.textSecondary,
+    ...theme.typography.button,
+    color: theme.colors.textSecondary,
   },
   featureDisabled: {
-    color: colors.textSecondary,
+    color: theme.colors.textSecondary,
     textDecorationLine: 'line-through',
   },
   restoreButton: {
@@ -672,13 +684,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: theme.colors.borderSubtle,
   },
   restoreButtonText: {
-    ...typography.button,
-    color: colors.primary,
+    ...theme.typography.button,
+    color: theme.colors.primary,
     marginLeft: 8,
   },
 });

@@ -1,5 +1,5 @@
 // screens/PropertyDetailsScreen.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,15 +23,17 @@ import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { optimizeImage, base64ToArrayBuffer, IMAGE_PICKER_OPTIONS } from '../lib/imageUtils';
-import { colors, radii, typography } from '../theme';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { canViewPropertyDetails, getUserSubscription, getActivePropertiesCount, getRequiredPlan } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
 import { getCache, setCache, removeCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
 
 const PropertyDetailsScreen = ({ route, navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   const { property: initialProperty } = route.params;
 
-  const [property, setProperty] = useState(null); 
+  const [property, setProperty] = useState(null);
   const [tenant, setTenant] = useState(null);
   const [financesSummary, setFinancesSummary] = useState({
     totalIncome: 0,
@@ -59,9 +61,9 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   // Carregar dados dinâmicos (finanças) em lazy load
   const loadDynamicData = async () => {
     if (!initialProperty?.id) return;
-    
+
     setFinancesLoading(true);
-    
+
     // Buscar resumo financeiro desta propriedade (lazy load)
     const { data: financesData, error: financesError } = await fetchFinancesByProperty(
       initialProperty.id,
@@ -76,7 +78,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         net: overview.netProfit,
       });
     }
-    
+
     setFinancesLoading(false);
   };
 
@@ -97,7 +99,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       console.error('Error fetching property:', propertyError);
       return;
     }
-    
+
     if (propertyData) {
       setProperty(propertyData);
     }
@@ -137,7 +139,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
 
       const { summary } = await fetchTenantBillingSummary(source);
       setBillingSummary(summary);
-      
+
       // Cachear dados principais
       const cacheKey = CACHE_KEYS.PROPERTY_DETAILS(initialProperty.id);
       await setCache(cacheKey, {
@@ -150,9 +152,9 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       setContract(null);
       setBillingSummary({ expected: 0, paid: 0, overdue: 0 });
     }
-    
+
     setLoading(false);
-    
+
     // Carregar dados dinâmicos (finanças) após dados principais
     loadDynamicData();
   };
@@ -174,7 +176,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           const subscription = await getUserSubscription(user.id);
           const currentPlan = subscription?.subscription_plan || 'free';
           const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount);
-          
+
           setSubscriptionInfo({
             currentPlan,
             propertyCount,
@@ -189,7 +191,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       // Tentar buscar do cache primeiro
       const cacheKey = CACHE_KEYS.PROPERTY_DETAILS(initialProperty.id);
       const cachedData = await getCache(cacheKey);
-      
+
       if (cachedData?.property) {
         setProperty(cachedData.property);
         setTenant(cachedData.tenant || null);
@@ -198,7 +200,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         setFinancesSummary(cachedData.financesSummary || { totalIncome: 0, totalExpenses: 0, net: 0 });
         setLoading(false);
         hasLoadedOnce.current = true;
-        
+
         // Carregar dados dinâmicos em background
         loadDynamicData();
         return;
@@ -253,8 +255,8 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       "Deseja realmente excluir este imóvel? Isso irá remover o imóvel, os contratos associados e os lançamentos financeiros ligados a ele. Esta ação não pode ser desfeita.",
       [
         { text: "Cancelar", style: "cancel" },
-        { 
-          text: "Excluir", 
+        {
+          text: "Excluir",
           onPress: async () => {
             setIsDeleting(true);
 
@@ -316,7 +318,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
               .from('properties')
               .delete()
               .eq('id', property.id);
-            
+
             if (deleteError) {
               console.error('Erro ao excluir propriedade:', deleteError);
               Alert.alert(
@@ -329,18 +331,18 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
                 removeCache(CACHE_KEYS.PROPERTIES),
                 removeCache(CACHE_KEYS.PROPERTY_DETAILS(property.id)),
               ]);
-              
+
               Alert.alert('Sucesso', 'Propriedade excluída com sucesso.');
               navigation.goBack();
             }
             setIsDeleting(false);
           },
-          style: 'destructive' 
+          style: 'destructive'
         }
       ]
     );
   };
-  
+
   const openImageModal = (imageUrl) => {
     setSelectedImage(imageUrl);
     setModalVisible(true);
@@ -366,7 +368,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setIsUploadingImage(true);
         const asset = result.assets[0];
-        
+
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           Alert.alert('Erro', 'Usuário não autenticado.');
@@ -434,7 +436,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           // Invalidar cache
           await removeCache(CACHE_KEYS.PROPERTY_DETAILS(property.id));
           await removeCache(CACHE_KEYS.PROPERTIES);
-          
+
           // Atualizar o estado local
           setProperty({ ...property, image_urls: updatedImageUrls });
           Alert.alert('Sucesso', 'Foto adicionada com sucesso!');
@@ -509,7 +511,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   if (loading || !property) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
@@ -520,16 +522,16 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       <View style={styles.container}>
         <View style={styles.headerContainer}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back-ios" size={24} color={colors.textPrimary} />
+            <MaterialIcons name="arrow-back-ios" size={24} color={theme.colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.header} numberOfLines={1} ellipsizeMode="tail">
-            {property.street 
+            {property.street
               ? `${property.street}${property.number ? `, ${property.number}` : ''}`
               : property.address}
           </Text>
         </View>
         <View style={styles.blockedContainer}>
-          <MaterialIcons name="lock" size={64} color={colors.textSecondary} />
+          <MaterialIcons name="lock" size={64} color={theme.colors.textSecondary} />
           <Text style={styles.blockedTitle}>Acesso Bloqueado</Text>
           <Text style={styles.blockedMessage}>
             Esta propriedade requer upgrade de plano para ser acessada.
@@ -538,7 +540,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             Você está usando {subscriptionInfo?.propertyCount || 0} {subscriptionInfo?.propertyCount === 1 ? 'imóvel' : 'imóveis'}.
             Faça upgrade para acessar todos os seus imóveis.
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.upgradeButtonBlocked}
             onPress={() => setShowUpgradeModal(true)}
           >
@@ -565,62 +567,62 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back-ios" size={24} color={colors.textPrimary} />
+          <MaterialIcons name="arrow-back-ios" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.header} numberOfLines={1} ellipsizeMode="tail">
-          {property.street 
+          {property.street
             ? `${property.street}${property.number ? `, ${property.number}` : ''}`
             : property.address}
         </Text>
       </View>
       <ScrollView style={styles.scrollContainer}>
         <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Fotos do Imóvel</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <Text style={styles.sectionTitle}>Fotos do Imóvel</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {property.image_urls && property.image_urls.length > 0 ? (
-                <>
+              <>
                 {property.image_urls.map((url, index) => (
-                <TouchableOpacity key={index} onPress={() => openImageModal(url)}>
-                    <Image 
-                      source={url} 
+                  <TouchableOpacity key={index} onPress={() => openImageModal(url)}>
+                    <Image
+                      source={url}
                       style={styles.galleryImage}
                       contentFit="cover"
                       transition={200}
                       cachePolicy="memory-disk"
                     />
-                </TouchableOpacity>
+                  </TouchableOpacity>
                 ))}
-                <TouchableOpacity 
-                  style={styles.addImageButton} 
+                <TouchableOpacity
+                  style={styles.addImageButton}
                   onPress={handleAddImage}
                   disabled={isUploadingImage}
                 >
                   {isUploadingImage ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
                   ) : (
-                    <MaterialIcons name="add" size={32} color={colors.primary} />
+                    <MaterialIcons name="add" size={32} color={theme.colors.primary} />
                   )}
                 </TouchableOpacity>
-                </>
+              </>
             ) : (
-                <>
+              <>
                 <View style={styles.noImageContainer}>
-                    <Text style={styles.noImageText}>Nenhuma foto cadastrada</Text>
+                  <Text style={styles.noImageText}>Nenhuma foto cadastrada</Text>
                 </View>
-                <TouchableOpacity 
-                  style={styles.addImageButton} 
+                <TouchableOpacity
+                  style={styles.addImageButton}
                   onPress={handleAddImage}
                   disabled={isUploadingImage}
                 >
                   {isUploadingImage ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
                   ) : (
-                    <MaterialIcons name="add" size={32} color={colors.primary} />
+                    <MaterialIcons name="add" size={32} color={theme.colors.primary} />
                   )}
                 </TouchableOpacity>
-                </>
+              </>
             )}
-            </ScrollView>
+          </ScrollView>
         </View>
 
         <View style={styles.section}>
@@ -684,7 +686,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             <Text style={styles.infoLabel}>Banheiros</Text>
             <Text style={styles.infoValue}>{property.bathrooms || 'N/A'}</Text>
           </View>
-           <View style={styles.infoRow}>
+          <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Área (m²)</Text>
             <Text style={styles.infoValue}>{property.sqft || 'N/A'}</Text>
           </View>
@@ -693,16 +695,16 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             <Text style={styles.infoValue}>{property.total_rooms || 'N/A'}</Text>
           </View>
         </View>
-        
+
         <View style={styles.editButtonContainer}>
-          <TouchableOpacity 
-            style={styles.editButton} 
+          <TouchableOpacity
+            style={styles.editButton}
             onPress={() => navigation.navigate('EditProperty', { property: property })}
           >
             <Text style={styles.editButtonText}>Editar Propriedade</Text>
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Aluguel & Contrato</Text>
           <View style={styles.infoRow}>
@@ -758,7 +760,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
               <Text
                 style={[
                   styles.infoValue,
-                  billingSummary.overdue > 0 && { color: '#F44336', fontWeight: '600' },
+                  billingSummary.overdue > 0 && { color: theme.colors.danger, fontWeight: '600' },
                 ]}
               >
                 {getPaymentStatus()}
@@ -795,36 +797,36 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             </View>
           </View>
         </View>
-        
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Inquilino(s)</Text>
           {tenant ? (
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => navigation.navigate('TenantDetails', { tenant })}
-              >
-                <View style={styles.tenantCard}>
-                  <View style={styles.tenantHeaderRow}>
-                    <Text style={styles.tenantName}>{tenant.full_name}</Text>
-                    <TouchableOpacity
-                      style={styles.endTenancyButton}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleEndTenancy();
-                      }}
-                    >
-                      <MaterialIcons name="close" size={16} color="#F44336" />
-                      <Text style={styles.endTenancyText}>Encerrar locação</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.tenantPhone}>{tenant.phone}</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('TenantDetails', { tenant })}
+            >
+              <View style={styles.tenantCard}>
+                <View style={styles.tenantHeaderRow}>
+                  <Text style={styles.tenantName}>{tenant.full_name}</Text>
+                  <TouchableOpacity
+                    style={styles.endTenancyButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleEndTenancy();
+                    }}
+                  >
+                    <MaterialIcons name="close" size={16} color={theme.colors.danger} />
+                    <Text style={styles.endTenancyText}>Encerrar locação</Text>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
+                <Text style={styles.tenantPhone}>{tenant.phone}</Text>
+              </View>
+            </TouchableOpacity>
           ) : (
-              <Text style={styles.noTenantText}>Nenhum inquilino associado.</Text>
+            <Text style={styles.noTenantText}>Nenhum inquilino associado.</Text>
           )}
           <View style={styles.tenantActions}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.tenantActionButton}
               onPress={() => navigation.navigate('LinkTenant', { propertyId: property.id })}
             >
@@ -835,13 +837,13 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
           </View>
         </View>
         <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-            style={styles.deleteButton} 
+          <TouchableOpacity
+            style={styles.deleteButton}
             onPress={handleDeleteProperty}
             disabled={isDeleting}
           >
             {isDeleting ? (
-              <ActivityIndicator color={colors.primary} />
+              <ActivityIndicator color={theme.colors.primary} />
             ) : (
               <Text style={[styles.buttonText, styles.deleteButtonText]}>Excluir Propriedade</Text>
             )}
@@ -850,288 +852,305 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
       </ScrollView>
 
       <Modal
-          animationType="fade"
-          transparent={true}
-          visible={modalVisible}
-          onRequestClose={() => setModalVisible(false)}
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
       >
-          <SafeAreaView style={styles.modalContainer}>
-              <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
-                  <MaterialIcons name="close" size={30} color="#fff" />
-              </TouchableOpacity>
-              <Image 
-                source={selectedImage} 
-                style={styles.fullScreenImage} 
-                contentFit="contain"
-                transition={200}
-                cachePolicy="memory-disk"
-              />
-          </SafeAreaView>
+        <SafeAreaView style={styles.modalContainer}>
+          <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
+            <MaterialIcons name="close" size={30} color="#fff" />
+          </TouchableOpacity>
+          <Image
+            source={selectedImage}
+            style={styles.fullScreenImage}
+            contentFit="contain"
+            transition={200}
+            cachePolicy="memory-disk"
+          />
+        </SafeAreaView>
       </Modal>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: colors.background,
-    },
-    scrollContainer: {
-        flex: 1,
-    },
-    headerContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 15,
-        paddingTop: 50,
-        backgroundColor: colors.surface,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderSubtle,
-    },
-    backButton: {
-        marginRight: 10,
-    },
-    header: {
-        ...typography.sectionTitle,
-        flex: 1,
-    },
-    section: {
-        backgroundColor: colors.surface,
-        borderRadius: radii.md,
-        padding: 15,
-        marginHorizontal: 15,
-        marginTop: 15,
-        marginBottom: 0,
-    },
-    sectionTitle: {
-        ...typography.sectionTitle,
-        marginBottom: 10,
-    },
-    galleryImage: {
-      width: 120,
-      height: 120,
-      borderRadius: 8,
-      marginRight: 10,
-      backgroundColor: '#eee',
-    },
-    addImageButton: {
-      width: 120,
-      height: 120,
-      borderRadius: 8,
-      marginRight: 10,
-      backgroundColor: '#f0f0f0',
-      justifyContent: 'center',
-      alignItems: 'center',
+const createStyles = (theme) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    paddingTop: 50,
+    backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
+  },
+  backButton: {
+    marginRight: 10,
+  },
+  header: {
+    ...theme.typography.sectionTitle,
+    flex: 1,
+    color: theme.colors.textPrimary,
+  },
+  section: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
+    padding: 15,
+    marginHorizontal: 15,
+    marginTop: 15,
+    marginBottom: 0,
+    ...(theme.isHighContrast && {
       borderWidth: 2,
-      borderColor: colors.primary,
-      borderStyle: 'dashed',
-    },
-    noImageContainer: {
-        width: 120,
-        height: 120,
-        borderRadius: 8,
-        backgroundColor: '#f0f0f0',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    noImageText: {
-        color: '#999',
-        fontSize: 12,
-    },
-    infoRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-        alignItems: 'flex-start',
-    },
-    infoLabel: {
-        ...typography.bodyStrong,
-        fontSize: 14,
-        minWidth: 120,
-        maxWidth: 140,
-        marginRight: 16,
-        flexShrink: 0,
-    },
-    infoValue: {
-        ...typography.body,
-        fontSize: 16,
-        flex: 1,
-        flexShrink: 1,
-    },
-    tenantCard: {
-        backgroundColor: '#f0f7ff',
-        borderRadius: radii.md,
-        padding: 15,
-    },
-    tenantHeaderRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 4,
-    },
-    tenantName: {
-        ...typography.bodyStrong,
-        marginBottom: 5,
-    },
-    tenantPhone: {
-        color: colors.textSecondary,
-    },
-    endTenancyButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: radii.pill,
-        backgroundColor: '#ffebee',
-    },
-    endTenancyText: {
-        marginLeft: 4,
-        fontSize: 12,
-        color: '#F44336',
-        fontWeight: '600',
-    },
-    tenantActions: {
-        marginTop: 10,
-    },
-    tenantActionButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderRadius: radii.pill,
-        borderWidth: 1,
-        borderColor: colors.primary,
-        alignItems: 'center',
-    },
-    tenantActionText: {
-        ...typography.button,
-        color: colors.primary,
-    },
-    noTenantText: {
-        textAlign: 'center',
-        color: colors.textSecondary,
-        paddingVertical: 10,
-        fontStyle: 'italic',
-    },
-    editButtonContainer: {
-        paddingHorizontal: 15,
-        paddingVertical: 15,
-        marginTop: 0,
-    },
-    buttonContainer: {
-        flexDirection: 'column',
-        justifyContent: 'center',
-        paddingHorizontal: 15,
-        paddingVertical: 20,
-    },
-    editButton: {
-        backgroundColor: 'transparent',
-        padding: 15,
-        borderRadius: radii.pill,
-        flex: 1,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.primary,
-    },
-    deleteButton: {
-        backgroundColor: 'transparent',
-        padding: 15,
-        borderRadius: radii.pill,
-        flex: 1,
-        alignItems: 'center',
-        marginTop: 10,
-        borderWidth: 0,
-    },
-    secondaryButton: {
-        backgroundColor: '#78909C',
-        padding: 15,
-        borderRadius: radii.pill,
-        flex: 1,
-        alignItems: 'center',
-        marginTop: 10,
-    },
-    buttonText: { 
-        ...typography.button,
-        color: 'white',
-    },
-    editButtonText: {
-        ...typography.button,
-        color: colors.primary,
-    },
-    deleteButtonText: {
-        color: colors.expense,
-    },
-    modalContainer: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    closeButton: {
-        position: 'absolute',
-        top: 50,
-        right: 20,
-        zIndex: 1,
-    },
-    fullScreenImage: {
-        width: '100%',
-        height: '80%',
-    },
-    financeRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 10,
-    },
-    financeItem: {
-        flex: 1,
-        marginHorizontal: 4,
-    },
-    financeLabel: {
-        ...typography.caption,
-        marginBottom: 4,
-    },
-    financeValue: {
-        ...typography.bodyStrong,
-    },
-    income: {
-        color: '#4CAF50',
-    },
-    expense: {
-        color: '#F44336',
-    },
-    blockedContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 40,
-    },
-    blockedTitle: {
-        ...typography.sectionTitle,
-        marginTop: 20,
-        marginBottom: 12,
-    },
-    blockedMessage: {
-        ...typography.body,
-        textAlign: 'center',
-        marginBottom: 8,
-    },
-    blockedSubMessage: {
-        ...typography.caption,
-        textAlign: 'center',
-        marginBottom: 24,
-        color: colors.textSecondary,
-    },
-    upgradeButtonBlocked: {
-        backgroundColor: colors.primary,
-        paddingVertical: 14,
-        paddingHorizontal: 32,
-        borderRadius: radii.pill,
-    },
-    upgradeButtonTextBlocked: {
-        ...typography.button,
-        color: '#fff',
-    },
+      borderColor: theme.colors.textPrimary,
+    }),
+  },
+  sectionTitle: {
+    ...theme.typography.sectionTitle,
+    marginBottom: 10,
+    color: theme.colors.textPrimary,
+  },
+  galleryImage: {
+    width: 120,
+    height: 120,
+    borderRadius: theme.radii.md,
+    marginRight: 10,
+    backgroundColor: theme.colors.background,
+  },
+  addImageButton: {
+    width: 120,
+    height: 120,
+    borderRadius: theme.radii.md,
+    marginRight: 10,
+    backgroundColor: theme.colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    borderStyle: 'dashed',
+  },
+  noImageContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noImageText: {
+    color: theme.colors.textSecondary,
+    ...theme.typography.caption,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
+    alignItems: 'flex-start',
+  },
+  infoLabel: {
+    ...theme.typography.label,
+    minWidth: 120,
+    maxWidth: 140,
+    marginRight: 16,
+    flexShrink: 0,
+    color: theme.colors.textPrimary,
+  },
+  infoValue: {
+    ...theme.typography.bodyStrong,
+    flex: 1,
+    flexShrink: 1,
+    color: theme.colors.textPrimary,
+  },
+  tenantCard: {
+    backgroundColor: theme.colors.surfaceHighlight || '#f0f7ff',
+    borderRadius: theme.radii.md,
+    padding: 15,
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
+  },
+  tenantHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  tenantName: {
+    ...theme.typography.bodyStrong,
+    marginBottom: 5,
+    color: theme.colors.textPrimary,
+  },
+  tenantPhone: {
+    color: theme.colors.textSecondary,
+    ...theme.typography.caption,
+  },
+  endTenancyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.dangerSoft || '#ffebee',
+  },
+  endTenancyText: {
+    marginLeft: 4,
+    ...theme.typography.caption,
+    color: theme.colors.danger,
+    fontWeight: '600',
+  },
+  tenantActions: {
+    marginTop: 10,
+  },
+  tenantActionButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    alignItems: 'center',
+  },
+  tenantActionText: {
+    ...theme.typography.button,
+    color: theme.colors.primary,
+  },
+  noTenantText: {
+    textAlign: 'center',
+    color: theme.colors.textSecondary,
+    paddingVertical: 10,
+    fontStyle: 'italic',
+    ...theme.typography.caption,
+  },
+  editButtonContainer: {
+    paddingHorizontal: 15,
+    paddingVertical: 15,
+    marginTop: 0,
+  },
+  buttonContainer: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 20,
+  },
+  editButton: {
+    backgroundColor: 'transparent',
+    padding: 15,
+    borderRadius: theme.radii.pill,
+    flex: 1,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  deleteButton: {
+    backgroundColor: 'transparent',
+    padding: 15,
+    borderRadius: theme.radii.pill,
+    flex: 1,
+    alignItems: 'center',
+    marginTop: 10,
+    borderWidth: 0,
+  },
+  secondaryButton: {
+    backgroundColor: theme.colors.textSecondary,
+    padding: 15,
+    borderRadius: theme.radii.pill,
+    flex: 1,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  buttonText: {
+    ...theme.typography.button,
+    color: theme.colors.surface,
+  },
+  editButtonText: {
+    ...theme.typography.button,
+    color: theme.colors.primary,
+  },
+  deleteButtonText: {
+    color: theme.colors.expense,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 1,
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '80%',
+  },
+  financeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  financeItem: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  financeLabel: {
+    ...theme.typography.caption,
+    marginBottom: 4,
+    color: theme.colors.textSecondary,
+  },
+  financeValue: {
+    ...theme.typography.bodyStrong,
+    color: theme.colors.textPrimary,
+  },
+  income: {
+    color: theme.colors.success || '#4CAF50',
+  },
+  expense: {
+    color: theme.colors.danger || '#F44336',
+  },
+  blockedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  blockedTitle: {
+    ...theme.typography.sectionTitle,
+    marginTop: 20,
+    marginBottom: 12,
+    color: theme.colors.textPrimary,
+  },
+  blockedMessage: {
+    ...theme.typography.body,
+    textAlign: 'center',
+    marginBottom: 8,
+    color: theme.colors.textPrimary,
+  },
+  blockedSubMessage: {
+    ...theme.typography.caption,
+    textAlign: 'center',
+    marginBottom: 24,
+    color: theme.colors.textSecondary,
+  },
+  upgradeButtonBlocked: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: theme.radii.pill,
+  },
+  upgradeButtonTextBlocked: {
+    ...theme.typography.button,
+    color: theme.colors.surface,
+  },
 });
 
 export default PropertyDetailsScreen;

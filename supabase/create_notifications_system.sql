@@ -308,6 +308,78 @@ BEGIN
         END IF;
       END;
     END IF;
+
+    -- Verifica notificações diárias para dias após vencimento (days_until_due < -1)
+    -- Limita a 30 dias para evitar spam excessivo
+    IF days_until_due < -1 AND days_until_due >= -30 THEN
+      DECLARE
+        has_payment BOOLEAN;
+        days_overdue INTEGER;
+        notification_days_overdue INTEGER;
+      BEGIN
+        -- Calcula quantos dias estão em atraso
+        days_overdue := ABS(days_until_due);
+        
+        -- Verifica se há pagamento registrado no mês atual
+        -- Considera janela de pagamento: 10 dias antes até 5 dias depois do vencimento
+        SELECT EXISTS(
+          SELECT 1
+          FROM finances f
+          WHERE f.tenant_id = contract_record.tenant_id
+            AND f.type = 'income'
+            AND f.property_id = contract_record.property_id
+            AND DATE_TRUNC('month', f.date) = DATE_TRUNC('month', next_due_date)
+        ) INTO has_payment;
+
+        -- Se não houver pagamento, verifica se já foi criada notificação hoje para este contrato
+        IF NOT has_payment THEN
+          -- Verifica se já existe notificação criada HOJE para este contrato
+          SELECT id INTO existing_notification_id
+          FROM notifications
+          WHERE user_id = contract_record.user_id
+            AND type = 'rent_due'
+            AND data->>'contract_id' = contract_record.contract_id::TEXT
+            AND (data->>'days_until_due')::INTEGER < 0
+            AND DATE(created_at) = today_date;
+          
+          -- Se não existe notificação hoje, cria uma nova
+          IF existing_notification_id IS NULL THEN
+            notification_type := 'rent_due';
+            notification_title := 'Aluguel em atraso - ' || days_overdue || ' dia' || CASE WHEN days_overdue > 1 THEN 's' ELSE '' END || ' sem pagamento';
+            notification_body := 'O aluguel de ' || COALESCE(contract_record.property_address, 'seu imóvel') || 
+                              ' (Inquilino: ' || COALESCE(contract_record.tenant_name, 'N/A') || 
+                              ') no valor de R$ ' || TO_CHAR(contract_record.rent_amount, 'FM999G999G999') || 
+                              ' está em atraso há ' || days_overdue || ' dia' || CASE WHEN days_overdue > 1 THEN 's' ELSE '' END || 
+                              ' (vencimento: dia ' || contract_record.due_day || ').';
+            
+            INSERT INTO notifications (user_id, type, title, body, data)
+            VALUES (
+              contract_record.user_id,
+              notification_type,
+              notification_title,
+              notification_body,
+              jsonb_build_object(
+                'contract_id', contract_record.contract_id,
+                'tenant_id', contract_record.tenant_id,
+                'property_id', contract_record.property_id,
+                'days_until_due', days_until_due,
+                'days_overdue', days_overdue,
+                'rent_amount', contract_record.rent_amount
+              )
+            )
+            RETURNING id, user_id, type, title, body 
+            INTO notification_id, temp_user_id, temp_type, temp_title, temp_body;
+            
+            user_id := temp_user_id;
+            type := temp_type;
+            title := temp_title;
+            body := temp_body;
+            
+            RETURN NEXT;
+          END IF;
+        END IF;
+      END;
+    END IF;
   END LOOP;
 
   RETURN;

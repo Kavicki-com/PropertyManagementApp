@@ -1,5 +1,5 @@
 // screens/AddTransactionScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,12 +15,15 @@ import { SelectList } from 'react-native-dropdown-select-list';
 import { supabase } from '../lib/supabase';
 import { fetchActiveContractByProperty } from '../lib/contractsService';
 import { MaterialIcons } from '@expo/vector-icons';
-import { colors, radii, typography } from '../theme';
 import { canAddFinancialTransaction, getUserSubscription, getActivePropertiesCount, getRequiredPlan } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
 import { removeCache, CACHE_KEYS } from '../lib/cacheService';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 
 const AddTransactionScreen = ({ route, navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [discounts, setDiscounts] = useState('');
@@ -47,13 +50,13 @@ const AddTransactionScreen = ({ route, navigation }) => {
   const isRentMode = !!preselectedPropertyId && !!preselectedTenantId;
   const [propertyValue, setPropertyValue] = useState(preselectedPropertyId || null);
   const [propertyItems, setPropertyItems] = useState([]);
-  
+
   // Determinar tipo inicial: se está no modo aluguel, usar 'rent', senão usar o tipo pré-selecionado ou 'income'
   const preselectedType = route?.params?.preselectedType ?? (isRentMode ? 'rent' : 'income');
   // Garantir que o tipo inicial seja válido (se não estiver no modo aluguel, não pode ser 'rent')
   const initialType = (isRentMode && preselectedType === 'rent') ? 'rent' : (preselectedType === 'rent' ? 'income' : preselectedType);
   const [typeValue, setTypeValue] = useState(initialType);
-  
+
   // Opção "Aluguel" só aparece quando veio da tela de detalhes do inquilino
   const [typeItems] = useState(() => {
     const baseItems = [
@@ -81,7 +84,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
           value: prop.address,
         }));
         setPropertyItems(formattedProperties);
-        
+
         // Se há propriedade pré-selecionada, buscar o endereço
         if (preselectedPropertyId) {
           const selectedProperty = data.find(p => p.id === preselectedPropertyId);
@@ -98,7 +101,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
   useEffect(() => {
     const fetchRentAmount = async () => {
       if (!preselectedPropertyId) return;
-      
+
       const { data: activeContract, error: contractError } =
         await fetchActiveContractByProperty(preselectedPropertyId);
 
@@ -114,7 +117,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
         Alert.alert('Aviso', 'Não foi encontrado um contrato ativo com valor de aluguel para esta propriedade.');
       }
     };
-    
+
     if (preselectedPropertyId) {
       fetchRentAmount();
     }
@@ -124,13 +127,13 @@ const AddTransactionScreen = ({ route, navigation }) => {
   useEffect(() => {
     if (isRentMode && rentAmount) {
       // Converter rentAmount para número (pode vir como string)
-      const rent = typeof rentAmount === 'string' 
+      const rent = typeof rentAmount === 'string'
         ? parseFloat(rentAmount.replace(',', '.')) || 0
         : parseFloat(rentAmount) || 0;
-      
+
       // Converter discounts de centavos para número
       const discount = discounts ? (parseFloat(discounts) / 100) : 0;
-      
+
       // Calcular valor final: aluguel - descontos
       const finalAmount = Math.max(0, rent - discount);
       setAmount(finalAmount.toFixed(2).replace('.', '').replace(/\B(?=(\d{3})+(?!\d))/g, ''));
@@ -168,7 +171,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
       const currentPlan = subscription?.subscription_plan || 'free';
       // Se o plano atual é basic, sempre sugere premium
       const requiredPlan = currentPlan === 'basic' ? 'premium' : 'basic';
-      
+
       setSubscriptionInfo({
         currentPlan,
         propertyCount,
@@ -196,7 +199,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
 
     // Converter tipo "rent" para "income" no banco, mas apenas se estiver no modo aluguel
     const dbType = (isRentMode && typeValue === 'rent') ? 'income' : typeValue;
-    const finalDescription = isRentMode 
+    const finalDescription = isRentMode
       ? (description || 'Aluguel')
       : (description || (typeValue === 'rent' ? 'Aluguel' : ''));
 
@@ -210,25 +213,25 @@ const AddTransactionScreen = ({ route, navigation }) => {
         setLoading(false);
         return;
       }
-      
+
       // Converter rentAmount para número (pode vir como string do banco)
-      const rent = typeof rentAmount === 'string' 
+      const rent = typeof rentAmount === 'string'
         ? parseFloat(rentAmount.replace(',', '.')) || 0
         : parseFloat(rentAmount) || 0;
-      
+
       if (rent <= 0) {
         Alert.alert('Erro', 'O valor do aluguel não é válido.');
         setLoading(false);
         return;
       }
-      
+
       // Converter discounts de centavos para número
       const discount = discounts ? (parseFloat(discounts) / 100) : 0;
-      
+
       // Calcular valor final: aluguel - descontos
       // Este é o valor que será salvo no banco de dados
       finalAmount = Math.max(0, rent - discount);
-      
+
       // Validação final: garantir que o valor seja válido
       if (isNaN(finalAmount)) {
         Alert.alert('Erro', 'Erro ao calcular o valor final. Por favor, verifique os valores informados.');
@@ -261,7 +264,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
         propertyValue ? removeCache(CACHE_KEYS.PROPERTY_DETAILS(propertyValue)) : Promise.resolve(),
         tenantIdForInsert ? removeCache(CACHE_KEYS.TENANT_DETAILS(tenantIdForInsert)) : Promise.resolve(),
       ]);
-      
+
       Alert.alert('Sucesso', 'Transação adicionada com sucesso!');
       navigation.goBack();
     }
@@ -270,178 +273,182 @@ const AddTransactionScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-        <View style={styles.headerContainer}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                <MaterialIcons name="arrow-back-ios" size={24} color={colors.textPrimary} />
-            </TouchableOpacity>
-            <Text style={styles.header}>Adicionar Transação</Text>
-            <View style={{ width: 24 }} />
-        </View>
-        <ScrollView 
-            style={styles.scrollContainer}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled={true}
-        >
+      <View style={styles.headerContainer}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <MaterialIcons name="arrow-back-ios" size={24} color={theme.colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.header}>Adicionar Transação</Text>
+        <View style={{ width: 24 }} />
+      </View>
+      <ScrollView
+        style={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled={true}
+      >
 
         {/* Property - Fixo apenas no modo aluguel (quando veio da tela de detalhes do inquilino) */}
         <View style={styles.inputGroup}>
-            <Text style={styles.label}>Propriedade</Text>
-            {isRentMode ? (
-                <View style={[styles.input, styles.disabledInput]}>
-                    <Text style={styles.disabledText}>{propertyAddress || 'Carregando...'}</Text>
-                </View>
-            ) : (
-                <SelectList
-                    setSelected={(val) => setPropertyValue(val)}
-                    data={propertyItems}
-                    save="key"
-                    placeholder="Selecione uma propriedade"
-                    defaultOption={propertyValue ? propertyItems.find(p => p.key === propertyValue) : undefined}
-                    boxStyles={styles.dropdown}
-                    inputStyles={styles.dropdownText}
-                    dropdownStyles={styles.dropdownContainer}
-                    search={false}
-                />
-            )}
+          <Text style={styles.label}>Propriedade</Text>
+          {isRentMode ? (
+            <View style={[styles.input, styles.disabledInput]}>
+              <Text style={styles.disabledText}>{propertyAddress || 'Carregando...'}</Text>
+            </View>
+          ) : (
+            <SelectList
+              setSelected={(val) => setPropertyValue(val)}
+              data={propertyItems}
+              save="key"
+              placeholder="Selecione uma propriedade"
+              defaultOption={propertyValue ? propertyItems.find(p => p.key === propertyValue) : undefined}
+              boxStyles={styles.dropdown}
+              inputStyles={styles.dropdownText}
+              dropdownStyles={styles.dropdownContainer}
+              search={false}
+            />
+          )}
         </View>
 
         {isRentMode ? (
-            <>
-                {/* Descrição */}
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Descrição</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Ex: Aluguel mensal"
-                        value={description}
-                        onChangeText={setDescription}
-                    />
-                </View>
+          <>
+            {/* Descrição */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Descrição</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ex: Aluguel mensal"
+                value={description}
+                onChangeText={setDescription}
+                placeholderTextColor={theme.colors.textMuted}
+              />
+            </View>
 
-                {/* Valor do Aluguel - Fixo */}
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Valor do Aluguel (R$)</Text>
-                    <View style={[styles.input, styles.disabledInput]}>
-                        <Text style={styles.disabledText}>
-                            {rentAmount ? `R$ ${parseFloat(rentAmount).toFixed(2).replace('.', ',')}` : 'Carregando...'}
-                        </Text>
-                    </View>
-                </View>
+            {/* Valor do Aluguel - Fixo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Valor do Aluguel (R$)</Text>
+              <View style={[styles.input, styles.disabledInput]}>
+                <Text style={styles.disabledText}>
+                  {rentAmount ? `R$ ${parseFloat(rentAmount).toFixed(2).replace('.', ',')}` : 'Carregando...'}
+                </Text>
+              </View>
+            </View>
 
-                {/* Descontos */}
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Descontos (R$)</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="R$ 0,00"
-                        value={discounts ? formatMoneyInput(discounts) : ''}
-                        onChangeText={(text) => {
-                          const numbers = text.replace(/\D/g, '');
-                          setDiscounts(numbers);
-                        }}
-                        keyboardType="numeric"
-                    />
-                </View>
+            {/* Descontos */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Descontos (R$)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="R$ 0,00"
+                value={discounts ? formatMoneyInput(discounts) : ''}
+                onChangeText={(text) => {
+                  const numbers = text.replace(/\D/g, '');
+                  setDiscounts(numbers);
+                }}
+                keyboardType="numeric"
+                placeholderTextColor={theme.colors.textMuted}
+              />
+            </View>
 
-                {/* Valor Final (calculado) - apenas visualização */}
-                {rentAmount && (
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Valor Final (R$)</Text>
-                        <View style={[styles.input, styles.disabledInput]}>
-                            <Text style={[styles.disabledText, styles.finalAmountText]}>
-                                R$ {(() => {
-                                    const rent = parseFloat(rentAmount) || 0;
-                                    const discount = discounts ? (parseFloat(discounts) / 100) : 0;
-                                    const final = Math.max(0, rent - discount);
-                                    return final.toFixed(2).replace('.', ',');
-                                })()}
-                            </Text>
-                        </View>
-                    </View>
-                )}
-            </>
+            {/* Valor Final (calculado) - apenas visualização */}
+            {rentAmount && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Valor Final (R$)</Text>
+                <View style={[styles.input, styles.disabledInput]}>
+                  <Text style={[styles.disabledText, styles.finalAmountText]}>
+                    R$ {(() => {
+                      const rent = parseFloat(rentAmount) || 0;
+                      const discount = discounts ? (parseFloat(discounts) / 100) : 0;
+                      const final = Math.max(0, rent - discount);
+                      return final.toFixed(2).replace('.', ',');
+                    })()}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </>
         ) : (
-            <>
-                {/* Tipo Dropdown - apenas quando não é modo aluguel */}
-                {!isRentMode && (
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Tipo</Text>
-                        <SelectList
-                            setSelected={(val) => {
-                                // Garantir que 'rent' só pode ser selecionado no modo aluguel
-                                if (val === 'rent' && !isRentMode) {
-                                    setTypeValue('income');
-                                } else {
-                                    setTypeValue(val);
-                                }
-                            }}
-                            data={typeItems}
-                            save="key"
-                            placeholder="Selecione o tipo"
-                            defaultOption={typeValue ? typeItems.find(t => t.key === typeValue) : undefined}
-                            boxStyles={styles.dropdown}
-                            inputStyles={styles.dropdownText}
-                            dropdownStyles={styles.dropdownContainer}
-                            search={false}
-                        />
-                    </View>
-                )}
+          <>
+            {/* Tipo Dropdown - apenas quando não é modo aluguel */}
+            {!isRentMode && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Tipo</Text>
+                <SelectList
+                  setSelected={(val) => {
+                    // Garantir que 'rent' só pode ser selecionado no modo aluguel
+                    if (val === 'rent' && !isRentMode) {
+                      setTypeValue('income');
+                    } else {
+                      setTypeValue(val);
+                    }
+                  }}
+                  data={typeItems}
+                  save="key"
+                  placeholder="Selecione o tipo"
+                  defaultOption={typeValue ? typeItems.find(t => t.key === typeValue) : undefined}
+                  boxStyles={styles.dropdown}
+                  inputStyles={styles.dropdownText}
+                  dropdownStyles={styles.dropdownContainer}
+                  search={false}
+                />
+              </View>
+            )}
 
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Descrição</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Ex: Aluguel, Reforma, Manutenção"
-                        value={description}
-                        onChangeText={setDescription}
-                    />
-                </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Descrição</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ex: Aluguel, Reforma, Manutenção"
+                value={description}
+                onChangeText={setDescription}
+                placeholderTextColor={theme.colors.textMuted}
+              />
+            </View>
 
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Valor (R$)</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="R$ 0,00"
-                        value={amount ? formatMoneyInput(amount) : ''}
-                        onChangeText={(text) => {
-                          const numbers = text.replace(/\D/g, '');
-                          setAmount(numbers);
-                        }}
-                        keyboardType="numeric"
-                    />
-                </View>
-            </>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Valor (R$)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="R$ 0,00"
+                value={amount ? formatMoneyInput(amount) : ''}
+                onChangeText={(text) => {
+                  const numbers = text.replace(/\D/g, '');
+                  setAmount(numbers);
+                }}
+                keyboardType="numeric"
+                placeholderTextColor={theme.colors.textMuted}
+              />
+            </View>
+          </>
         )}
 
         <TouchableOpacity style={styles.addButton} onPress={handleAddTransaction} disabled={loading}>
-            {loading ? (
-            <ActivityIndicator color={colors.primary} />
-            ) : (
+          {loading ? (
+            <ActivityIndicator color={theme.colors.surface || 'white'} />
+          ) : (
             <Text style={styles.addButtonText}>Adicionar Transação</Text>
-            )}
+          )}
         </TouchableOpacity>
-        </ScrollView>
+      </ScrollView>
 
-        <UpgradeModal
-          visible={showUpgradeModal}
-          onClose={() => setShowUpgradeModal(false)}
-          onUpgrade={() => {
-            setShowUpgradeModal(false);
-            navigation.navigate('Subscription');
-          }}
-          currentPlan={subscriptionInfo?.currentPlan || 'free'}
-          propertyCount={subscriptionInfo?.propertyCount || 0}
-          requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
-          customMessage="O plano Gratuito não permite lançamentos financeiros. Faça upgrade para o plano Básico ou Premium para registrar recebimentos e despesas."
-        />
+      <UpgradeModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        onUpgrade={() => {
+          setShowUpgradeModal(false);
+          navigation.navigate('Subscription');
+        }}
+        currentPlan={subscriptionInfo?.currentPlan || 'free'}
+        propertyCount={subscriptionInfo?.propertyCount || 0}
+        requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+        customMessage="O plano Gratuito não permite lançamentos financeiros. Faça upgrade para o plano Básico ou Premium para registrar recebimentos e despesas."
+      />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
     flex: 1,
@@ -453,15 +460,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 15,
     paddingTop: 50,
-    backgroundColor: colors.surface,
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
+    borderBottomColor: theme.colors.borderSubtle,
   },
   backButton: {
-      padding: 5,
+    padding: 5,
   },
   header: {
-    ...typography.sectionTitle,
+    ...theme.typography.sectionTitle,
     textAlign: 'left',
     flex: 1,
   },
@@ -469,56 +476,59 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
-    ...typography.label,
+    ...theme.typography.label,
     marginBottom: 8,
   },
   input: {
     height: 50,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.sm,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: theme.radii.sm,
     paddingHorizontal: 15,
     fontSize: 16,
+    color: theme.colors.textPrimary,
+    backgroundColor: theme.colors.surface,
   },
   addButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: theme.colors.primary,
     padding: 15,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     alignItems: 'center',
     marginTop: 10,
   },
   addButtonText: {
     color: 'white',
-    ...typography.button,
+    ...theme.typography.button,
   },
   dropdown: {
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.sm,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: theme.radii.sm,
     minHeight: 50,
     overflow: 'hidden',
+    backgroundColor: theme.colors.surface,
   },
   dropdownText: {
     fontSize: 16,
-    color: colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   dropdownContainer: {
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.sm,
-    backgroundColor: colors.surface,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.surface,
   },
   disabledInput: {
-    backgroundColor: colors.borderSubtle + '20',
+    backgroundColor: theme.colors.borderSubtle + '20',
     justifyContent: 'center',
   },
   disabledText: {
-    color: colors.textSecondary || colors.textPrimary,
+    color: theme.colors.textSecondary || theme.colors.textPrimary,
     fontSize: 16,
   },
   finalAmountText: {
     fontWeight: 'bold',
-    color: colors.primary,
+    color: theme.colors.primary,
   },
 });
 

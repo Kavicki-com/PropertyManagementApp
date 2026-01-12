@@ -1,5 +1,5 @@
 // screens/EditPropertyScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,11 +16,11 @@ import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { optimizeImage, base64ToArrayBuffer, IMAGE_PICKER_OPTIONS, CAMERA_OPTIONS } from '../lib/imageUtils';
-import { 
-  isValidMoney, 
-  parseMoney, 
-  filterOnlyNumbers, 
-  filterMoney, 
+import {
+  isValidMoney,
+  parseMoney,
+  filterOnlyNumbers,
+  filterMoney,
   filterAddress,
   filterCep,
   isValidCep,
@@ -32,9 +32,12 @@ import {
 import { fetchAddressByCep } from '../lib/cepService';
 import { radii, colors } from '../theme';
 import { removeCache, CACHE_KEYS } from '../lib/cacheService';
+import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 
 
 const EditPropertyScreen = ({ route, navigation }) => {
+  const { theme } = useAccessibilityTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   const { property } = route.params;
 
   // Campos de endereço
@@ -117,7 +120,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
 
   const handleImagePicker = async (useCamera = false) => {
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:114',message:'handleImagePicker chamado',data:{useCamera,imagesCount:images.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'EditPropertyScreen.js:114', message: 'handleImagePicker chamado', data: { useCamera, imagesCount: images.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
     // #endregion
     if (images.length >= 10) {
       Alert.alert('Limite de fotos', 'Você pode adicionar no máximo 10 fotos por imóvel.');
@@ -125,14 +128,14 @@ const EditPropertyScreen = ({ route, navigation }) => {
     }
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:120',message:'Solicitando permissão',data:{useCamera},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'EditPropertyScreen.js:120', message: 'Solicitando permissão', data: { useCamera }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
     // #endregion
     const permission = useCamera
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:126',message:'Permissão recebida',data:{status:permission.status,granted:permission.status==='granted'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'EditPropertyScreen.js:126', message: 'Permissão recebida', data: { status: permission.status, granted: permission.status === 'granted' }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
     // #endregion
     if (permission.status !== 'granted') {
       Alert.alert('Permissão necessária', 'Você precisa permitir o acesso para adicionar fotos.');
@@ -140,7 +143,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
     }
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:131',message:'Abrindo ImagePicker',data:{useCamera},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'EditPropertyScreen.js:131', message: 'Abrindo ImagePicker', data: { useCamera }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
     // #endregion
     try {
       const result = useCamera
@@ -148,12 +151,12 @@ const EditPropertyScreen = ({ route, navigation }) => {
         : await ImagePicker.launchImageLibraryAsync(IMAGE_PICKER_OPTIONS);
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:137',message:'Resultado do ImagePicker',data:{hasResult:!!result,canceled:result?.canceled,hasAssets:!!result?.assets,assetsLength:result?.assets?.length,firstAssetUri:result?.assets?.[0]?.uri},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'EditPropertyScreen.js:137', message: 'Resultado do ImagePicker', data: { hasResult: !!result, canceled: result?.canceled, hasAssets: !!result?.assets, assetsLength: result?.assets?.length, firstAssetUri: result?.assets?.[0]?.uri }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
       // #endregion
-      
+
       if (!result) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:142',message:'ERRO: result é null ou undefined',data:{useCamera},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'EditPropertyScreen.js:142', message: 'ERRO: result é null ou undefined', data: { useCamera }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
         // #endregion
         Alert.alert('Erro', 'Não foi possível abrir o seletor de imagens.');
         return;
@@ -164,23 +167,23 @@ const EditPropertyScreen = ({ route, navigation }) => {
         // Otimizar imagem antes de adicionar
         if (asset.uri) {
           const optimized = await optimizeImage(asset.uri);
-          setImages([...images, { 
-            uri: optimized.uri, 
-            base64: optimized.base64 || asset.base64, 
-            isNew: true 
+          setImages([...images, {
+            uri: optimized.uri,
+            base64: optimized.base64 || asset.base64,
+            isNew: true
           }]);
         } else {
           setImages([...images, { ...asset, isNew: true }]);
         }
       } else if (!result.canceled && (!result.assets || result.assets.length === 0)) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:149',message:'ERRO: assets vazio ou undefined',data:{result},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'EditPropertyScreen.js:149', message: 'ERRO: assets vazio ou undefined', data: { result }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
         // #endregion
         Alert.alert('Erro', 'Não foi possível obter a imagem selecionada.');
       }
     } catch (error) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:147',message:'ERRO capturado no ImagePicker',data:{errorMessage:error.message,errorStack:error.stack,useCamera},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'EditPropertyScreen.js:147', message: 'ERRO capturado no ImagePicker', data: { errorMessage: error.message, errorStack: error.stack, useCamera }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
       // #endregion
       Alert.alert('Erro', `Não foi possível abrir ${useCamera ? 'a câmera' : 'a galeria'}.`);
     }
@@ -265,19 +268,19 @@ const EditPropertyScreen = ({ route, navigation }) => {
     // Separar imagens existentes (strings) e novas para upload
     const existingImages = images.filter(img => typeof img === 'string');
     const newImages = images.filter(img => img.isNew);
-    
+
     const finalImageUrls = [...existingImages];
-    
+
     // Upload de novas imagens em paralelo
     if (newImages.length > 0) {
       const uploadPromises = newImages.map(async (image, index) => {
         try {
           const fileName = `${user.id}/${property.id}/${Date.now()}_${index}.jpg`;
           const bucketName = 'property-images';
-          
+
           // Usar base64 otimizado se disponível
           let arrayBuffer = null;
-          
+
           if (image.base64) {
             arrayBuffer = base64ToArrayBuffer(image.base64);
           } else if (image.uri) {
@@ -298,7 +301,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
               return urlData?.publicUrl;
             }
           }
-          
+
           return null;
         } catch (error) {
           console.error(`Erro ao fazer upload da imagem ${index}:`, error);
@@ -381,7 +384,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
+          <MaterialIcons name="arrow-back-ios" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.header}>Editar Propriedade</Text>
         <View style={{ width: 24 }} />
@@ -401,7 +404,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
               keyboardType="numeric"
               maxLength={9}
             />
-            {loadingCep && <ActivityIndicator size="small" color={colors.primary} style={styles.cepLoader} />}
+            {loadingCep && <ActivityIndicator size="small" color={theme.colors.primary} style={styles.cepLoader} />}
           </View>
           {errors.cep && <Text style={styles.errorText}>{errors.cep}</Text>}
         </View>
@@ -582,34 +585,34 @@ const EditPropertyScreen = ({ route, navigation }) => {
           <View style={styles.imagePickerContainer}>
             <TouchableOpacity style={styles.imagePickerButton} onPress={() => {
               // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:519',message:'Botão Câmera pressionado',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+              fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'EditPropertyScreen.js:519', message: 'Botão Câmera pressionado', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run2', hypothesisId: 'A' }) }).catch(() => { });
               // #endregion
               handleImagePicker(true);
             }}>
-              <MaterialIcons name="photo-camera" size={24} color="#4a86e8" />
+              <MaterialIcons name="photo-camera" size={24} color={theme.colors.primary} />
               <Text style={styles.imagePickerText}>Câmera</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.imagePickerButton} onPress={() => {
               // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditPropertyScreen.js:523',message:'Botão Galeria pressionado',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
+              fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'EditPropertyScreen.js:523', message: 'Botão Galeria pressionado', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run2', hypothesisId: 'A' }) }).catch(() => { });
               // #endregion
               handleImagePicker(false);
             }}>
-              <MaterialIcons name="photo-library" size={24} color="#4a86e8" />
+              <MaterialIcons name="photo-library" size={24} color={theme.colors.primary} />
               <Text style={styles.imagePickerText}>Galeria</Text>
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailContainer}>
             {images.map((image, index) => (
               <View key={index} style={styles.thumbnailWrapper}>
-                <Image 
-                  source={typeof image === 'string' ? image : image.uri} 
+                <Image
+                  source={typeof image === 'string' ? image : image.uri}
                   style={styles.thumbnail}
                   contentFit="cover"
                   cachePolicy="memory"
                 />
                 <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(index)}>
-                  <MaterialIcons name="cancel" size={24} color="#F44336" />
+                  <MaterialIcons name="cancel" size={24} color={theme.colors.error} />
                 </TouchableOpacity>
               </View>
             ))}
@@ -617,17 +620,17 @@ const EditPropertyScreen = ({ route, navigation }) => {
         </View>
 
         <TouchableOpacity style={styles.updateButton} onPress={handleUpdateProperty} disabled={loading}>
-          {loading ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
+          {loading ? <ActivityIndicator color={theme.colors.surface} /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
         </TouchableOpacity>
       </ScrollView>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
     flex: 1,
@@ -639,28 +642,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 15,
     paddingTop: 50,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: theme.colors.borderSubtle,
   },
   backButton: {
     padding: 5,
   },
   header: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
+    ...theme.typography.sectionTitle,
     flex: 1,
+    color: theme.colors.textPrimary,
   },
   sectionTitle: {
+    ...theme.typography.sectionTitle,
     fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    color: theme.colors.textPrimary,
     marginBottom: 15,
     marginTop: 10,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: theme.colors.borderSubtle,
   },
   inputGroup: {
     marginBottom: 16,
@@ -681,27 +683,34 @@ const styles = StyleSheet.create({
   },
   label: {
     marginBottom: 6,
-    fontWeight: '500',
-    color: '#333',
+    ...theme.typography.bodyStrong,
+    color: theme.colors.textPrimary,
     fontSize: 14,
   },
   input: {
     height: 48,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: theme.radii.sm,
     paddingHorizontal: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
+    color: theme.colors.textPrimary,
+    ...theme.typography.body,
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   inputError: {
-    borderColor: '#F44336',
+    borderColor: theme.colors.error,
     borderWidth: 2,
   },
   errorText: {
     marginTop: 4,
-    color: '#F44336',
+    color: theme.colors.error || '#F44336',
     fontSize: 12,
+    ...theme.typography.caption,
   },
   cepRow: {
     flexDirection: 'row',
@@ -715,31 +724,37 @@ const styles = StyleSheet.create({
   },
   dropdown: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: theme.radii.sm,
     minHeight: 48,
+    backgroundColor: theme.colors.surface,
+    ...(theme.isHighContrast && {
+      borderWidth: 2,
+      borderColor: theme.colors.textPrimary,
+    }),
   },
   dropdownText: {
     fontSize: 16,
-    color: '#333',
+    color: theme.colors.textPrimary,
+    ...theme.typography.body,
   },
   dropdownContainer: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#fff',
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.surface,
   },
   updateButton: {
-    backgroundColor: '#4a86e8',
+    backgroundColor: theme.colors.primary,
     padding: 15,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     alignItems: 'center',
     marginTop: 10,
     marginBottom: 40,
   },
   buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: theme.colors.surface,
+    ...theme.typography.button,
     fontSize: 16,
   },
   imagePickerContainer: {
@@ -749,17 +764,18 @@ const styles = StyleSheet.create({
   imagePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: theme.colors.background, // or slightly darker/lighter
     padding: 12,
-    borderRadius: radii.pill,
+    borderRadius: theme.radii.pill,
     flex: 1,
     justifyContent: 'center',
     marginHorizontal: 5,
   },
   imagePickerText: {
     marginLeft: 8,
-    color: '#4a86e8',
+    color: theme.colors.primary,
     fontWeight: '600',
+    ...theme.typography.button,
   },
   thumbnailContainer: {
     marginTop: 12,
@@ -771,16 +787,16 @@ const styles = StyleSheet.create({
   thumbnail: {
     width: 80,
     height: 80,
-    borderRadius: 8,
+    borderRadius: theme.radii.sm,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.colors.borderSubtle,
   },
   removeImageButton: {
     position: 'absolute',
     top: -8,
     right: -8,
-    backgroundColor: 'white',
-    borderRadius: radii.pill,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.pill,
   },
 });
 
