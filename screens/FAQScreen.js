@@ -128,7 +128,7 @@ const FAQScreen = ({ navigation }) => {
         },
         {
           question: 'O aplicativo é gratuito?',
-          answer: 'Consulte as informações sobre planos e preços na tela de Configurações ou entre em contato com o suporte para mais detalhes sobre os planos disponíveis.',
+          answer: 'O aplicativo oferece um plano gratuito com limite de 2 imóveis e 2 inquilinos. Para gerenciar mais imóveis, você pode assinar os planos Básico (R$ 19,90/mês para até 10 imóveis) ou Premium (R$ 39,90/mês, ilimitado) diretamente no aplicativo via Apple App Store. As assinaturas renovam automaticamente e podem ser canceladas a qualquer momento em Ajustes > [seu nome] > Assinaturas no seu dispositivo.',
         },
       ],
     },

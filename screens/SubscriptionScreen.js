@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
@@ -518,6 +519,31 @@ const SubscriptionScreen = ({ navigation }) => {
             <Text style={styles.restoreButtonText}>Restaurar Compras</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Informações Legais - Obrigatório pela Apple */}
+        <View style={styles.legalSection}>
+          <Text style={styles.legalText}>
+            • O pagamento será cobrado na sua conta Apple ID no momento da confirmação da compra.
+          </Text>
+          <Text style={styles.legalText}>
+            • A assinatura renova automaticamente, a menos que seja cancelada pelo menos 24 horas antes do fim do período atual.
+          </Text>
+          <Text style={styles.legalText}>
+            • A conta será cobrada pela renovação dentro de 24 horas antes do fim do período atual.
+          </Text>
+          <Text style={styles.legalText}>
+            • Você pode gerenciar e cancelar suas assinaturas acessando Ajustes {'>'} [seu nome] {'>'} Assinaturas após a compra.
+          </Text>
+          <View style={styles.legalLinks}>
+            <TouchableOpacity onPress={() => Linking.openURL('http://llord.kavicki.com/')}>
+              <Text style={styles.legalLink}>Termos de Uso</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalSeparator}>•</Text>
+            <TouchableOpacity onPress={() => Linking.openURL('http://llord.kavicki.com/')}>
+              <Text style={styles.legalLink}>Política de Privacidade</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -692,6 +718,32 @@ const createStyles = (theme) => StyleSheet.create({
     ...theme.typography.button,
     color: theme.colors.primary,
     marginLeft: 8,
+  },
+  legalSection: {
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  legalText: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  legalLink: {
+    ...theme.typography.caption,
+    color: theme.colors.primary,
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    marginHorizontal: 8,
   },
 });
 
