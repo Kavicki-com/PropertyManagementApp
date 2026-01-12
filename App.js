@@ -87,7 +87,8 @@ function MainTabs() {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.isHighContrast ? theme.colors.textPrimary : theme.colors.borderSubtle,
           borderTopWidth: theme.isHighContrast ? 2 : 1,
-          paddingTop: theme.fontScale !== 1 ? 8 : 0,
+          minHeight: theme.fontScale !== 1 ? 68 : 60,
+          paddingTop: 0,
         }
       })}
     >
