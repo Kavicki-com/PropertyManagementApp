@@ -11,6 +11,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
+import { PropertiesListSkeleton } from '../components/SkeletonLoader';
 
 // Função para formatar valor monetário
 const formatCurrency = (value) => {
@@ -145,8 +146,14 @@ const LinkPropertyScreen = ({ route, navigation }) => {
 
   if (loading && properties.length === 0) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        <ScreenHeader
+          title="Vincular Propriedade"
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.listContent}>
+          <PropertiesListSkeleton />
+        </View>
       </View>
     );
   }

@@ -28,6 +28,7 @@ import {
 } from '../lib/iapService';
 import ScreenHeader from '../components/ScreenHeader';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
+import { SubscriptionSkeleton } from '../components/SkeletonLoader';
 
 const SubscriptionScreen = ({ navigation }) => {
   const { theme } = useAccessibilityTheme();
@@ -298,10 +299,10 @@ const SubscriptionScreen = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ScreenHeader title="Assinatura" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
+        <ScreenHeader title="Assinatura" onBack={() => navigation.goBack()} />
+        <ScrollView style={styles.scrollContainer}>
+          <SubscriptionSkeleton />
+        </ScrollView>
       </View>
     );
   }

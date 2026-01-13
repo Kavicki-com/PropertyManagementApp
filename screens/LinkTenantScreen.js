@@ -15,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { useIsFocused } from '@react-navigation/native';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
+import { TenantsListSkeleton } from '../components/SkeletonLoader';
 
 const TenantItem = ({ item, onPress, styles }) => {
   const isOccupied = !!item.property_id;
@@ -184,8 +185,14 @@ const LinkTenantScreen = ({ route, navigation }) => {
 
   if (loading && tenants.length === 0) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles.container}>
+        <ScreenHeader
+          title="Vincular Inquilino"
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.listContent}>
+          <TenantsListSkeleton />
+        </View>
       </View>
     );
   }

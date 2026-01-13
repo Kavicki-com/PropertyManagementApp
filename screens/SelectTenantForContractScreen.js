@@ -14,6 +14,7 @@ import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
+import { TenantsListSkeleton } from '../components/SkeletonLoader';
 
 const TenantItem = ({ item, onPress, styles, theme }) => {
   const isOccupied = !!item.property_id;
@@ -104,8 +105,14 @@ const SelectTenantForContractScreen = ({ route, navigation }) => {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles.container}>
+        <ScreenHeader
+          title="Selecionar Inquilino"
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.listContent}>
+          <TenantsListSkeleton />
+        </View>
       </View>
     );
   }
