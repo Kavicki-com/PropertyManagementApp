@@ -18,6 +18,7 @@ import { fetchTenantDocuments, uploadTenantDocument, deleteTenantDocument, DOCUM
 import { filterOnlyNumbers } from '../lib/validation';
 import { canViewTenantDetails, getUserSubscription, getActiveTenantsCount, getRequiredPlan, canAddDocument, getTotalDocumentsCount } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
+import { TenantDetailsSkeleton } from '../components/SkeletonLoader';
 
 // Função para formatar valor monetário
 const formatCurrency = (value) => {
@@ -1106,8 +1107,18 @@ const TenantDetailsScreen = ({ route, navigation }) => {
     );
   };
 
-  if (loading || !tenant) {
-    return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={theme.colors.primary} /></View>;
+  if (loading || !tenant || themeLoading) {
+    return (
+      <View style={styles.container}>
+        <ScreenHeader
+          title="Carregando..."
+          onBack={() => navigation.goBack()}
+        />
+        <ScrollView style={styles.scrollContainer}>
+          <TenantDetailsSkeleton />
+        </ScrollView>
+      </View>
+    );
   }
 
   // Tela de bloqueio quando inquilino está bloqueado

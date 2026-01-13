@@ -161,6 +161,193 @@ export const FinancesListSkeleton = ({ count = 5 }) => (
   </View>
 );
 
+/**
+ * Skeleton para detalhes da propriedade
+ */
+export const PropertyDetailsSkeleton = () => (
+  <View style={styles.detailsContainer}>
+    {/* Galeria de imagens */}
+    <View style={styles.section}>
+      <SkeletonLoader width="40%" height={20} style={styles.marginBottom} />
+      <View style={{ flexDirection: 'row', overflow: 'hidden' }}>
+        <SkeletonLoader width={200} height={150} borderRadius={8} style={{ marginRight: 10 }} />
+        <SkeletonLoader width={100} height={150} borderRadius={8} />
+      </View>
+    </View>
+
+    {/* Endereço */}
+    <View style={styles.section}>
+      <SkeletonLoader width="30%" height={20} style={styles.marginBottom} />
+      <SkeletonLoader width="80%" height={16} style={styles.marginBottom} />
+      <SkeletonLoader width="60%" height={16} style={styles.marginBottom} />
+      <SkeletonLoader width="40%" height={16} />
+    </View>
+
+    {/* Detalhes */}
+    <View style={styles.section}>
+      <SkeletonLoader width="50%" height={20} style={styles.marginBottom} />
+      <View style={styles.rowSkeleton}>
+        <SkeletonLoader width="30%" height={16} />
+        <SkeletonLoader width="20%" height={16} />
+      </View>
+      <View style={[styles.rowSkeleton, { marginTop: 10 }]}>
+        <SkeletonLoader width="30%" height={16} />
+        <SkeletonLoader width="20%" height={16} />
+      </View>
+      <View style={[styles.rowSkeleton, { marginTop: 10 }]}>
+        <SkeletonLoader width="30%" height={16} />
+        <SkeletonLoader width="20%" height={16} />
+      </View>
+    </View>
+
+    {/* Resumo Financeiro */}
+    <View style={styles.section}>
+      <SkeletonLoader width="50%" height={20} style={styles.marginBottom} />
+      <View style={styles.rowSkeleton}>
+        <SkeletonLoader width="30%" height={60} borderRadius={8} />
+        <SkeletonLoader width="30%" height={60} borderRadius={8} />
+        <SkeletonLoader width="30%" height={60} borderRadius={8} />
+      </View>
+    </View>
+  </View>
+);
+
+/**
+ * Skeleton para detalhes do inquilino
+ */
+export const TenantDetailsSkeleton = () => (
+  <View style={styles.detailsContainer}>
+    {/* Avatar e Nome */}
+    <View style={{ alignItems: 'center', marginBottom: 20, marginTop: 10 }}>
+      <SkeletonLoader width={100} height={100} borderRadius={50} style={styles.marginBottom} />
+      <SkeletonLoader width="60%" height={24} style={styles.marginBottom} />
+      <SkeletonLoader width="40%" height={16} />
+    </View>
+
+    {/* Informações Pessoais */}
+    <View style={styles.section}>
+      <SkeletonLoader width="40%" height={20} style={styles.marginBottom} />
+      <SkeletonLoader width="90%" height={16} style={styles.marginBottom} />
+      <SkeletonLoader width="70%" height={16} style={styles.marginBottom} />
+      <SkeletonLoader width="50%" height={16} />
+    </View>
+
+    {/* Contrato */}
+    <View style={styles.section}>
+      <SkeletonLoader width="50%" height={20} style={styles.marginBottom} />
+      <SkeletonLoader width="100%" height={80} borderRadius={8} />
+    </View>
+
+    {/* Billing Summary */}
+    <View style={styles.section}>
+      <View style={styles.rowSkeleton}>
+        <SkeletonLoader width="30%" height={60} borderRadius={8} />
+        <SkeletonLoader width="30%" height={60} borderRadius={8} />
+        <SkeletonLoader width="30%" height={60} borderRadius={8} />
+      </View>
+    </View>
+  </View>
+);
+
+/**
+ * Skeleton para cartão de usuário (Settings)
+ */
+export const UserCardSkeleton = () => (
+  <View style={styles.userCardSkeleton}>
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <SkeletonLoader width={56} height={56} borderRadius={28} style={{ marginRight: 12 }} />
+      <View style={{ flex: 1 }}>
+        <SkeletonLoader width="60%" height={18} style={{ marginBottom: 6 }} />
+        <SkeletonLoader width="80%" height={14} />
+      </View>
+    </View>
+    <SkeletonLoader width={100} height={30} borderRadius={16} style={{ marginTop: 16, alignSelf: 'center' }} />
+  </View>
+);
+
+/**
+ * Skeleton para edição de perfil
+ */
+export const EditProfileSkeleton = () => (
+  <View style={styles.detailsContainer}>
+    {/* Avatar */}
+    <View style={styles.section}>
+      <SkeletonLoader width="40%" height={24} style={styles.marginBottom} />
+      <View style={{ alignItems: 'center', marginVertical: 10 }}>
+        <SkeletonLoader width={120} height={120} borderRadius={60} />
+        <SkeletonLoader width={150} height={16} style={{ marginTop: 12 }} />
+      </View>
+    </View>
+
+    {/* Informações Pessoais */}
+    <View style={styles.section}>
+      <SkeletonLoader width="50%" height={24} style={styles.marginBottom} />
+
+      {/* Inputs simulados */}
+      {Array.from({ length: 4 }).map((_, index) => (
+        <View key={index} style={{ marginBottom: 15 }}>
+          <SkeletonLoader width="30%" height={16} style={{ marginBottom: 8 }} />
+          <SkeletonLoader width="100%" height={50} borderRadius={8} />
+        </View>
+      ))}
+    </View>
+
+    {/* Senha */}
+    <View style={styles.section}>
+      <SkeletonLoader width="40%" height={24} style={styles.marginBottom} />
+      <SkeletonLoader width="100%" height={50} borderRadius={8} style={{ marginBottom: 15 }} />
+      <SkeletonLoader width="100%" height={50} borderRadius={8} />
+    </View>
+  </View>
+);
+
+/**
+ * Skeleton para a tela de assinaturas
+ */
+export const SubscriptionSkeleton = () => (
+  <View style={styles.detailsContainer}>
+    {/* Plano Atual */}
+    <View style={styles.marginBottom}>
+      <SkeletonLoader width="40%" height={24} style={styles.marginBottom} />
+      <View style={[styles.cardSkeleton, { borderWidth: 2, borderColor: colors.borderSubtle || '#e0e0e0' }]}>
+        <View style={styles.rowSkeleton}>
+          <SkeletonLoader width="30%" height={24} />
+          <SkeletonLoader width={60} height={24} borderRadius={12} />
+        </View>
+        <SkeletonLoader width="60%" height={16} style={{ marginTop: 15, marginBottom: 8 }} />
+        <SkeletonLoader width="100%" height={8} borderRadius={4} style={{ marginBottom: 15 }} />
+        <SkeletonLoader width="40%" height={14} />
+      </View>
+    </View>
+
+    {/* Planos Disponíveis */}
+    <View>
+      <SkeletonLoader width="50%" height={24} style={styles.marginBottom} />
+
+      {/* Cards de planos repetidos */}
+      {Array.from({ length: 3 }).map((_, index) => (
+        <View key={index} style={styles.cardSkeleton}>
+          <View style={styles.rowSkeleton}>
+            <SkeletonLoader width="30%" height={20} />
+            <SkeletonLoader width="30%" height={20} />
+          </View>
+          <SkeletonLoader width="50%" height={14} style={{ marginTop: 8, marginBottom: 15 }} />
+
+          {/* Features */}
+          {Array.from({ length: 4 }).map((_, fIndex) => (
+            <View key={fIndex} style={[styles.rowSkeleton, { justifyContent: 'flex-start', marginBottom: 8 }]}>
+              <SkeletonLoader width={20} height={20} borderRadius={10} style={{ marginRight: 10 }} />
+              <SkeletonLoader width="70%" height={14} />
+            </View>
+          ))}
+
+          <SkeletonLoader width="100%" height={45} borderRadius={25} style={{ marginTop: 15 }} />
+        </View>
+      ))}
+    </View>
+  </View>
+);
+
 const styles = StyleSheet.create({
   skeleton: {
     backgroundColor: colors.borderSubtle || '#e0e0e0',
@@ -268,6 +455,36 @@ const styles = StyleSheet.create({
   },
   financesListContainer: {
     width: '100%',
+  },
+  detailsContainer: {
+    padding: 15,
+  },
+  section: {
+    backgroundColor: colors.surface || '#fff',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  rowSkeleton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  userCardSkeleton: {
+    backgroundColor: colors.surface || '#fff',
+    borderRadius: radii.lg || 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
 });
 

@@ -8,6 +8,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits } from '../lib/subscriptionService';
 import { loadAccessibilitySettings, updateAccessibilitySetting } from '../lib/accessibilityService';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
+import { UserCardSkeleton } from '../components/SkeletonLoader';
 
 const SettingsScreen = ({ navigation }) => {
   const { theme } = useAccessibilityTheme();
@@ -21,6 +22,7 @@ const SettingsScreen = ({ navigation }) => {
   const [propertyCount, setPropertyCount] = useState(0);
   const [fontScale, setFontScale] = useState(1.0);
   const [highContrast, setHighContrast] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -50,6 +52,7 @@ const SettingsScreen = ({ navigation }) => {
         setSubscription(subscriptionData);
         setPropertyCount(count);
       }
+      setLoading(false);
     };
     fetchUser();
 
@@ -260,43 +263,48 @@ const SettingsScreen = ({ navigation }) => {
       <ScreenHeader title="Configurações" />
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
         {/* User card destacado no topo */}
-        <View style={styles.userCard}>
-          <Text style={styles.userCardTitle}>Conta do usuário</Text>
-          <View style={styles.userInfoRow}>
-            <View style={styles.avatarContainer}>
-              <Image
-                source={
-                  userPhotoUrl
-                    ? { uri: userPhotoUrl }
-                    : require('../assets/avatar-placeholder.png')
-                }
-                style={styles.avatar}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                placeholder={require('../assets/avatar-placeholder.png')}
-                transition={200}
-              />
-            </View>
-            <View style={styles.userTextContainer}>
-              <Text style={styles.userName} numberOfLines={1}>
-                {userName || 'Usuário autenticado'}
-              </Text>
-              {userEmail ? (
-                <Text style={styles.userEmail} numberOfLines={1}>
-                  {userEmail}
+        {/* User card destacado no topo */}
+        {loading ? (
+          <UserCardSkeleton />
+        ) : (
+          <View style={styles.userCard}>
+            <Text style={styles.userCardTitle}>Conta do usuário</Text>
+            <View style={styles.userInfoRow}>
+              <View style={styles.avatarContainer}>
+                <Image
+                  source={
+                    userPhotoUrl
+                      ? { uri: userPhotoUrl }
+                      : require('../assets/avatar-placeholder.png')
+                  }
+                  style={styles.avatar}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  placeholder={require('../assets/avatar-placeholder.png')}
+                  transition={200}
+                />
+              </View>
+              <View style={styles.userTextContainer}>
+                <Text style={styles.userName} numberOfLines={1}>
+                  {userName || 'Usuário autenticado'}
                 </Text>
-              ) : null}
+                {userEmail ? (
+                  <Text style={styles.userEmail} numberOfLines={1}>
+                    {userEmail}
+                  </Text>
+                ) : null}
+              </View>
             </View>
+            <TouchableOpacity
+              style={styles.editProfileButton}
+              onPress={() => navigation.navigate('EditProfile')}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="edit" size={18} color={theme.colors.primary} />
+              <Text style={styles.editProfileText}>Editar perfil</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.editProfileButton}
-            onPress={() => navigation.navigate('EditProfile')}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons name="edit" size={18} color={theme.colors.primary} />
-            <Text style={styles.editProfileText}>Editar perfil</Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         {/* App Settings */}
         <SettingsSection title="Configurações do app">

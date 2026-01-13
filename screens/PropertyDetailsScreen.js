@@ -27,6 +27,7 @@ import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { canViewPropertyDetails, getUserSubscription, getActivePropertiesCount, getRequiredPlan } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
 import { getCache, setCache, removeCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
+import { PropertyDetailsSkeleton } from '../components/SkeletonLoader';
 
 const PropertyDetailsScreen = ({ route, navigation }) => {
   const { theme } = useAccessibilityTheme();
@@ -510,8 +511,16 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
 
   if (loading || !property) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={styles.container}>
+        <View style={styles.headerContainer}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <MaterialIcons name="arrow-back-ios" size={24} color={theme.colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.header}>Carregando...</Text>
+        </View>
+        <ScrollView style={styles.scrollContainer}>
+          <PropertyDetailsSkeleton />
+        </ScrollView>
       </View>
     );
   }

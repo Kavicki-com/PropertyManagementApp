@@ -20,6 +20,7 @@ import { validatePassword, getPasswordStrength } from '../lib/validation';
 import { SelectList } from 'react-native-dropdown-select-list';
 import { optimizeImage, base64ToArrayBuffer, IMAGE_PICKER_OPTIONS, CAMERA_OPTIONS } from '../lib/imageUtils';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
+import { EditProfileSkeleton } from '../components/SkeletonLoader';
 
 
 const EditProfileScreen = ({ navigation }) => {
@@ -365,7 +366,7 @@ const EditProfileScreen = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
       >
         {loading ? (
-          <ActivityIndicator style={styles.loader} color={theme.colors.primary} />
+          <EditProfileSkeleton />
         ) : (
           <View style={styles.formContainer}>
             {/* Seção de Foto do Perfil */}
