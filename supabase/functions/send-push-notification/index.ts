@@ -26,15 +26,24 @@ serve(async (req) => {
   }
 
   try {
-    // Cria cliente Supabase com serviceRoleKey para ter permissões de admin
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
+    // Check Authorization header
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authorization header missing' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
+      )
+    }
+
+    // Create client using user's context (Auth Header) + Anon Key
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: { headers: { Authorization: authHeader } }
       }
     )
 
@@ -44,15 +53,15 @@ serve(async (req) => {
     if (!notification_id) {
       return new Response(
         JSON.stringify({ error: 'notification_id é obrigatório' }),
-        { 
+        {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
     }
 
-    // Busca a notificação
-    const { data: notification, error: notificationError } = await supabaseAdmin
+    // Busca a notificação (RLS garante que o usuário só vê as suas)
+    const { data: notification, error: notificationError } = await supabaseClient
       .from('notifications')
       .select('*')
       .eq('id', notification_id)
@@ -61,16 +70,16 @@ serve(async (req) => {
     if (notificationError || !notification) {
       console.error('Erro ao buscar notificação:', notificationError)
       return new Response(
-        JSON.stringify({ error: 'Notificação não encontrada' }),
-        { 
+        JSON.stringify({ error: 'Notificação não encontrada ou acesso negado', details: notificationError }),
+        {
           status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
     }
 
-    // Busca todos os tokens de push do usuário
-    const { data: pushTokens, error: tokensError } = await supabaseAdmin
+    // Busca tokens de push do usuário (RLS garante acesso aos próprios tokens)
+    const { data: pushTokens, error: tokensError } = await supabaseClient
       .from('user_push_tokens')
       .select('expo_push_token')
       .eq('user_id', notification.user_id)
@@ -78,8 +87,8 @@ serve(async (req) => {
     if (tokensError) {
       console.error('Erro ao buscar tokens:', tokensError)
       return new Response(
-        JSON.stringify({ error: 'Erro ao buscar tokens de push' }),
-        { 
+        JSON.stringify({ error: 'Erro ao buscar tokens de push', details: tokensError }),
+        {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
@@ -90,7 +99,7 @@ serve(async (req) => {
       console.log('Usuário não possui tokens de push registrados')
       return new Response(
         JSON.stringify({ success: true, message: 'Nenhum token de push encontrado', sent: 0 }),
-        { 
+        {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
@@ -127,7 +136,7 @@ serve(async (req) => {
       console.error('Erro ao enviar push via Expo:', errorText)
       return new Response(
         JSON.stringify({ error: 'Erro ao enviar push notification', details: errorText }),
-        { 
+        {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
@@ -138,14 +147,14 @@ serve(async (req) => {
     const successCount = pushResults.data?.filter((r: any) => r.status === 'ok').length || 0
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: 'Push notifications enviadas',
         sent: successCount,
         total: messages.length,
         results: pushResults
       }),
-      { 
+      {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
@@ -155,14 +164,10 @@ serve(async (req) => {
     console.error('Erro inesperado:', error)
     return new Response(
       JSON.stringify({ error: 'Erro interno do servidor', details: error.message }),
-      { 
+      {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
   }
 })
-
-
-
-

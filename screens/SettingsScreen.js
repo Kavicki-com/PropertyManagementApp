@@ -413,6 +413,8 @@ const SettingsScreen = ({ navigation }) => {
           />
         </SettingsSection>
 
+
+
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
           <Text style={styles.logoutButtonText}>Sair</Text>
