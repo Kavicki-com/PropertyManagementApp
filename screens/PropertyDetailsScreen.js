@@ -956,7 +956,7 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'flex-start',
   },
   infoLabel: {
-    ...theme.typography.label,
+    ...theme.typography.bodyStrong,
     minWidth: 120,
     maxWidth: 140,
     marginRight: 16,
@@ -964,7 +964,7 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.colors.textPrimary,
   },
   infoValue: {
-    ...theme.typography.bodyStrong,
+    ...theme.typography.body,
     flex: 1,
     flexShrink: 1,
     color: theme.colors.textPrimary,
