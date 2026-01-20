@@ -132,6 +132,10 @@ const SubscriptionScreen = ({ navigation }) => {
         } else {
           Alert.alert('Erro', 'Compra realizada mas houve erro ao atualizar assinatura.');
         }
+      } else if (result.cancelled) {
+        // Usuário cancelou a compra - não mostra erro, apenas reseta estado
+        console.log('SubscriptionScreen: Compra cancelada pelo usuário');
+        // Não faz nada, setPurchasing(false) já reseta o estado no finally
       } else {
         // result.error pode ser um objeto com message ou uma string
         let errorMessage = result.error?.message || result.error || 'Erro ao processar compra';

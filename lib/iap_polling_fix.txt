@@ -1,0 +1,93 @@
+      const pollPurchaseHistory = async () => {
+        // Prevenir chamadas simultâneas que causam "Must wait for promise"
+        if (isCheckingHistory) {
+          console.log('IAP: Polling já em andamento, pulando tentativa...');
+          return;
+        }
+
+        pollingAttempts++;
+        console.log(`IAP: Polling tentativa ${pollingAttempts}/${maxPollingAttempts}...`);
+
+        isCheckingHistory = true;
+        try {
+          const { responseCode: historyCode, results: historyResults } = await InAppPurchases.getPurchaseHistoryAsync();
+
+          // Log detalhado para debug
+          console.log(`IAP: getPurchaseHistoryAsync responseCode: ${historyCode}`);
+          console.log(`IAP: IAPResponseCode.OK = ${InAppPurchases.IAPResponseCode.OK}`);
+          console.log(`IAP: results length: ${historyResults?.length || 0}`);
+
+          if (historyCode === InAppPurchases.IAPResponseCode.OK) {
+            if (historyResults && historyResults.length > 0) {
+              console.log(`IAP: ✅ Histórico retornou ${historyResults.length} compra(s)`);
+              
+              // Log de todas as compras para debug
+              historyResults.forEach((p, idx) => {
+                const pTime = p.purchaseTime || 0;
+                const ageSeconds = Math.floor((Date.now() - pTime) / 1000);
+                console.log(`IAP:   [${idx}] ${p.productId} - ${ageSeconds}s atrás`);
+              });
+              
+              const purchase =historyResults.find(p => p.productId === productId);
+
+              if (purchase && !purchaseCompleted) {
+                const purchaseTime = purchase.purchaseTime || 0;
+                
+                if (purchaseTime < purchaseStartTime) {
+                  console.log(`IAP: ⚠️ Compra encontrada é de antes desta sessão (${Math.floor((Date.now() - purchaseTime) / 1000)}s atrás), ignorando...`);
+                  return;
+                }
+
+                const timeSincePurchaseStart = Date.now() - purchaseStartTime;
+                const oneMinuteInMs = 60 * 1000;
+                
+                if (timeSincePurchaseStart > oneMinuteInMs) {
+                  console.log(`IAP: ❌ Timeout - passou mais de 1 minuto desde início da compra`);
+                  if (pollingInterval) clearInterval(pollingInterval);
+                  pendingPurchases.delete(productId);
+                  reject({
+                    success: false,
+                    error: 'Tempo limite excedido. Se completou a compra, use "Restaurar Compras".'
+                  });
+                  return;
+                }
+
+                console.log('IAP: ✅ Compra confirmada via polling:', purchase.productId);
+                console.log('IAP: Purchase time:', new Date(purchaseTime).toLocaleString('pt-BR'));
+                console.log('IAP: Tempo desde início:', Math.floor(timeSincePurchaseStart / 1000), 'segundos');
+                purchaseCompleted = true;
+
+                if (pollingInterval) clearInterval(pollingInterval);
+                pendingPurchases.delete(productId);
+                await finishTransaction(purchase);
+                resolve({ success: true, purchase });
+              } else if (!purchase) {
+                console.log(`IAP: ⏳ Produto ${productId} ainda não apareceu no histórico...`);
+              }
+            } else {
+              console.log(`IAP: ⚠️ Histórico está vazio (0 compras)`);
+            }
+          } else {
+            console.error(`IAP: ❌ Erro ao buscar histórico - responseCode: ${historyCode}`);
+            if (historyCode === InAppPurchases.IAPResponseCode.ERROR) {
+              console.error('IAP: Response code indica ERROR');
+            } else if (historyCode === InAppPurchases.IAPResponseCode.UNAVAILABLE) {
+              console.error('IAP: Response code indica UNAVAILABLE');
+            }
+          }
+        } catch (error) {
+          console.error('IAP: Erro no polling:', error);
+        } finally {
+          isCheckingHistory = false;
+        }
+
+        if (pollingAttempts >= maxPollingAttempts && !purchaseCompleted) {
+          console.log('IAP: ❌ Polling atingiu limite de tentativas sem sucesso');
+          if (pollingInterval) clearInterval(pollingInterval);
+          pendingPurchases.delete(productId);
+          reject({
+            success: false,
+            error: 'Não foi possível confirmar a compra. Se você completou a compra, use "Restaurar Compras".'
+          });
+        }
+      };
