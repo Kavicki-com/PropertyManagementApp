@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
@@ -25,10 +26,13 @@ import {
   restorePurchases,
   handlePurchaseSuccess,
   getProductIdForPlan,
+  checkAndSyncSubscriptionStatus,
 } from '../lib/iapService';
 import ScreenHeader from '../components/ScreenHeader';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { SubscriptionSkeleton } from '../components/SkeletonLoader';
+import TermsModal from '../components/TermsModal';
+import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
 
 const SubscriptionScreen = ({ navigation }) => {
   const { theme } = useAccessibilityTheme();
@@ -39,6 +43,8 @@ const SubscriptionScreen = ({ navigation }) => {
   const [propertyCount, setPropertyCount] = useState(0);
   const [products, setProducts] = useState([]);
   const [purchasing, setPurchasing] = useState(false);
+  const [termsModalVisible, setTermsModalVisible] = useState(false);
+  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
 
   useEffect(() => {
     loadSubscriptionData();
@@ -53,6 +59,9 @@ const SubscriptionScreen = ({ navigation }) => {
         navigation.goBack();
         return;
       }
+
+      // Sincroniza status da assinatura com a Apple (detecta cancelamentos)
+      await checkAndSyncSubscriptionStatus(user.id);
 
       const [subscriptionData, count, productsData] = await Promise.all([
         getUserSubscription(user.id),
@@ -96,10 +105,15 @@ const SubscriptionScreen = ({ navigation }) => {
         return;
       }
 
+      console.log('SubscriptionScreen: Iniciando compra para productId:', productId);
       const result = await purchaseSubscription(productId);
+      console.log('SubscriptionScreen: Resultado da compra:', JSON.stringify(result, null, 2));
 
       if (result.success && result.purchase) {
+        console.log('SubscriptionScreen: Compra bem-sucedida, atualizando perfil...');
         const updateResult = await handlePurchaseSuccess(result.purchase, user.id);
+        console.log('SubscriptionScreen: Resultado da atualização:', updateResult);
+
         if (updateResult.success) {
           Alert.alert(
             'Sucesso',
@@ -108,12 +122,20 @@ const SubscriptionScreen = ({ navigation }) => {
           // Recarregar dados para aplicar novas regras
           // IMPORTANTE: getBlockedProperties e getBlockedTenants recalcularão automaticamente
           // baseado no novo plano, incluindo TODOS os imóveis/inquilinos existentes na contagem
+          console.log('SubscriptionScreen: Recarregando dados...');
           await loadSubscriptionData();
-          // Forçar atualização das telas que podem ter bloqueios
-          navigation.goBack();
+          // Redireciona para o dashboard
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Main' }],
+          });
         } else {
           Alert.alert('Erro', 'Compra realizada mas houve erro ao atualizar assinatura.');
         }
+      } else if (result.cancelled) {
+        // Usuário cancelou a compra - não mostra erro, apenas reseta estado
+        console.log('SubscriptionScreen: Compra cancelada pelo usuário');
+        // Não faz nada, setPurchasing(false) já reseta o estado no finally
       } else {
         // result.error pode ser um objeto com message ou uma string
         let errorMessage = result.error?.message || result.error || 'Erro ao processar compra';
@@ -126,14 +148,35 @@ const SubscriptionScreen = ({ navigation }) => {
           errorMessage = errorMessage.replace(/\. /g, '.\n\n');
         }
 
-        console.error('Erro ao processar compra:', result.error);
+        console.error('SubscriptionScreen: Erro ao processar compra:', result.error);
         Alert.alert('Erro na Compra', errorMessage);
       }
     } catch (error) {
-      console.error('Erro ao processar compra:', error);
+      console.error('SubscriptionScreen: Exceção ao processar compra:', error);
       Alert.alert('Erro', 'Não foi possível processar a compra.');
     } finally {
       setPurchasing(false);
+    }
+  };
+
+  // Abre as configurações de assinatura do iOS
+  const openSubscriptionSettings = async () => {
+    if (Platform.OS === 'ios') {
+      try {
+        // URL para gerenciar assinaturas no iOS
+        await Linking.openURL('itms-apps://apps.apple.com/account/subscriptions');
+      } catch (error) {
+        console.error('Erro ao abrir configurações de assinatura:', error);
+        Alert.alert(
+          'Erro',
+          'Não foi possível abrir as configurações. Por favor, vá em Ajustes > [seu nome] > Assinaturas.'
+        );
+      }
+    } else {
+      Alert.alert(
+        'Gerenciar Assinatura',
+        'Para gerenciar sua assinatura, acesse Ajustes > [seu nome] > Assinaturas no seu dispositivo.'
+      );
     }
   };
 
@@ -145,66 +188,87 @@ const SubscriptionScreen = ({ navigation }) => {
     }
 
     // Verificar se há mais imóveis/inquilinos do que o plano free permite
-    const [propertyCount, tenantCount] = await Promise.all([
+    const [propCount, tenantCount] = await Promise.all([
       getActivePropertiesCount(user.id),
       getActiveTenantsCount(user.id),
     ]);
 
     const freeLimit = 2;
-    const willBlockProperties = propertyCount > freeLimit;
+    const willBlockProperties = propCount > freeLimit;
     const willBlockTenants = tenantCount > freeLimit;
 
+    let message = 'Tem certeza que deseja cancelar sua assinatura e fazer downgrade para o plano Gratuito?\n\n';
+
     if (willBlockProperties || willBlockTenants) {
-      let message = 'Ao fazer downgrade para o plano Gratuito:\n\n';
+      message += '⚠️ Atenção:\n';
       if (willBlockProperties) {
-        message += `• Você terá acesso apenas aos primeiros ${freeLimit} imóveis (${propertyCount - freeLimit} serão bloqueados)\n`;
+        message += `• Você terá acesso apenas aos primeiros ${freeLimit} imóveis (${propCount - freeLimit} serão bloqueados)\n`;
       }
       if (willBlockTenants) {
         message += `• Você terá acesso apenas aos primeiros ${freeLimit} inquilinos (${tenantCount - freeLimit} serão bloqueados)\n`;
       }
-      message += '\nOs itens bloqueados ficarão disponíveis novamente quando você fizer upgrade. Deseja continuar?';
+      message += '\nOs itens bloqueados ficarão disponíveis novamente quando você fizer upgrade.\n\n';
+    }
 
-      Alert.alert('Atenção', message, [
-        { text: 'Cancelar', style: 'cancel' },
+    message += '📱 Importante: Para evitar cobranças futuras, lembre-se de cancelar também nas configurações do seu dispositivo (Ajustes > [seu nome] > Assinaturas).';
+
+    Alert.alert(
+      'Confirmar Cancelamento',
+      message,
+      [
+        { text: 'Voltar', style: 'cancel' },
         {
-          text: 'Continuar',
+          text: 'Confirmar Cancelamento',
           style: 'destructive',
           onPress: async () => {
             await performDowngrade(user.id);
           },
         },
-      ]);
-    } else {
-      Alert.alert(
-        'Confirmar Downgrade',
-        'Tem certeza que deseja fazer downgrade para o plano Gratuito?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Confirmar',
-            style: 'destructive',
-            onPress: async () => {
-              await performDowngrade(user.id);
-            },
-          },
-        ]
-      );
-    }
+      ]
+    );
   };
 
   const performDowngrade = async (userId) => {
     setPurchasing(true);
     try {
-      const { error } = await supabase
+      // Buscar dados atuais da assinatura para verificar se há período restante
+      const { data: currentProfile } = await supabase
         .from('profiles')
-        .update({
+        .select('subscription_expires_at, subscription_plan')
+        .eq('id', userId)
+        .single();
+
+      const hasActiveSubscription = currentProfile?.subscription_expires_at &&
+        new Date(currentProfile.subscription_expires_at) > new Date();
+
+      let updateData;
+      let successMessage;
+
+      if (hasActiveSubscription) {
+        // Mantém o plano atual até expirar, apenas marca como cancelled
+        updateData = {
+          subscription_status: 'cancelled',
+          // Mantém subscription_plan, subscription_expires_at para o usuário continuar com acesso
+        };
+        const expiresDate = new Date(currentProfile.subscription_expires_at);
+        const formattedDate = expiresDate.toLocaleDateString('pt-BR');
+        successMessage = `Cancelamento confirmado! Você continuará com acesso ao plano ${currentProfile.subscription_plan === 'basic' ? 'Básico' : 'Premium'} até ${formattedDate}. Após essa data, seu plano será alterado para Gratuito.`;
+      } else {
+        // Sem período ativo, muda imediatamente para free
+        updateData = {
           subscription_plan: 'free',
           subscription_status: 'active',
           subscription_expires_at: null,
           subscription_iap_transaction_id: null,
           subscription_trial_ends_at: null,
           subscription_grace_period_ends_at: null,
-        })
+        };
+        successMessage = 'Downgrade realizado com sucesso! Você agora está no plano Gratuito.';
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updateData)
         .eq('id', userId);
 
       if (error) {
@@ -213,18 +277,57 @@ const SubscriptionScreen = ({ navigation }) => {
         return;
       }
 
-      Alert.alert(
-        'Sucesso',
-        'Downgrade realizado com sucesso! Você agora está no plano Gratuito.'
-      );
-      await loadSubscriptionData();
-      navigation.goBack();
+      Alert.alert('Sucesso', successMessage);
+      // Redireciona para o dashboard
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
     } catch (error) {
       console.error('Erro ao fazer downgrade:', error);
       Alert.alert('Erro', 'Não foi possível fazer o downgrade.');
     } finally {
       setPurchasing(false);
     }
+  };
+
+  // Marca a assinatura como cancelada (quando usuário já cancelou na Apple)
+  const markAsCancelled = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    Alert.alert(
+      'Confirmar',
+      'Você já cancelou sua assinatura nas configurações da Apple? Esta ação irá atualizar o status para "Cancelado" no app.',
+      [
+        { text: 'Não', style: 'cancel' },
+        {
+          text: 'Sim, já cancelei',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('profiles')
+                .update({ subscription_status: 'cancelled' })
+                .eq('id', user.id);
+
+              if (error) {
+                Alert.alert('Erro', 'Não foi possível atualizar o status.');
+                return;
+              }
+
+              Alert.alert(
+                'Status Atualizado',
+                'Seu status foi atualizado para "Cancelado". Você continuará com acesso até a data de expiração.'
+              );
+              await loadSubscriptionData();
+            } catch (error) {
+              console.error('Erro ao marcar como cancelado:', error);
+              Alert.alert('Erro', 'Não foi possível atualizar o status.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleRestore = async () => {
@@ -236,38 +339,33 @@ const SubscriptionScreen = ({ navigation }) => {
 
     setPurchasing(true);
     try {
-      const result = await restorePurchases();
-      if (result.success && result.purchases && result.purchases.length > 0) {
-        // Processa cada compra restaurada
-        let hasUpdates = false;
-        for (const purchase of result.purchases) {
-          const updateResult = await handlePurchaseSuccess(
-            {
-              productId: purchase.productId,
-              transactionId: purchase.transactionId,
-              purchaseTime: purchase.purchaseTime
-            },
-            user.id
-          );
-          if (updateResult.success) {
-            hasUpdates = true;
-          }
-        }
+      // Usa checkAndSyncSubscriptionStatus para consistência
+      // Essa função já verifica o histórico de compras e atualiza o plano corretamente
+      console.log('SubscriptionScreen: Iniciando restauração de compras...');
+      const syncResult = await checkAndSyncSubscriptionStatus(user.id);
 
-        if (hasUpdates) {
-          Alert.alert('Sucesso', 'Compras restauradas com sucesso!');
-          await loadSubscriptionData();
-        } else {
-          Alert.alert('Info', 'Nenhuma compra ativa encontrada para restaurar.');
-        }
-      } else if (result.success) {
-        Alert.alert('Info', 'Nenhuma compra encontrada para restaurar.');
+      console.log('SubscriptionScreen: Resultado da sincronização:', syncResult);
+
+      if (syncResult.success && syncResult.synced) {
+        // Plano foi atualizado com sucesso
+        const planName = syncResult.newPlan === 'basic' ? 'Básico' : syncResult.newPlan === 'premium' ? 'Premium' : 'Gratuito';
+        Alert.alert('Sucesso', `Compras restauradas! Plano atualizado para: ${planName}`);
+        await loadSubscriptionData();
+        // Redireciona para o dashboard
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' }],
+        });
+      } else if (syncResult.success && !syncResult.synced) {
+        // Não havia mudanças necessárias
+        Alert.alert('Info', syncResult.reason || 'Nenhuma alteração necessária. Plano já está sincronizado.');
       } else {
-        const errorMessage = result.error?.message || result.error || 'Não foi possível restaurar as compras';
+        // Erro ao sincronizar
+        const errorMessage = syncResult.reason || 'Não foi possível restaurar as compras';
         Alert.alert('Erro', errorMessage);
       }
     } catch (error) {
-      console.error('Erro ao restaurar compras:', error);
+      console.error('SubscriptionScreen: Erro ao restaurar compras:', error);
       Alert.alert('Erro', 'Não foi possível restaurar as compras.');
     } finally {
       setPurchasing(false);
@@ -345,6 +443,7 @@ const SubscriptionScreen = ({ navigation }) => {
                 Expira em: {formatDate(subscription.subscription_expires_at)}
               </Text>
             )}
+
           </View>
         </View>
 
@@ -536,16 +635,35 @@ const SubscriptionScreen = ({ navigation }) => {
             • Você pode gerenciar e cancelar suas assinaturas acessando Ajustes {'>'} [seu nome] {'>'} Assinaturas após a compra.
           </Text>
           <View style={styles.legalLinks}>
-            <TouchableOpacity onPress={() => Linking.openURL('http://llord.kavicki.com/')}>
+            <TouchableOpacity onPress={() => setTermsModalVisible(true)}>
               <Text style={styles.legalLink}>Termos de Uso</Text>
             </TouchableOpacity>
             <Text style={styles.legalSeparator}>•</Text>
-            <TouchableOpacity onPress={() => Linking.openURL('http://llord.kavicki.com/')}>
+            <TouchableOpacity onPress={() => setPrivacyModalVisible(true)}>
               <Text style={styles.legalLink}>Política de Privacidade</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Link para gerenciar assinaturas */}
+          <TouchableOpacity
+            style={styles.manageSubscriptionButton}
+            onPress={openSubscriptionSettings}
+          >
+            <MaterialIcons name="settings" size={18} color={theme.colors.primary} />
+            <Text style={styles.manageSubscriptionText}>Gerenciar Assinatura na App Store</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Modais de Termos e Privacidade */}
+      <TermsModal
+        visible={termsModalVisible}
+        onClose={() => setTermsModalVisible(false)}
+      />
+      <PrivacyPolicyModal
+        visible={privacyModalVisible}
+        onClose={() => setPrivacyModalVisible(false)}
+      />
     </View>
   );
 };
@@ -623,6 +741,15 @@ const createStyles = (theme) => StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.textSecondary,
     marginTop: 8,
+  },
+  cancelledLink: {
+    marginTop: 12,
+    paddingVertical: 4,
+  },
+  cancelledLinkText: {
+    ...theme.typography.caption,
+    color: theme.colors.primary,
+    textDecorationLine: 'underline',
   },
   planCard: {
     backgroundColor: theme.colors.surface,
@@ -745,6 +872,24 @@ const createStyles = (theme) => StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.textSecondary,
     marginHorizontal: 8,
+  },
+  manageSubscriptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: `${theme.colors.primary}10`,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}30`,
+  },
+  manageSubscriptionText: {
+    ...theme.typography.body,
+    color: theme.colors.primary,
+    marginLeft: 8,
+    fontWeight: '500',
   },
 });
 

@@ -1,8 +1,9 @@
 // screens/SettingsScreen.js 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch, Linking } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import ScreenHeader from '../components/ScreenHeader';
 import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits } from '../lib/subscriptionService';
@@ -24,38 +25,44 @@ const SettingsScreen = ({ navigation }) => {
   const [highContrast, setHighContrast] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserEmail(user.email);
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, photo_url')
-          .eq('id', user.id)
-          .single();
+  const fetchUserData = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      setUserEmail(user.email);
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, photo_url')
+        .eq('id', user.id)
+        .single();
 
-        if (profile) {
-          if (profile.full_name) {
-            setUserName(profile.full_name);
-          }
-          if (profile.photo_url) {
-            setUserPhotoUrl(profile.photo_url);
-          }
+      if (profile) {
+        if (profile.full_name) {
+          setUserName(profile.full_name);
         }
-
-        // Carregar dados de assinatura
-        const [subscriptionData, count] = await Promise.all([
-          getUserSubscription(user.id),
-          getActivePropertiesCount(user.id),
-        ]);
-        setSubscription(subscriptionData);
-        setPropertyCount(count);
+        if (profile.photo_url) {
+          setUserPhotoUrl(profile.photo_url);
+        }
       }
-      setLoading(false);
-    };
-    fetchUser();
 
+      // Carregar dados de assinatura
+      const [subscriptionData, count] = await Promise.all([
+        getUserSubscription(user.id),
+        getActivePropertiesCount(user.id),
+      ]);
+      setSubscription(subscriptionData);
+      setPropertyCount(count);
+    }
+    setLoading(false);
+  }, []);
+
+  // Recarrega dados quando a tela ganha foco (voltando da tela de Subscription, por exemplo)
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserData();
+    }, [fetchUserData])
+  );
+
+  useEffect(() => {
     // Carregar preferências de acessibilidade
     const loadAccessibility = async () => {
       const settings = await loadAccessibilitySettings();

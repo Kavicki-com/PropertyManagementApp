@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { validatePassword, getPasswordStrength } from '../lib/validation';
-import { radii } from '../theme';
+import { colors, radii } from '../theme';
 
 const ResetPasswordScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
@@ -23,19 +23,19 @@ const ResetPasswordScreen = ({ navigation }) => {
 
   const handlePasswordUpdate = async () => {
     const newErrors = {};
-    
+
     // Validação de senha com requisitos de segurança
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
       newErrors.password = passwordValidation.errors.join('. ');
     }
-    
+
     if (password !== confirmPassword) {
       newErrors.confirmPassword = 'As senhas não coincidem';
     }
-    
+
     setErrors(newErrors);
-    
+
     if (Object.keys(newErrors).length > 0) {
       Alert.alert('Erro de Validação', Object.values(newErrors).join('\n'));
       return;
@@ -91,8 +91,8 @@ const ResetPasswordScreen = ({ navigation }) => {
                         getPasswordStrength(password).strength === 'weak'
                           ? '#F44336'
                           : getPasswordStrength(password).strength === 'medium'
-                          ? '#FF9800'
-                          : '#4CAF50',
+                            ? '#FF9800'
+                            : '#4CAF50',
                     },
                   ]}
                 />
@@ -105,8 +105,8 @@ const ResetPasswordScreen = ({ navigation }) => {
                       getPasswordStrength(password).strength === 'weak'
                         ? '#F44336'
                         : getPasswordStrength(password).strength === 'medium'
-                        ? '#FF9800'
-                        : '#4CAF50',
+                          ? '#FF9800'
+                          : '#4CAF50',
                   },
                 ]}
               >

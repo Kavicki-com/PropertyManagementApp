@@ -524,12 +524,16 @@ const DashboardScreen = ({ navigation }) => {
               <View style={styles.subscriptionHeader}>
                 <MaterialIcons name="card-membership" size={20} color={colors.primary} />
                 <Text style={styles.subscriptionTitle}>Assinatura</Text>
-                {subscriptionStatus?.active && (
+                {/* Badge de status - mostra Cancelado se status for cancelled, mesmo com acesso ativo */}
+                {subscription.subscription_status === 'cancelled' ? (
+                  <View style={[styles.subscriptionBadge, { backgroundColor: `${colors.textSecondary}20` }]}>
+                    <Text style={[styles.subscriptionBadgeText, { color: colors.textSecondary }]}>Cancelado</Text>
+                  </View>
+                ) : subscriptionStatus?.active ? (
                   <View style={[styles.subscriptionBadge, { backgroundColor: `${colors.primary}20` }]}>
                     <Text style={[styles.subscriptionBadgeText, { color: colors.primary }]}>Ativo</Text>
                   </View>
-                )}
-                {!subscriptionStatus?.active && subscriptionStatus?.reason && (
+                ) : subscriptionStatus?.reason && (
                   <View style={[styles.subscriptionBadge, { backgroundColor: `${colors.expense}20` }]}>
                     <Text style={[styles.subscriptionBadgeText, { color: colors.expense }]}>
                       {subscriptionStatus.reason === 'Assinatura expirada' ? 'Expirado' : 'Inativo'}
