@@ -60,8 +60,9 @@ const SubscriptionScreen = ({ navigation }) => {
         return;
       }
 
-      // Sincroniza status da assinatura com a Apple (detecta cancelamentos)
-      await checkAndSyncSubscriptionStatus(user.id);
+      // Sincroniza status da assinatura (apenas local para velocidade)
+      // Se tiver expirado, o downgrade acontece aqui instantaneamente
+      const syncResult = await checkAndSyncSubscriptionStatus(user.id, false);
 
       const [subscriptionData, count, productsData] = await Promise.all([
         getUserSubscription(user.id),
@@ -74,6 +75,14 @@ const SubscriptionScreen = ({ navigation }) => {
 
       if (productsData.success) {
         setProducts(productsData.products || []);
+      }
+
+      // Feedback visual se houve expiração/downgrade automático
+      if (syncResult.synced && syncResult.newPlan === 'free') {
+        Alert.alert(
+          'Plano Expirado',
+          'Sua assinatura expirou e você retornou ao plano gratuito. Para continuar aproveitando os benefícios, faça uma nova assinatura.'
+        );
       }
     } catch (error) {
       console.error('Erro ao carregar dados de assinatura:', error);
@@ -339,10 +348,10 @@ const SubscriptionScreen = ({ navigation }) => {
 
     setPurchasing(true);
     try {
-      // Usa checkAndSyncSubscriptionStatus para consistência
-      // Essa função já verifica o histórico de compras e atualiza o plano corretamente
-      console.log('SubscriptionScreen: Iniciando restauração de compras...');
-      const syncResult = await checkAndSyncSubscriptionStatus(user.id);
+      // Usa checkAndSyncSubscriptionStatus com forceAppleCheck = true
+      // Isso força a consulta à Apple para buscar compras perdidas
+      console.log('SubscriptionScreen: Iniciando restauração de compras (FORCE CHECK)...');
+      const syncResult = await checkAndSyncSubscriptionStatus(user.id, true);
 
       console.log('SubscriptionScreen: Resultado da sincronização:', syncResult);
 
@@ -543,7 +552,7 @@ const SubscriptionScreen = ({ navigation }) => {
                 disabled={purchasing}
               >
                 {purchasing ? (
-                  <ActivityIndicator color={theme.colors.primary} />
+                  <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.upgradeButtonText}>Assinar</Text>
                 )}
@@ -599,7 +608,7 @@ const SubscriptionScreen = ({ navigation }) => {
                 disabled={purchasing}
               >
                 {purchasing ? (
-                  <ActivityIndicator color={theme.colors.primary} />
+                  <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.upgradeButtonText}>Assinar</Text>
                 )}
