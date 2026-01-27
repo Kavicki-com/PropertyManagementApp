@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SelectList } from 'react-native-dropdown-select-list';
@@ -283,6 +284,7 @@ const AddPropertyScreen = ({ navigation }) => {
         currentPlan,
         propertyCount,
         requiredPlan,
+        subscriptionStatus: subscription?.subscription_status,
       });
       setShowUpgradeModal(true);
       return;
@@ -417,253 +419,259 @@ const AddPropertyScreen = ({ navigation }) => {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        <Text style={styles.sectionTitle}>Endereço</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+          <Text style={styles.sectionTitle}>Endereço</Text>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>CEP *</Text>
-          <View style={styles.cepRow}>
-            <TextInput
-              style={[styles.input, styles.cepInput, errors.cep && styles.inputError]}
-              placeholder="00000-000"
-              value={cep}
-              onChangeText={handleCepChange}
-              keyboardType="numeric"
-              maxLength={9}
-            />
-            {loadingCep && <ActivityIndicator size="small" color={theme.colors.primary} style={styles.cepLoader} />}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>CEP *</Text>
+            <View style={styles.cepRow}>
+              <TextInput
+                style={[styles.input, styles.cepInput, errors.cep && styles.inputError]}
+                placeholder="00000-000"
+                value={cep}
+                onChangeText={handleCepChange}
+                keyboardType="numeric"
+                maxLength={9}
+              />
+              {loadingCep && <ActivityIndicator size="small" color={theme.colors.primary} style={styles.cepLoader} />}
+            </View>
+            {errors.cep && <Text style={styles.errorText}>{errors.cep}</Text>}
           </View>
-          {errors.cep && <Text style={styles.errorText}>{errors.cep}</Text>}
-        </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Rua / Avenida *</Text>
-          <TextInput
-            style={[styles.input, errors.street && styles.inputError]}
-            placeholder="Nome da rua ou avenida"
-            value={street}
-            onChangeText={(text) => {
-              setStreet(filterAddress(text));
-              if (errors.street) setErrors({ ...errors, street: null });
-            }}
-          />
-          {errors.street && <Text style={styles.errorText}>{errors.street}</Text>}
-        </View>
-
-        <View style={styles.inputRow}>
-          <View style={styles.inputGroupSmall}>
-            <Text style={styles.label}>Número *</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Rua / Avenida *</Text>
             <TextInput
-              style={[styles.input, errors.number && styles.inputError]}
-              placeholder="123"
-              value={number}
+              style={[styles.input, errors.street && styles.inputError]}
+              placeholder="Nome da rua ou avenida"
+              value={street}
               onChangeText={(text) => {
-                setNumber(filterAddressNumber(text));
-                if (errors.number) setErrors({ ...errors, number: null });
-              }}
-              keyboardType="numeric"
-              maxLength={10}
-            />
-            {errors.number && <Text style={styles.errorText}>{errors.number}</Text>}
-          </View>
-          <View style={styles.inputGroupLarge}>
-            <Text style={styles.label}>Complemento</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Apto, Bloco, etc."
-              value={complement}
-              onChangeText={(text) => setComplement(filterAddress(text))}
-              maxLength={100}
-            />
-          </View>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Bairro *</Text>
-          <TextInput
-            style={[styles.input, errors.neighborhood && styles.inputError]}
-            placeholder="Nome do bairro"
-            value={neighborhood}
-            onChangeText={(text) => {
-              setNeighborhood(filterOnlyLetters(text));
-              if (errors.neighborhood) setErrors({ ...errors, neighborhood: null });
-            }}
-          />
-          {errors.neighborhood && <Text style={styles.errorText}>{errors.neighborhood}</Text>}
-        </View>
-
-        <View style={styles.inputRow}>
-          <View style={styles.inputGroupLarge}>
-            <Text style={styles.label}>Cidade *</Text>
-            <TextInput
-              style={[styles.input, errors.city && styles.inputError]}
-              placeholder="Nome da cidade"
-              value={city}
-              onChangeText={(text) => {
-                setCity(filterOnlyLetters(text));
-                if (errors.city) setErrors({ ...errors, city: null });
+                setStreet(filterAddress(text));
+                if (errors.street) setErrors({ ...errors, street: null });
               }}
             />
-            {errors.city && <Text style={styles.errorText}>{errors.city}</Text>}
+            {errors.street && <Text style={styles.errorText}>{errors.street}</Text>}
           </View>
-          <View style={styles.inputGroupSmall}>
-            <Text style={styles.label}>Estado *</Text>
+
+          <View style={styles.inputRow}>
+            <View style={styles.inputGroupSmall}>
+              <Text style={styles.label}>Número *</Text>
+              <TextInput
+                style={[styles.input, errors.number && styles.inputError]}
+                placeholder="123"
+                value={number}
+                onChangeText={(text) => {
+                  setNumber(filterAddressNumber(text));
+                  if (errors.number) setErrors({ ...errors, number: null });
+                }}
+                keyboardType="numeric"
+                maxLength={10}
+              />
+              {errors.number && <Text style={styles.errorText}>{errors.number}</Text>}
+            </View>
+            <View style={styles.inputGroupLarge}>
+              <Text style={styles.label}>Complemento</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Apto, Bloco, etc."
+                value={complement}
+                onChangeText={(text) => setComplement(filterAddress(text))}
+                maxLength={100}
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Bairro *</Text>
             <TextInput
-              style={[styles.input, errors.state && styles.inputError]}
-              placeholder="UF"
-              value={state}
+              style={[styles.input, errors.neighborhood && styles.inputError]}
+              placeholder="Nome do bairro"
+              value={neighborhood}
               onChangeText={(text) => {
-                setState(filterUF(text));
-                if (errors.state) setErrors({ ...errors, state: null });
+                setNeighborhood(filterOnlyLetters(text));
+                if (errors.neighborhood) setErrors({ ...errors, neighborhood: null });
               }}
-              maxLength={2}
-              autoCapitalize="characters"
             />
-            {errors.state && <Text style={styles.errorText}>{errors.state}</Text>}
+            {errors.neighborhood && <Text style={styles.errorText}>{errors.neighborhood}</Text>}
           </View>
-        </View>
 
-        <Text style={styles.sectionTitle}>Detalhes do Imóvel</Text>
+          <View style={styles.inputRow}>
+            <View style={styles.inputGroupLarge}>
+              <Text style={styles.label}>Cidade *</Text>
+              <TextInput
+                style={[styles.input, errors.city && styles.inputError]}
+                placeholder="Nome da cidade"
+                value={city}
+                onChangeText={(text) => {
+                  setCity(filterOnlyLetters(text));
+                  if (errors.city) setErrors({ ...errors, city: null });
+                }}
+              />
+              {errors.city && <Text style={styles.errorText}>{errors.city}</Text>}
+            </View>
+            <View style={styles.inputGroupSmall}>
+              <Text style={styles.label}>Estado *</Text>
+              <TextInput
+                style={[styles.input, errors.state && styles.inputError]}
+                placeholder="UF"
+                value={state}
+                onChangeText={(text) => {
+                  setState(filterUF(text));
+                  if (errors.state) setErrors({ ...errors, state: null });
+                }}
+                maxLength={2}
+                autoCapitalize="characters"
+              />
+              {errors.state && <Text style={styles.errorText}>{errors.state}</Text>}
+            </View>
+          </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Tipo de Propriedade *</Text>
-          <SelectList
-            setSelected={(val) => setTypeValue(val)}
-            data={typeItems}
-            save="key"
-            placeholder="Selecione o tipo"
-            defaultOption={typeValue ? typeItems.find(t => t.key === typeValue) : undefined}
-            boxStyles={styles.dropdown}
-            inputStyles={styles.dropdownText}
-            dropdownStyles={styles.dropdownContainer}
-            search={false}
-          />
-          {errors.type && <Text style={styles.errorText}>{errors.type}</Text>}
-        </View>
+          <Text style={styles.sectionTitle}>Detalhes do Imóvel</Text>
 
-        <View style={styles.inputRow}>
-          <View style={styles.inputGroupHalf}>
-            <Text style={styles.label}>Quartos</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Tipo de Propriedade *</Text>
+            <SelectList
+              setSelected={(val) => setTypeValue(val)}
+              data={typeItems}
+              save="key"
+              placeholder="Selecione o tipo"
+              defaultOption={typeValue ? typeItems.find(t => t.key === typeValue) : undefined}
+              boxStyles={styles.dropdown}
+              inputStyles={styles.dropdownText}
+              dropdownStyles={styles.dropdownContainer}
+              search={false}
+            />
+            {errors.type && <Text style={styles.errorText}>{errors.type}</Text>}
+          </View>
+
+          <View style={styles.inputRow}>
+            <View style={styles.inputGroupHalf}>
+              <Text style={styles.label}>Quartos</Text>
+              <TextInput
+                style={[styles.input, errors.quartos && styles.inputError]}
+                placeholder="Ex: 3"
+                value={quartos}
+                onChangeText={(text) => {
+                  setQuartos(filterOnlyNumbers(text));
+                  if (errors.quartos) setErrors({ ...errors, quartos: null });
+                }}
+                keyboardType="numeric"
+                maxLength={2}
+              />
+              {errors.quartos && <Text style={styles.errorText}>{errors.quartos}</Text>}
+            </View>
+            <View style={styles.inputGroupHalf}>
+              <Text style={styles.label}>Banheiros</Text>
+              <TextInput
+                style={[styles.input, errors.banheiros && styles.inputError]}
+                placeholder="Ex: 2"
+                value={banheiros}
+                onChangeText={(text) => {
+                  setBanheiros(filterOnlyNumbers(text));
+                  if (errors.banheiros) setErrors({ ...errors, banheiros: null });
+                }}
+                keyboardType="numeric"
+                maxLength={2}
+              />
+              {errors.banheiros && <Text style={styles.errorText}>{errors.banheiros}</Text>}
+            </View>
+          </View>
+
+          <View style={styles.inputRow}>
+            <View style={styles.inputGroupHalf}>
+              <Text style={styles.label}>Total de Cômodos</Text>
+              <TextInput
+                style={[styles.input, errors.totalComodos && styles.inputError]}
+                placeholder="Ex: 8"
+                value={totalComodos}
+                onChangeText={(text) => {
+                  setTotalComodos(filterOnlyNumbers(text));
+                  if (errors.totalComodos) setErrors({ ...errors, totalComodos: null });
+                }}
+                keyboardType="numeric"
+                maxLength={3}
+              />
+              {errors.totalComodos && <Text style={styles.errorText}>{errors.totalComodos}</Text>}
+            </View>
+            <View style={styles.inputGroupHalf}>
+              <Text style={styles.label}>Área (m²)</Text>
+              <TextInput
+                style={[styles.input, errors.area && styles.inputError]}
+                placeholder="Ex: 150"
+                value={area}
+                onChangeText={(text) => setArea(filterOnlyNumbers(text))}
+                keyboardType="numeric"
+              />
+              {errors.area && <Text style={styles.errorText}>{errors.area}</Text>}
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Valor do Aluguel (R$) *</Text>
             <TextInput
-              style={[styles.input, errors.quartos && styles.inputError]}
-              placeholder="Ex: 3"
-              value={quartos}
+              style={[styles.input, errors.aluguel && styles.inputError]}
+              placeholder="R$ 0,00"
+              value={aluguel ? formatMoneyInput(aluguel) : ''}
               onChangeText={(text) => {
-                setQuartos(filterOnlyNumbers(text));
-                if (errors.quartos) setErrors({ ...errors, quartos: null });
+                const numbers = text.replace(/\D/g, '');
+                setAluguel(numbers);
+                if (errors.aluguel) setErrors({ ...errors, aluguel: null });
               }}
               keyboardType="numeric"
-              maxLength={2}
             />
-            {errors.quartos && <Text style={styles.errorText}>{errors.quartos}</Text>}
+            {errors.aluguel && <Text style={styles.errorText}>{errors.aluguel}</Text>}
           </View>
-          <View style={styles.inputGroupHalf}>
-            <Text style={styles.label}>Banheiros</Text>
-            <TextInput
-              style={[styles.input, errors.banheiros && styles.inputError]}
-              placeholder="Ex: 2"
-              value={banheiros}
-              onChangeText={(text) => {
-                setBanheiros(filterOnlyNumbers(text));
-                if (errors.banheiros) setErrors({ ...errors, banheiros: null });
-              }}
-              keyboardType="numeric"
-              maxLength={2}
-            />
-            {errors.banheiros && <Text style={styles.errorText}>{errors.banheiros}</Text>}
+
+          <Text style={styles.sectionTitle}>Fotos do Imóvel</Text>
+
+          <View style={styles.inputGroup}>
+            <View style={styles.imagePickerContainer}>
+              <TouchableOpacity style={styles.imagePickerButton} onPress={() => {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'AddPropertyScreen.js:531', message: 'Botão Câmera pressionado', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run2', hypothesisId: 'A' }) }).catch(() => { });
+                // #endregion
+                handleImagePicker(true);
+              }}>
+                <MaterialIcons name="photo-camera" size={24} color={theme.colors.primary} />
+                <Text style={styles.imagePickerText}>Câmera</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.imagePickerButton} onPress={() => {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'AddPropertyScreen.js:535', message: 'Botão Galeria pressionado', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run2', hypothesisId: 'A' }) }).catch(() => { });
+                // #endregion
+                handleImagePicker(false);
+              }}>
+                <MaterialIcons name="photo-library" size={24} color={theme.colors.primary} />
+                <Text style={styles.imagePickerText}>Galeria</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailContainer}>
+              {images.map((image, index) => (
+                <View key={index} style={styles.thumbnailWrapper}>
+                  <Image
+                    source={image.uri}
+                    style={styles.thumbnail}
+                    contentFit="cover"
+                    cachePolicy="memory"
+                  />
+                </View>
+              ))}
+            </ScrollView>
           </View>
-        </View>
 
-        <View style={styles.inputRow}>
-          <View style={styles.inputGroupHalf}>
-            <Text style={styles.label}>Total de Cômodos</Text>
-            <TextInput
-              style={[styles.input, errors.totalComodos && styles.inputError]}
-              placeholder="Ex: 8"
-              value={totalComodos}
-              onChangeText={(text) => {
-                setTotalComodos(filterOnlyNumbers(text));
-                if (errors.totalComodos) setErrors({ ...errors, totalComodos: null });
-              }}
-              keyboardType="numeric"
-              maxLength={3}
-            />
-            {errors.totalComodos && <Text style={styles.errorText}>{errors.totalComodos}</Text>}
-          </View>
-          <View style={styles.inputGroupHalf}>
-            <Text style={styles.label}>Área (m²)</Text>
-            <TextInput
-              style={[styles.input, errors.area && styles.inputError]}
-              placeholder="Ex: 150"
-              value={area}
-              onChangeText={(text) => setArea(filterOnlyNumbers(text))}
-              keyboardType="numeric"
-            />
-            {errors.area && <Text style={styles.errorText}>{errors.area}</Text>}
-          </View>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Valor do Aluguel (R$) *</Text>
-          <TextInput
-            style={[styles.input, errors.aluguel && styles.inputError]}
-            placeholder="R$ 0,00"
-            value={aluguel ? formatMoneyInput(aluguel) : ''}
-            onChangeText={(text) => {
-              const numbers = text.replace(/\D/g, '');
-              setAluguel(numbers);
-              if (errors.aluguel) setErrors({ ...errors, aluguel: null });
-            }}
-            keyboardType="numeric"
-          />
-          {errors.aluguel && <Text style={styles.errorText}>{errors.aluguel}</Text>}
-        </View>
-
-        <Text style={styles.sectionTitle}>Fotos do Imóvel</Text>
-
-        <View style={styles.inputGroup}>
-          <View style={styles.imagePickerContainer}>
-            <TouchableOpacity style={styles.imagePickerButton} onPress={() => {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'AddPropertyScreen.js:531', message: 'Botão Câmera pressionado', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run2', hypothesisId: 'A' }) }).catch(() => { });
-              // #endregion
-              handleImagePicker(true);
-            }}>
-              <MaterialIcons name="photo-camera" size={24} color={theme.colors.primary} />
-              <Text style={styles.imagePickerText}>Câmera</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.imagePickerButton} onPress={() => {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/a9d38169-72e4-438e-b902-636c2481741c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'AddPropertyScreen.js:535', message: 'Botão Galeria pressionado', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run2', hypothesisId: 'A' }) }).catch(() => { });
-              // #endregion
-              handleImagePicker(false);
-            }}>
-              <MaterialIcons name="photo-library" size={24} color={theme.colors.primary} />
-              <Text style={styles.imagePickerText}>Galeria</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailContainer}>
-            {images.map((image, index) => (
-              <View key={index} style={styles.thumbnailWrapper}>
-                <Image
-                  source={image.uri}
-                  style={styles.thumbnail}
-                  contentFit="cover"
-                  cachePolicy="memory"
-                />
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-
-        <TouchableOpacity style={styles.addButton} onPress={handleAddProperty} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color={theme.colors.primary} />
-          ) : (
-            <Text style={styles.addButtonText}>Adicionar Propriedade</Text>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
+          <TouchableOpacity style={styles.addButton} onPress={handleAddProperty} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color={theme.colors.primary} />
+            ) : (
+              <Text style={styles.addButtonText}>Adicionar Propriedade</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <UpgradeModal
         visible={showUpgradeModal}
@@ -675,6 +683,7 @@ const AddPropertyScreen = ({ navigation }) => {
         currentPlan={subscriptionInfo?.currentPlan || 'free'}
         propertyCount={subscriptionInfo?.propertyCount || 0}
         requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+        subscriptionStatus={subscriptionInfo?.subscriptionStatus}
       />
     </View>
   );

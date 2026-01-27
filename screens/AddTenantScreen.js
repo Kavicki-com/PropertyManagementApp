@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
-import { filterOnlyLetters, filterOnlyNumbers, isValidCPF, isValidEmail, isValidPhone } from '../lib/validation';
+import { filterOnlyLetters, filterOnlyNumbers, isValidCPF, isValidEmail, isValidPhone, filterCPF } from '../lib/validation';
 import { canAddTenant, getUserSubscription, getActiveTenantsCount, getRequiredPlan } from '../lib/subscriptionService';
 import UpgradeModal from '../components/UpgradeModal';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
@@ -101,6 +101,7 @@ const AddTenantScreen = ({ route, navigation }) => {
           currentPlan,
           propertyCount: tenantCount,
           requiredPlan,
+          subscriptionStatus: subscription?.subscription_status,
         });
         setShowUpgradeModal(true);
         return;
@@ -142,23 +143,39 @@ const AddTenantScreen = ({ route, navigation }) => {
 
           if (linkError) {
             Alert.alert('Aviso', 'Inquilino criado, mas não foi possível vincular à propriedade.');
+            navigation.goBack();
           } else {
-            Alert.alert('Sucesso', 'Inquilino adicionado e vinculado à propriedade com sucesso!');
-          }
+            // Invalidar cache de inquilinos e propriedades
+            await Promise.all([
+              removeCache(CACHE_KEYS.TENANTS),
+              removeCache(CACHE_KEYS.PROPERTIES),
+              removeCache(CACHE_KEYS.PROPERTY_DETAILS(preselectedPropertyId)),
+              removeCache(CACHE_KEYS.DASHBOARD),
+            ]);
 
-          // Invalidar cache de inquilinos e propriedades
-          await Promise.all([
-            removeCache(CACHE_KEYS.TENANTS),
-            removeCache(CACHE_KEYS.PROPERTIES),
-            removeCache(CACHE_KEYS.PROPERTY_DETAILS(preselectedPropertyId)),
-            removeCache(CACHE_KEYS.DASHBOARD),
-          ]);
+            Alert.alert(
+              'Sucesso',
+              'Inquilino cadastrado com sucesso!',
+              [
+                {
+                  text: 'Continuar',
+                  onPress: () => {
+                    // Navegar diretamente para criação de contrato
+                    navigation.navigate('AddContract', {
+                      propertyId: preselectedPropertyId,
+                      tenantId: newTenant.id,
+                    });
+                  }
+                }
+              ]
+            );
+          }
         } else {
           // Invalidar apenas cache de inquilinos
           await removeCache(CACHE_KEYS.TENANTS);
           Alert.alert('Sucesso', 'Inquilino adicionado com sucesso!');
+          navigation.goBack();
         }
-        navigation.goBack();
       }
     } finally {
       setLoading(false);
@@ -204,11 +221,11 @@ const AddTenantScreen = ({ route, navigation }) => {
               placeholder="Digite o CPF do inquilino"
               value={cpf}
               onChangeText={(text) => {
-                setCpf(filterOnlyNumbers(text));
+                setCpf(filterCPF(text));
                 if (errors.cpf) setErrors({ ...errors, cpf: null });
               }}
               keyboardType="numeric"
-              maxLength={11}
+              maxLength={14}
             />
             {errors.cpf && <Text style={styles.errorText}>{errors.cpf}</Text>}
           </View>
@@ -321,6 +338,7 @@ const AddTenantScreen = ({ route, navigation }) => {
         currentPlan={subscriptionInfo?.currentPlan || 'free'}
         propertyCount={subscriptionInfo?.propertyCount || 0}
         requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+        subscriptionStatus={subscriptionInfo?.subscriptionStatus}
       />
     </View>
   );

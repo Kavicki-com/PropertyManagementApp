@@ -176,6 +176,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
         currentPlan,
         propertyCount,
         requiredPlan,
+        subscriptionStatus: subscription?.subscription_status,
       });
       setShowUpgradeModal(true);
       return;
@@ -440,6 +441,7 @@ const AddTransactionScreen = ({ route, navigation }) => {
         propertyCount={subscriptionInfo?.propertyCount || 0}
         requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
         customMessage="O plano Gratuito não permite lançamentos financeiros. Faça upgrade para o plano Básico ou Premium para registrar recebimentos e despesas."
+        subscriptionStatus={subscriptionInfo?.subscriptionStatus}
       />
     </View>
   );

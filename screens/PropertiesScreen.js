@@ -209,6 +209,7 @@ const PropertiesScreen = ({ navigation }) => {
           currentPlan,
           propertyCount,
           requiredPlan,
+          subscriptionStatus: subscription?.subscription_status,
         });
         setShowUpgradeModal(true);
       }
@@ -237,6 +238,7 @@ const PropertiesScreen = ({ navigation }) => {
         currentPlan,
         propertyCount,
         requiredPlan,
+        subscriptionStatus: subscription?.subscription_status,
       });
       setShowUpgradeModal(true);
       return;
@@ -418,6 +420,7 @@ const PropertiesScreen = ({ navigation }) => {
           currentPlan={subscriptionInfo?.currentPlan || 'free'}
           propertyCount={subscriptionInfo?.propertyCount || 0}
           requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+          subscriptionStatus={subscriptionInfo?.subscriptionStatus}
         />
 
         {/* Bottom Sheet de Filtros */}

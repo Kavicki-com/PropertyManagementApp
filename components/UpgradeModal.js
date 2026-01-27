@@ -10,9 +10,11 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 
-const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount, requiredPlan, customMessage }) => {
+const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount, requiredPlan, customMessage, subscriptionStatus }) => {
   const { theme } = useAccessibilityTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const isExpired = subscriptionStatus === 'expired';
 
   const planNames = {
     free: 'Gratuito',
@@ -42,7 +44,7 @@ const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount,
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
           <View style={styles.header}>
-            <Text style={styles.title}>Upgrade Necessário</Text>
+            <Text style={styles.title}>{isExpired ? 'Renovação Necessária' : 'Upgrade Necessário'}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <MaterialIcons name="close" size={24} color={theme.colors.textPrimary} />
             </TouchableOpacity>
@@ -50,7 +52,10 @@ const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount,
 
           <ScrollView style={styles.content}>
             <Text style={styles.message}>
-              {customMessage || `Você está usando ${propertyCount} ${propertyCount === 1 ? 'imóvel' : 'imóveis'}. Para ${requiredPlan === 'basic' ? 'adicionar mais imóveis' : 'acessar todos os seus imóveis'}, você precisa fazer upgrade para o plano ${planNames[requiredPlan]}.`}
+              {customMessage || (isExpired
+                ? `Sua assinatura do plano ${planNames[requiredPlan] || 'Premium'} expirou. Para continuar aproveitando todos os benefícios e acessar seus imóveis, faça a renovação.`
+                : `Você está usando ${propertyCount} ${propertyCount === 1 ? 'imóvel' : 'imóveis'}. Para ${requiredPlan === 'basic' ? 'adicionar mais imóveis' : 'acessar todos os seus imóveis'}, você precisa fazer upgrade para o plano ${planNames[requiredPlan]}.`
+              )}
             </Text>
 
             <View style={styles.planComparison}>
@@ -117,7 +122,7 @@ const UpgradeModal = ({ visible, onClose, onUpgrade, currentPlan, propertyCount,
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.upgradeButton} onPress={onUpgrade}>
-              <Text style={styles.upgradeButtonText}>Assinar Agora</Text>
+              <Text style={styles.upgradeButtonText}>{isExpired ? 'Renovar Agora' : 'Assinar Agora'}</Text>
             </TouchableOpacity>
           </View>
         </View>

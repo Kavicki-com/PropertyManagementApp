@@ -345,6 +345,7 @@ const TenantsScreen = ({ navigation }) => {
         currentPlan,
         propertyCount: tenantCount,
         requiredPlan,
+        subscriptionStatus: subscription?.subscription_status,
       });
       setShowUpgradeModal(true);
       return;
@@ -370,6 +371,7 @@ const TenantsScreen = ({ navigation }) => {
           currentPlan,
           propertyCount: tenantCount,
           requiredPlan,
+          subscriptionStatus: subscription?.subscription_status,
         });
         setShowUpgradeModal(true);
       }
@@ -538,6 +540,7 @@ const TenantsScreen = ({ navigation }) => {
           currentPlan={subscriptionInfo?.currentPlan || 'free'}
           propertyCount={subscriptionInfo?.propertyCount || 0}
           requiredPlan={subscriptionInfo?.requiredPlan || 'basic'}
+          subscriptionStatus={subscriptionInfo?.subscriptionStatus}
         />
 
         {/* Bottom Sheet de Filtros */}

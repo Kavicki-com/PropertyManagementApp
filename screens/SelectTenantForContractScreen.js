@@ -80,6 +80,7 @@ const SelectTenantForContractScreen = ({ route, navigation }) => {
       .from('tenants')
       .select('*')
       .eq('user_id', user.id)
+      .is('property_id', null)
       .order('full_name', { ascending: true });
 
     if (error) {
