@@ -444,9 +444,9 @@ const SignUpScreen = ({ navigation }) => {
           Alert.alert(
             "Erro no Tipo de Conta",
             "O valor do tipo de conta não é válido. Por favor, verifique a configuração do banco de dados.\n\nValor tentado: " +
-              (accountType ? mapAccountTypeToDB(accountType) : "null") +
-              "\n\nErro: " +
-              functionError.message,
+            (accountType ? mapAccountTypeToDB(accountType) : "null") +
+            "\n\nErro: " +
+            functionError.message,
           );
           setLoading(false);
           return;
@@ -511,7 +511,7 @@ const SignUpScreen = ({ navigation }) => {
               Alert.alert(
                 "Aviso",
                 "Conta criada com sucesso! Mas houve um problema ao salvar dados do perfil.\n\nExecute o script create_profile_function.sql no Supabase para resolver este problema.\n\nErro: " +
-                  basicError.message,
+                basicError.message,
               );
             } else {
               return;
@@ -597,7 +597,7 @@ const SignUpScreen = ({ navigation }) => {
               Alert.alert(
                 "Erro ao criar perfil",
                 "Não foi possível criar seu perfil. Por favor, tente novamente ou entre em contato com o suporte.\n\nErro: " +
-                  functionError.message,
+                functionError.message,
               );
               setLoading(false);
               return;
@@ -731,7 +731,7 @@ const SignUpScreen = ({ navigation }) => {
                           getPasswordStrength(password).strength === "weak"
                             ? "#F44336"
                             : getPasswordStrength(password).strength ===
-                                "medium"
+                              "medium"
                               ? "#FF9800"
                               : "#4CAF50",
                       },
@@ -1049,8 +1049,7 @@ const SignUpScreen = ({ navigation }) => {
 
             <View style={styles.modalContent}>
               <Text style={styles.modalText}>
-                O tipo de conta é apenas uma informação para definir quais áreas
-                do sistema você tem acesso.
+                O tipo de conta é apenas uma informação para entender melhor as suas preferências.
               </Text>
 
               <View style={styles.accountTypeList}>
