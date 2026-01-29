@@ -34,6 +34,44 @@ import { SubscriptionSkeleton } from '../components/SkeletonLoader';
 import TermsModal from '../components/TermsModal';
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
 
+/**
+ * Helper para combinar dados do IAP com informações locais
+ * Prioriza dados vindos da App Store (preço, título, descrição)
+ * e mantém informações locais como fallback
+ */
+const enrichProductWithIAPData = (planType, iapProducts) => {
+  const productId = getProductIdForPlan(planType);
+  const iapProduct = iapProducts?.find(p => p.productId === productId);
+
+  // Informações base (fallback se IAP não disponível)
+  const baseInfo = {
+    free: {
+      title: 'Gratuito',
+      price: 'R$ 0,00',
+      description: 'Ideal para começar',
+    },
+    basic: {
+      title: 'Básico',
+      price: 'R$ 19,90/mês',
+      description: 'Para pequenos portfólios',
+    },
+    premium: {
+      title: 'Premium',
+      price: 'R$ 39,90/mês',
+      description: 'Para grandes portfólios',
+    }
+  };
+
+  const plan = baseInfo[planType];
+
+  // Se temos dados do IAP, usamos eles (prioridade)
+  return {
+    title: iapProduct?.title || plan.title,
+    price: iapProduct?.localizedPrice ? `${iapProduct.localizedPrice}/mês` : plan.price,
+    description: iapProduct?.description || plan.description,
+  };
+};
+
 const SubscriptionScreen = ({ navigation }) => {
   const { theme } = useAccessibilityTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -45,6 +83,15 @@ const SubscriptionScreen = ({ navigation }) => {
   const [purchasing, setPurchasing] = useState(false);
   const [termsModalVisible, setTermsModalVisible] = useState(false);
   const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
+
+  // Processa dados dos planos combinando IAP + info local
+  const planData = useMemo(() => {
+    return {
+      free: enrichProductWithIAPData('free', products),
+      basic: enrichProductWithIAPData('basic', products),
+      premium: enrichProductWithIAPData('premium', products)
+    };
+  }, [products]);
 
   useEffect(() => {
     loadSubscriptionData();
@@ -463,10 +510,10 @@ const SubscriptionScreen = ({ navigation }) => {
           {/* Plano Gratuito */}
           <View style={[styles.planCard, currentPlan === 'free' && styles.currentPlanCard]}>
             <View style={styles.planCardHeader}>
-              <Text style={styles.planCardName}>Gratuito</Text>
-              <Text style={styles.planCardPrice}>R$ 0,00</Text>
+              <Text style={styles.planCardName}>{planData.free.title}</Text>
+              <Text style={styles.planCardPrice}>{planData.free.price}</Text>
             </View>
-            <Text style={styles.planCardDescription}>Ideal para começar</Text>
+            <Text style={styles.planCardDescription}>{planData.free.description}</Text>
             <View style={styles.planFeatures}>
               <View style={styles.featureItem}>
                 <MaterialIcons name="check" size={20} color={theme.colors.primary} />
@@ -511,10 +558,10 @@ const SubscriptionScreen = ({ navigation }) => {
           {/* Plano Básico */}
           <View style={[styles.planCard, currentPlan === 'basic' && styles.currentPlanCard]}>
             <View style={styles.planCardHeader}>
-              <Text style={styles.planCardName}>Básico</Text>
-              <Text style={styles.planCardPrice}>R$ 19,90/mês</Text>
+              <Text style={styles.planCardName}>{planData.basic.title}</Text>
+              <Text style={styles.planCardPrice}>{planData.basic.price}</Text>
             </View>
-            <Text style={styles.planCardDescription}>Para pequenos portfólios</Text>
+            <Text style={styles.planCardDescription}>{planData.basic.description}</Text>
             <View style={styles.planFeatures}>
               <View style={styles.featureItem}>
                 <MaterialIcons name="check" size={20} color={theme.colors.primary} />
@@ -563,10 +610,10 @@ const SubscriptionScreen = ({ navigation }) => {
           {/* Plano Premium */}
           <View style={[styles.planCard, currentPlan === 'premium' && styles.currentPlanCard]}>
             <View style={styles.planCardHeader}>
-              <Text style={styles.planCardName}>Premium</Text>
-              <Text style={styles.planCardPrice}>R$ 39,90/mês</Text>
+              <Text style={styles.planCardName}>{planData.premium.title}</Text>
+              <Text style={styles.planCardPrice}>{planData.premium.price}</Text>
             </View>
-            <Text style={styles.planCardDescription}>Para grandes portfólios</Text>
+            <Text style={styles.planCardDescription}>{planData.premium.description}</Text>
             <View style={styles.planFeatures}>
               <View style={styles.featureItem}>
                 <MaterialIcons name="check" size={20} color={theme.colors.primary} />
