@@ -21,6 +21,8 @@ import ptBR from 'date-fns/locale/pt-BR';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits, checkSubscriptionStatus, getBlockedProperties } from '../lib/subscriptionService';
 import { getCache, setCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
+import { checkAndSyncSubscriptionStatus } from '../lib/iapService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import SkeletonLoader, { PropertyCardSkeleton, TenantCardSkeleton } from '../components/SkeletonLoader';
 
 // Componente de gráfico de donut com cores por tipo de imóvel
@@ -273,6 +275,22 @@ const DashboardScreen = ({ navigation }) => {
     if (useCache && !refreshing) {
       const cachedData = await getCache(CACHE_KEYS.DASHBOARD);
       if (cachedData) {
+        // Recalcula o status local caso a assinatura tenha expirado desde o último cache
+        if (cachedData.subscription?.subscription_plan !== 'free' && cachedData.subscription?.subscription_expires_at) {
+          const now = new Date();
+          const exp = new Date(cachedData.subscription.subscription_expires_at);
+          if (now >= exp) {
+            console.log('Dashboard (Cache): Assinatura expirada, exibindo como Free temporariamente...');
+            cachedData.subscription = {
+              ...cachedData.subscription,
+              subscription_plan: 'free',
+              subscription_status: 'active',
+              subscription_expires_at: null
+            };
+            cachedData.subscriptionStatus = { active: true, reason: 'Plano Gratuito Ativo' };
+          }
+        }
+
         setStats(cachedData.stats);
         setOccupancyByType(cachedData.occupancyByType);
         setUpcomingRents(cachedData.upcomingRents);
@@ -426,9 +444,113 @@ const DashboardScreen = ({ navigation }) => {
         checkSubscriptionStatus(user.id),
         getBlockedProperties(user.id),
       ]);
-      setSubscription(subscriptionData);
-      setSubscriptionStatus(status);
-      setBlockedPropertiesCount(blockedProperties.length);
+      const now = new Date();
+      let finalSubscriptionData = subscriptionData;
+      let finalStatus = status;
+
+      console.log('--- DIAGNÓSTICO DE ASSINATURA ---');
+      console.log('Plano no DB:', subscriptionData?.subscription_plan);
+      console.log('Status no DB:', subscriptionData?.subscription_status);
+      console.log('Expiração (RAW):', subscriptionData?.subscription_expires_at);
+      console.log('Data Agora:', now.toISOString());
+
+      // Se estiver expirado no banco local, força o downgrade do plano IMEDIATAMENTE.
+      if (finalSubscriptionData?.subscription_plan !== 'free' && finalSubscriptionData?.subscription_expires_at) {
+        const expiresAt = new Date(finalSubscriptionData.subscription_expires_at);
+        const isExpired = now >= expiresAt;
+        console.log('Data Expiração (Parsed):', expiresAt.toISOString());
+        console.log('Está expirado?', isExpired);
+
+        if (isExpired) {
+          console.log('Dashboard: Assinatura local expirada. Executando downgrade imediato para Free...');
+          finalSubscriptionData = {
+            ...finalSubscriptionData,
+            subscription_plan: 'free',
+            subscription_status: 'active',
+            subscription_expires_at: null
+          };
+          finalStatus = { active: true, reason: 'Plano Gratuito Ativo' };
+          
+          // Efetua o downgrade de fato no banco de dados para evitar inconsistências
+          const { error: downgradeError } = await supabase
+            .from('profiles')
+            .update({
+              subscription_plan: 'free',
+              subscription_status: 'active',
+              subscription_expires_at: null,
+              subscription_iap_transaction_id: null,
+              subscription_trial_ends_at: null,
+              subscription_grace_period_ends_at: null,
+            })
+            .eq('id', user.id);
+
+          if (!downgradeError) {
+             // Recalcular os bloqueios considerando que o plano agora é Free
+             const newBlockedProperties = await getBlockedProperties(user.id);
+             setBlockedPropertiesCount(newBlockedProperties.length);
+          }
+        }
+      }
+
+      setSubscription(finalSubscriptionData);
+      setSubscriptionStatus(finalStatus);
+
+      // Verificação em background silenciosa com a Apple (Apple Store)
+      (async () => {
+        try {
+          const LAST_SYNC_KEY = '@iap_last_background_sync';
+          const lastSyncStr = await AsyncStorage.getItem(LAST_SYNC_KEY);
+          let shouldCheck = false;
+
+          // Se acabou de ser rebaixado para free acima, force a checagem com a Apple por precaução (fallback)
+          const isActuallyPremium = subscriptionData?.subscription_plan !== 'free';
+          const isExpiredPremium = isActuallyPremium && subscriptionData?.subscription_expires_at && now >= new Date(subscriptionData.subscription_expires_at);
+
+          if (isExpiredPremium) {
+            // Se expiramos localmente, disparamos a verificação para Apple para resgatar a assinatura
+            // caso seja uma falha de sincronização.
+            shouldCheck = true;
+          } else if (finalSubscriptionData?.subscription_plan === 'free' || __DEV__) {
+            // Se for plano grátis ou em desenvolvimento, verifica com mais frequência
+            if (lastSyncStr) {
+              const lastSync = new Date(lastSyncStr);
+              const diffMinutes = Math.abs(now - lastSync) / 60000;
+              const syncInterval = __DEV__ ? 2 : 60; // 2 min em dev/sandbox, 60 min em produção
+              if (diffMinutes > syncInterval) {
+                shouldCheck = true;
+              }
+            } else {
+              shouldCheck = true;
+            }
+          }
+
+          if (shouldCheck) {
+            console.log('Dashboard: Executando sincronização silenciosa de IAP em background...');
+            const syncResult = await checkAndSyncSubscriptionStatus(user.id, true);
+            await AsyncStorage.setItem(LAST_SYNC_KEY, now.toISOString());
+
+            if (syncResult && syncResult.synced) {
+               console.log('Dashboard: Assinatura sincronizada no background! Recarregando UI...', syncResult.newPlan);
+               
+               if (syncResult.newPlan === 'free') {
+                 // Dispara uma recarga rápida dos dados locais caso tenha mudado o status
+                 const [newSub, newStatus, newBlocked] = await Promise.all([
+                    getUserSubscription(user.id),
+                    checkSubscriptionStatus(user.id),
+                    getBlockedProperties(user.id)
+                 ]);
+                 setSubscription(newSub);
+                 setSubscriptionStatus(newStatus);
+                 setBlockedPropertiesCount(newBlocked.length);
+                 
+                 // Invalida cache do dashboard para refletir novo status
+                 await setCache(CACHE_KEYS.DASHBOARD, null, 0); 
+               }            }
+          }
+        } catch (error) {
+           console.log('Dashboard: Erro silencioso na sincronização de IAP:', error);
+        }
+      })();
 
       // Salvar no cache
       await setCache(CACHE_KEYS.DASHBOARD, {
@@ -456,6 +578,8 @@ const DashboardScreen = ({ navigation }) => {
     setRefreshing(true);
     fetchDashboardData(false); // Não usar cache no refresh
   }, []);
+
+
 
   useEffect(() => {
     if (isFocused) {
