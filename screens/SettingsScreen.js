@@ -185,7 +185,7 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   const handleWhatsAppSupport = async () => {
-    const phoneNumber = '5521966087421';
+    const phoneNumber = '5521979137098';
     const message = 'Olá! Preciso de ajuda com o aplicativo llord.';
 
     try {

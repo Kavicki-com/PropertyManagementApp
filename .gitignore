@@ -24,3 +24,5 @@ plans/tenants-view.md
 .env
 /.cursor
 .aider*
+
+.agents

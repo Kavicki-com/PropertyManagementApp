@@ -205,12 +205,27 @@ export default function App() {
     // Função para verificar notificações quando app volta ao foreground
     const handleAppStateChange = async (nextAppState) => {
       if (nextAppState === 'active') {
-        const shouldCheck = await shouldCheckNotifications();
-        if (shouldCheck) {
+        const shouldCheckNotif = await shouldCheckNotifications();
+        if (shouldCheckNotif) {
           console.log('Verificando notificações (app voltou ao foreground)');
           await checkAndCreateNotifications();
-          // Salva data da última verificação
           await AsyncStorage.setItem(LAST_NOTIFICATION_CHECK_KEY, new Date().toISOString().split('T')[0]);
+        }
+
+        // NOVO: Verificação Global de Assinatura ao voltar para o App
+        if (session?.user?.id && Platform.OS === 'ios') {
+          console.log('App: Validando status da assinatura (Global Check)...');
+          import('./lib/iapService').then(async (iap) => {
+            const result = await iap.checkAndSyncSubscriptionStatus(session.user.id, false);
+            if (result.synced && result.newPlan === 'free') {
+              console.log('App: Assinatura expirada detectada no Global Check!');
+              Alert.alert(
+                'Assinatura Expirada',
+                'Sua assinatura premium expirou. Você foi movido para o plano gratuito.',
+                [{ text: 'OK' }]
+              );
+            }
+          }).catch(err => console.error('Erro ao verificar assinatura no foreground:', err));
         }
       }
     };

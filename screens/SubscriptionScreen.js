@@ -24,10 +24,10 @@ import {
   getAvailableProducts,
   purchaseSubscription,
   restorePurchases,
-  handlePurchaseSuccess,
   getProductIdForPlan,
   checkAndSyncSubscriptionStatus,
 } from '../lib/iapService';
+import { setCache, CACHE_KEYS } from '../lib/cacheService';
 import ScreenHeader from '../components/ScreenHeader';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { SubscriptionSkeleton } from '../components/SkeletonLoader';
@@ -166,28 +166,22 @@ const SubscriptionScreen = ({ navigation }) => {
       console.log('SubscriptionScreen: Resultado da compra:', JSON.stringify(result, null, 2));
 
       if (result.success && result.purchase) {
-        console.log('SubscriptionScreen: Compra bem-sucedida, atualizando perfil...');
-        const updateResult = await handlePurchaseSuccess(result.purchase, user.id);
-        console.log('SubscriptionScreen: Resultado da atualização:', updateResult);
-
-        if (updateResult.success) {
-          Alert.alert(
-            'Sucesso',
-            'Assinatura ativada com sucesso! Todos os seus imóveis e inquilinos existentes já estão disponíveis no novo limite.'
-          );
-          // Recarregar dados para aplicar novas regras
-          // IMPORTANTE: getBlockedProperties e getBlockedTenants recalcularão automaticamente
-          // baseado no novo plano, incluindo TODOS os imóveis/inquilinos existentes na contagem
-          console.log('SubscriptionScreen: Recarregando dados...');
-          await loadSubscriptionData();
-          // Redireciona para o dashboard
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-          });
-        } else {
-          Alert.alert('Erro', 'Compra realizada mas houve erro ao atualizar assinatura.');
-        }
+        console.log('SubscriptionScreen: Compra bem-sucedida via background listener.');
+        Alert.alert(
+          'Sucesso',
+          'Assinatura ativada com sucesso! Todos os seus imóveis e inquilinos existentes já estão disponíveis no novo limite.'
+        );
+        // Recarregar dados para aplicar novas regras
+        // IMPORTANTE: getBlockedProperties e getBlockedTenants recalcularão automaticamente
+        // baseado no novo plano, incluindo TODOS os imóveis/inquilinos existentes na contagem
+        console.log('SubscriptionScreen: Recarregando dados...');
+        await setCache(CACHE_KEYS.DASHBOARD, null, 0); // Invalida cache do dashboard!
+        await loadSubscriptionData();
+        // Redireciona para o dashboard
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' }],
+        });
       } else if (result.cancelled) {
         // Usuário cancelou a compra - não mostra erro, apenas reseta estado
         console.log('SubscriptionScreen: Compra cancelada pelo usuário');
@@ -204,12 +198,21 @@ const SubscriptionScreen = ({ navigation }) => {
           errorMessage = errorMessage.replace(/\. /g, '.\n\n');
         }
 
-        console.error('SubscriptionScreen: Erro ao processar compra:', result.error);
-        Alert.alert('Erro na Compra', errorMessage);
+        // Se for erro de timeout esperado (App vai tratar backgroundly), ignora silenciosamente.
+        if (typeof errorMessage === 'string' && errorMessage.includes('System UI timeout')) {
+          console.log('SubscriptionScreen: A tela de compra expirou a Promise da UI (System UI Timeout), mas o fluxo background continua ativo.');
+        } else {
+          console.error('SubscriptionScreen: Erro ao processar compra:', result.error);
+          Alert.alert('Erro na Compra', errorMessage);
+        }
       }
     } catch (error) {
-      console.error('SubscriptionScreen: Exceção ao processar compra:', error);
-      Alert.alert('Erro', 'Não foi possível processar a compra.');
+      if (error && error.message && error.message.includes('System UI timeout')) {
+        console.log('SubscriptionScreen: Exceção de timeout de UI esperada ignorada.');
+      } else {
+        console.error('SubscriptionScreen: Exceção ao processar compra:', error);
+        Alert.alert('Erro', 'Não foi possível processar a compra.');
+      }
     } finally {
       setPurchasing(false);
     }
@@ -406,6 +409,7 @@ const SubscriptionScreen = ({ navigation }) => {
         // Plano foi atualizado com sucesso
         const planName = syncResult.newPlan === 'basic' ? 'Básico' : syncResult.newPlan === 'premium' ? 'Premium' : 'Gratuito';
         Alert.alert('Sucesso', `Compras restauradas! Plano atualizado para: ${planName}`);
+        await setCache(CACHE_KEYS.DASHBOARD, null, 0); // Invalida cache do dashboard!
         await loadSubscriptionData();
         // Redireciona para o dashboard
         navigation.reset({
@@ -430,7 +434,11 @@ const SubscriptionScreen = ({ navigation }) => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
+    let dateToParse = dateString;
+    if (!dateToParse.endsWith('Z') && !dateToParse.includes('+') && dateToParse.length <= 23) {
+      dateToParse += 'Z';
+    }
+    const date = new Date(dateToParse);
     return date.toLocaleDateString('pt-BR');
   };
 
