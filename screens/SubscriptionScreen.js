@@ -107,9 +107,9 @@ const SubscriptionScreen = ({ navigation }) => {
         return;
       }
 
-      // Sincroniza status da assinatura (apenas local para velocidade)
-      // Se tiver expirado, o downgrade acontece aqui instantaneamente
-      const syncResult = await checkAndSyncSubscriptionStatus(user.id, false);
+      // Confere com o servidor, que revalida o recibo junto à Apple.
+      // Roda ANTES de ler o perfil para que a tela já mostre o resultado.
+      const syncResult = await checkAndSyncSubscriptionStatus(user.id);
 
       const [subscriptionData, count, productsData] = await Promise.all([
         getUserSubscription(user.id),
@@ -124,11 +124,23 @@ const SubscriptionScreen = ({ navigation }) => {
         setProducts(productsData.products || []);
       }
 
-      // Feedback visual se houve expiração/downgrade automático
-      if (syncResult.synced && syncResult.newPlan === 'free') {
+      // Só avisamos de expiração quando o servidor CONFIRMOU o fim da
+      // assinatura. Antes, qualquer falha de verificação disparava este alerta
+      // e rebaixava o usuário — inclusive quem tinha acabado de renovar.
+      if (syncResult.success && syncResult.synced && syncResult.newPlan === 'free') {
         Alert.alert(
-          'Plano Expirado',
-          'Sua assinatura expirou e você retornou ao plano gratuito. Para continuar aproveitando os benefícios, faça uma nova assinatura.'
+          'Assinatura encerrada',
+          'Sua assinatura não está mais ativa e você voltou ao plano gratuito. '
+          + 'Para retomar os benefícios, escolha um plano abaixo.'
+        );
+      } else if (syncResult.needsRestore) {
+        // O servidor não tem recibo guardado para este usuário, mas o perfil diz
+        // que ele é assinante. É o caso de quem assinou antes desta versão.
+        // Restaurar compras entrega o recibo e regulariza a conta.
+        Alert.alert(
+          'Confirme sua assinatura',
+          'Precisamos reconfirmar sua assinatura com a App Store. '
+          + 'Toque em "Restaurar compras" para manter seus benefícios.'
         );
       }
     } catch (error) {
@@ -183,35 +195,29 @@ const SubscriptionScreen = ({ navigation }) => {
           routes: [{ name: 'Main' }],
         });
       } else if (result.cancelled) {
-        // Usuário cancelou a compra - não mostra erro, apenas reseta estado
+        // Cancelamento não é erro: não mostra nada, só libera o botão.
         console.log('SubscriptionScreen: Compra cancelada pelo usuário');
-        // Não faz nada, setPurchasing(false) já reseta o estado no finally
+      } else if (result.deferred) {
+        // "Ask to Buy": precisa da aprovação de um responsável. A compra pode
+        // ser aprovada depois e chega pelo listener.
+        Alert.alert(
+          'Aguardando aprovação',
+          'Sua compra precisa ser aprovada pelo responsável pela conta. '
+          + 'Assim que for aprovada, seu plano será ativado automaticamente.'
+        );
       } else {
-        // result.error pode ser um objeto com message ou uma string
-        let errorMessage = result.error?.message || result.error || 'Erro ao processar compra';
-
-        // Se for uma string longa (com múltiplas linhas), quebra em múltiplas linhas
-        if (typeof errorMessage === 'string' && errorMessage.includes('\n')) {
-          // Mantém a mensagem como está (já formatada)
-        } else if (typeof errorMessage === 'string') {
-          // Adiciona quebras de linha para melhor legibilidade
-          errorMessage = errorMessage.replace(/\. /g, '.\n\n');
-        }
-
-        // Se for erro de timeout esperado (App vai tratar backgroundly), ignora silenciosamente.
-        if (typeof errorMessage === 'string' && errorMessage.includes('System UI timeout')) {
-          console.log('SubscriptionScreen: A tela de compra expirou a Promise da UI (System UI Timeout), mas o fluxo background continua ativo.');
-        } else {
-          console.error('SubscriptionScreen: Erro ao processar compra:', result.error);
-          Alert.alert('Erro na Compra', errorMessage);
-        }
+        const errorMessage = result.error?.message || result.error || 'Erro ao processar compra';
+        console.error('SubscriptionScreen: Erro ao processar compra:', result.error);
+        Alert.alert('Erro na Compra', errorMessage);
       }
     } catch (error) {
-      if (error && error.message && error.message.includes('System UI timeout')) {
-        console.log('SubscriptionScreen: Exceção de timeout de UI esperada ignorada.');
+      // purchaseSubscription rejeita com { success, error, cancelled } — um
+      // cancelamento chega por aqui quando o listener rejeita a promise.
+      if (error?.cancelled) {
+        console.log('SubscriptionScreen: Compra cancelada pelo usuário');
       } else {
         console.error('SubscriptionScreen: Exceção ao processar compra:', error);
-        Alert.alert('Erro', 'Não foi possível processar a compra.');
+        Alert.alert('Erro', error?.error || 'Não foi possível processar a compra.');
       }
     } finally {
       setPurchasing(false);
@@ -269,121 +275,18 @@ const SubscriptionScreen = ({ navigation }) => {
       message += '\nOs itens bloqueados ficarão disponíveis novamente quando você fizer upgrade.\n\n';
     }
 
-    message += '📱 Importante: Para evitar cobranças futuras, lembre-se de cancelar também nas configurações do seu dispositivo (Ajustes > [seu nome] > Assinaturas).';
+    message += '📱 O cancelamento é feito nas configurações da Apple. Vamos te levar até lá.\n\n';
+    message += 'Você continua com acesso ao plano atual até o fim do período já pago.';
 
     Alert.alert(
-      'Confirmar Cancelamento',
+      'Cancelar assinatura',
       message,
       [
         { text: 'Voltar', style: 'cancel' },
         {
-          text: 'Confirmar Cancelamento',
+          text: 'Abrir configurações',
           style: 'destructive',
-          onPress: async () => {
-            await performDowngrade(user.id);
-          },
-        },
-      ]
-    );
-  };
-
-  const performDowngrade = async (userId) => {
-    setPurchasing(true);
-    try {
-      // Buscar dados atuais da assinatura para verificar se há período restante
-      const { data: currentProfile } = await supabase
-        .from('profiles')
-        .select('subscription_expires_at, subscription_plan')
-        .eq('id', userId)
-        .single();
-
-      const hasActiveSubscription = currentProfile?.subscription_expires_at &&
-        new Date(currentProfile.subscription_expires_at) > new Date();
-
-      let updateData;
-      let successMessage;
-
-      if (hasActiveSubscription) {
-        // Mantém o plano atual até expirar, apenas marca como cancelled
-        updateData = {
-          subscription_status: 'cancelled',
-          // Mantém subscription_plan, subscription_expires_at para o usuário continuar com acesso
-        };
-        const expiresDate = new Date(currentProfile.subscription_expires_at);
-        const formattedDate = expiresDate.toLocaleDateString('pt-BR');
-        successMessage = `Cancelamento confirmado! Você continuará com acesso ao plano ${currentProfile.subscription_plan === 'basic' ? 'Básico' : 'Premium'} até ${formattedDate}. Após essa data, seu plano será alterado para Gratuito.`;
-      } else {
-        // Sem período ativo, muda imediatamente para free
-        updateData = {
-          subscription_plan: 'free',
-          subscription_status: 'active',
-          subscription_expires_at: null,
-          subscription_iap_transaction_id: null,
-          subscription_trial_ends_at: null,
-          subscription_grace_period_ends_at: null,
-        };
-        successMessage = 'Downgrade realizado com sucesso! Você agora está no plano Gratuito.';
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', userId);
-
-      if (error) {
-        console.error('Erro ao fazer downgrade:', error);
-        Alert.alert('Erro', 'Não foi possível fazer o downgrade.');
-        return;
-      }
-
-      Alert.alert('Sucesso', successMessage);
-      // Redireciona para o dashboard
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
-    } catch (error) {
-      console.error('Erro ao fazer downgrade:', error);
-      Alert.alert('Erro', 'Não foi possível fazer o downgrade.');
-    } finally {
-      setPurchasing(false);
-    }
-  };
-
-  // Marca a assinatura como cancelada (quando usuário já cancelou na Apple)
-  const markAsCancelled = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    Alert.alert(
-      'Confirmar',
-      'Você já cancelou sua assinatura nas configurações da Apple? Esta ação irá atualizar o status para "Cancelado" no app.',
-      [
-        { text: 'Não', style: 'cancel' },
-        {
-          text: 'Sim, já cancelei',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('profiles')
-                .update({ subscription_status: 'cancelled' })
-                .eq('id', user.id);
-
-              if (error) {
-                Alert.alert('Erro', 'Não foi possível atualizar o status.');
-                return;
-              }
-
-              Alert.alert(
-                'Status Atualizado',
-                'Seu status foi atualizado para "Cancelado". Você continuará com acesso até a data de expiração.'
-              );
-              await loadSubscriptionData();
-            } catch (error) {
-              console.error('Erro ao marcar como cancelado:', error);
-              Alert.alert('Erro', 'Não foi possível atualizar o status.');
-            }
-          },
+          onPress: openSubscriptionSettings,
         },
       ]
     );
@@ -398,31 +301,34 @@ const SubscriptionScreen = ({ navigation }) => {
 
     setPurchasing(true);
     try {
-      // Usa checkAndSyncSubscriptionStatus com forceAppleCheck = true
-      // Isso força a consulta à Apple para buscar compras perdidas
-      console.log('SubscriptionScreen: Iniciando restauração de compras (FORCE CHECK)...');
-      const syncResult = await checkAndSyncSubscriptionStatus(user.id, true);
+      // restorePurchases lê o histórico da App Store (pode pedir a senha do
+      // Apple ID — aceitável porque o usuário pediu) e manda o recibo ao
+      // servidor, que decide o plano.
+      console.log('SubscriptionScreen: Restaurando compras...');
+      const result = await restorePurchases();
 
-      console.log('SubscriptionScreen: Resultado da sincronização:', syncResult);
+      if (!result.success) {
+        Alert.alert('Erro', result.error || 'Não foi possível restaurar as compras.');
+        return;
+      }
 
-      if (syncResult.success && syncResult.synced) {
-        // Plano foi atualizado com sucesso
-        const planName = syncResult.newPlan === 'basic' ? 'Básico' : syncResult.newPlan === 'premium' ? 'Premium' : 'Gratuito';
-        Alert.alert('Sucesso', `Compras restauradas! Plano atualizado para: ${planName}`);
-        await setCache(CACHE_KEYS.DASHBOARD, null, 0); // Invalida cache do dashboard!
+      if (result.restored) {
+        const planName = result.plan === 'basic' ? 'Básico' : 'Premium';
+        Alert.alert('Sucesso', `Compras restauradas! Seu plano ${planName} está ativo.`);
+        await setCache(CACHE_KEYS.DASHBOARD, null, 0);
         await loadSubscriptionData();
-        // Redireciona para o dashboard
         navigation.reset({
           index: 0,
           routes: [{ name: 'Main' }],
         });
-      } else if (syncResult.success && !syncResult.synced) {
-        // Não havia mudanças necessárias
-        Alert.alert('Info', syncResult.reason || 'Nenhuma alteração necessária. Plano já está sincronizado.');
       } else {
-        // Erro ao sincronizar
-        const errorMessage = syncResult.reason || 'Não foi possível restaurar as compras';
-        Alert.alert('Erro', errorMessage);
+        Alert.alert(
+          'Nenhuma assinatura encontrada',
+          result.message
+          || 'Não encontramos uma assinatura ativa nesta conta da App Store. '
+             + 'Verifique se está usando o mesmo Apple ID da compra.'
+        );
+        await loadSubscriptionData();
       }
     } catch (error) {
       console.error('SubscriptionScreen: Erro ao restaurar compras:', error);

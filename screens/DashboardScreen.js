@@ -275,22 +275,13 @@ const DashboardScreen = ({ navigation }) => {
     if (useCache && !refreshing) {
       const cachedData = await getCache(CACHE_KEYS.DASHBOARD);
       if (cachedData) {
-        // Recalcula o status local caso a assinatura tenha expirado desde o último cache
-        if (cachedData.subscription?.subscription_plan !== 'free' && cachedData.subscription?.subscription_expires_at) {
-          const now = new Date();
-          const exp = new Date(cachedData.subscription.subscription_expires_at);
-          if (now >= exp) {
-            console.log('Dashboard (Cache): Assinatura expirada, exibindo como Free temporariamente...');
-            cachedData.subscription = {
-              ...cachedData.subscription,
-              subscription_plan: 'free',
-              subscription_status: 'active',
-              subscription_expires_at: null
-            };
-            cachedData.subscriptionStatus = { active: true, reason: 'Plano Gratuito Ativo' };
-          }
-        }
-
+        // O cache é só a primeira pintura da tela — logo abaixo os dados reais
+        // são buscados e o servidor confere a assinatura.
+        //
+        // Não rebaixamos o plano aqui só porque a data em cache passou: numa
+        // renovação a data nova ainda não chegou ao cache, e mostrar "plano
+        // gratuito" para quem acabou de ser cobrado é pior do que mostrar por
+        // um instante o último estado conhecido.
         setStats(cachedData.stats);
         setOccupancyByType(cachedData.occupancyByType);
         setUpcomingRents(cachedData.upcomingRents);
@@ -445,110 +436,51 @@ const DashboardScreen = ({ navigation }) => {
         getBlockedProperties(user.id),
       ]);
       const now = new Date();
-      let finalSubscriptionData = subscriptionData;
-      let finalStatus = status;
 
-      console.log('--- DIAGNÓSTICO DE ASSINATURA ---');
-      console.log('Plano no DB:', subscriptionData?.subscription_plan);
-      console.log('Status no DB:', subscriptionData?.subscription_status);
-      console.log('Expiração (RAW):', subscriptionData?.subscription_expires_at);
-      console.log('Data Agora:', now.toISOString());
+      // O plano exibido é o que está no banco, e o banco só é escrito pelo
+      // servidor depois de confirmar com a Apple. O Dashboard não decide mais
+      // que uma assinatura expirou: ele antes rebaixava para grátis assim que a
+      // data local passava, o que derrubava quem tinha renovado normalmente,
+      // já que a renovação nunca chegava a ser registrada.
+      setSubscription(subscriptionData);
+      setSubscriptionStatus(status);
 
-      // Se estiver expirado no banco local, força o downgrade do plano IMEDIATAMENTE.
-      if (finalSubscriptionData?.subscription_plan !== 'free' && finalSubscriptionData?.subscription_expires_at) {
-        const expiresAt = new Date(finalSubscriptionData.subscription_expires_at);
-        const isExpired = now >= expiresAt;
-        console.log('Data Expiração (Parsed):', expiresAt.toISOString());
-        console.log('Está expirado?', isExpired);
-
-        if (isExpired) {
-          console.log('Dashboard: Assinatura local expirada. Executando downgrade imediato para Free...');
-          finalSubscriptionData = {
-            ...finalSubscriptionData,
-            subscription_plan: 'free',
-            subscription_status: 'active',
-            subscription_expires_at: null
-          };
-          finalStatus = { active: true, reason: 'Plano Gratuito Ativo' };
-          
-          // Efetua o downgrade de fato no banco de dados para evitar inconsistências
-          const { error: downgradeError } = await supabase
-            .from('profiles')
-            .update({
-              subscription_plan: 'free',
-              subscription_status: 'active',
-              subscription_expires_at: null,
-              subscription_iap_transaction_id: null,
-              subscription_trial_ends_at: null,
-              subscription_grace_period_ends_at: null,
-            })
-            .eq('id', user.id);
-
-          if (!downgradeError) {
-             // Recalcular os bloqueios considerando que o plano agora é Free
-             const newBlockedProperties = await getBlockedProperties(user.id);
-             setBlockedPropertiesCount(newBlockedProperties.length);
-          }
-        }
-      }
-
-      setSubscription(finalSubscriptionData);
-      setSubscriptionStatus(finalStatus);
-
-      // Verificação em background silenciosa com a Apple (Apple Store)
+      // Verificação silenciosa com o servidor.
+      // Não fala com o StoreKit — o servidor revalida o recibo que já guardou.
+      // A versão anterior chamava getPurchaseHistoryAsync aqui, que no iOS é
+      // restoreCompletedTransactions() e abre o diálogo de senha da App Store
+      // sem o usuário ter pedido nada.
       (async () => {
         try {
           const LAST_SYNC_KEY = '@iap_last_background_sync';
           const lastSyncStr = await AsyncStorage.getItem(LAST_SYNC_KEY);
-          let shouldCheck = false;
 
-          // Se acabou de ser rebaixado para free acima, force a checagem com a Apple por precaução (fallback)
-          const isActuallyPremium = subscriptionData?.subscription_plan !== 'free';
-          const isExpiredPremium = isActuallyPremium && subscriptionData?.subscription_expires_at && now >= new Date(subscriptionData.subscription_expires_at);
+          const syncIntervalMinutes = __DEV__ ? 2 : 60;
+          const shouldCheck = !lastSyncStr
+            || Math.abs(now - new Date(lastSyncStr)) / 60000 > syncIntervalMinutes;
 
-          if (isExpiredPremium) {
-            // Se expiramos localmente, disparamos a verificação para Apple para resgatar a assinatura
-            // caso seja uma falha de sincronização.
-            shouldCheck = true;
-          } else if (finalSubscriptionData?.subscription_plan === 'free' || __DEV__) {
-            // Se for plano grátis ou em desenvolvimento, verifica com mais frequência
-            if (lastSyncStr) {
-              const lastSync = new Date(lastSyncStr);
-              const diffMinutes = Math.abs(now - lastSync) / 60000;
-              const syncInterval = __DEV__ ? 2 : 60; // 2 min em dev/sandbox, 60 min em produção
-              if (diffMinutes > syncInterval) {
-                shouldCheck = true;
-              }
-            } else {
-              shouldCheck = true;
-            }
-          }
+          if (!shouldCheck) return;
 
-          if (shouldCheck) {
-            console.log('Dashboard: Executando sincronização silenciosa de IAP em background...');
-            const syncResult = await checkAndSyncSubscriptionStatus(user.id, true);
-            await AsyncStorage.setItem(LAST_SYNC_KEY, now.toISOString());
+          const syncResult = await checkAndSyncSubscriptionStatus(user.id);
+          await AsyncStorage.setItem(LAST_SYNC_KEY, now.toISOString());
 
-            if (syncResult && syncResult.synced) {
-               console.log('Dashboard: Assinatura sincronizada no background! Recarregando UI...', syncResult.newPlan);
-               
-               if (syncResult.newPlan === 'free') {
-                 // Dispara uma recarga rápida dos dados locais caso tenha mudado o status
-                 const [newSub, newStatus, newBlocked] = await Promise.all([
-                    getUserSubscription(user.id),
-                    checkSubscriptionStatus(user.id),
-                    getBlockedProperties(user.id)
-                 ]);
-                 setSubscription(newSub);
-                 setSubscriptionStatus(newStatus);
-                 setBlockedPropertiesCount(newBlocked.length);
-                 
-                 // Invalida cache do dashboard para refletir novo status
-                 await setCache(CACHE_KEYS.DASHBOARD, null, 0); 
-               }            }
+          // synced só vem true quando o servidor confirmou uma MUDANÇA real.
+          if (syncResult?.success && syncResult.synced) {
+            console.log('Dashboard: Plano atualizado pelo servidor para', syncResult.newPlan);
+
+            const [newSub, newStatus, newBlocked] = await Promise.all([
+              getUserSubscription(user.id),
+              checkSubscriptionStatus(user.id),
+              getBlockedProperties(user.id),
+            ]);
+            setSubscription(newSub);
+            setSubscriptionStatus(newStatus);
+            setBlockedPropertiesCount(newBlocked.length);
+
+            await setCache(CACHE_KEYS.DASHBOARD, null, 0);
           }
         } catch (error) {
-           console.log('Dashboard: Erro silencioso na sincronização de IAP:', error);
+          console.log('Dashboard: Erro silencioso na sincronização de IAP:', error);
         }
       })();
 

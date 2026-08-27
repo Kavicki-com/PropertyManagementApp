@@ -212,16 +212,22 @@ export default function App() {
           await AsyncStorage.setItem(LAST_NOTIFICATION_CHECK_KEY, new Date().toISOString().split('T')[0]);
         }
 
-        // NOVO: Verificação Global de Assinatura ao voltar para o App
-        if (session?.user?.id && Platform.OS === 'ios') {
-          console.log('App: Validando status da assinatura (Global Check)...');
+        // Confere a assinatura com o servidor ao voltar para o app.
+        // Isso NÃO fala com o StoreKit: o servidor revalida o recibo que já
+        // guardou, então não há diálogo de senha da App Store nem risco de
+        // rebaixar alguém que na verdade renovou.
+        if (session?.user?.id) {
           import('./lib/iapService').then(async (iap) => {
-            const result = await iap.checkAndSyncSubscriptionStatus(session.user.id, false);
-            if (result.synced && result.newPlan === 'free') {
-              console.log('App: Assinatura expirada detectada no Global Check!');
+            const result = await iap.checkAndSyncSubscriptionStatus(session.user.id);
+
+            // Só avisamos quando o servidor CONFIRMOU o fim da assinatura.
+            // Falha de rede ou recibo ausente não geram alerta: antes, qualquer
+            // falha de verificação virava "sua assinatura expirou" para quem
+            // estava pagando em dia.
+            if (result.success && result.synced && result.newPlan === 'free') {
               Alert.alert(
-                'Assinatura Expirada',
-                'Sua assinatura premium expirou. Você foi movido para o plano gratuito.',
+                'Assinatura encerrada',
+                'Sua assinatura não está mais ativa e você voltou ao plano gratuito.',
                 [{ text: 'OK' }]
               );
             }
