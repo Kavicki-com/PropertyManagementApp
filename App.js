@@ -16,6 +16,7 @@ import {
   checkAndCreateNotifications,
 } from './lib/notificationsService';
 import { initializeIAP, disconnectIAP } from './lib/iapService';
+import { track, EVENTOS } from './lib/analytics';
 import { Platform } from 'react-native';
 
 // Telas
@@ -106,9 +107,21 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const navigationRef = useRef(null);
 
+  // Uma sessão por abertura do app. O onAuthStateChange dispara também em
+  // renovação de token, e contar renovação como sessão inflaria justamente a
+  // métrica que precisa ser confiável.
+  const sessaoRegistrada = useRef(false);
+
+  const registrarSessao = (sessaoAtual) => {
+    if (!sessaoAtual?.user || sessaoRegistrada.current) return;
+    sessaoRegistrada.current = true;
+    track(EVENTOS.SESSAO_INICIADA);
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      registrarSessao(session);
       setLoading(false);
     });
 
@@ -116,6 +129,13 @@ export default function App() {
       async (event, session) => {
         console.log('Auth state changed:', event, session ? 'has session' : 'no session');
         setSession(session);
+
+        if (event === 'SIGNED_IN') {
+          registrarSessao(session);
+        } else if (event === 'SIGNED_OUT') {
+          // Sair e entrar de novo é uma sessão nova.
+          sessaoRegistrada.current = false;
+        }
 
         if (event === 'PASSWORD_RECOVERY' && session) {
           // Usa um timeout para dar tempo à UI para re-renderizar com a nova sessão

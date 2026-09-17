@@ -33,6 +33,7 @@ import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { SubscriptionSkeleton } from '../components/SkeletonLoader';
 import TermsModal from '../components/TermsModal';
 import PrivacyPolicyModal from '../components/PrivacyPolicyModal';
+import { track, EVENTOS } from '../lib/analytics';
 
 /**
  * Helper para combinar dados do IAP com informações locais
@@ -94,6 +95,9 @@ const SubscriptionScreen = ({ navigation }) => {
   }, [products]);
 
   useEffect(() => {
+    // O outro evento que o plano pede: abrir a tela de assinatura. Cruzado com
+    // plan_limit_hit, dá a taxa de quem bate na parede e chega até aqui.
+    track(EVENTOS.ASSINATURA_ABERTA);
     loadSubscriptionData();
   }, []);
 

@@ -20,6 +20,7 @@ import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 import SearchBar from '../components/SearchBar';
 import { getBlockedProperties, getUserSubscription, getActivePropertiesCount, getRequiredPlan, canAddProperty } from '../lib/subscriptionService';
+import { track, EVENTOS } from '../lib/analytics';
 import UpgradeModal from '../components/UpgradeModal';
 import { colors, radii, typography } from '../theme'; // Keep for fallbacks in hooks if needed, or remove if unused. Let's remove if unused.
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
@@ -202,6 +203,15 @@ const PropertiesScreen = ({ navigation }) => {
         // Se o plano atual é basic, sempre sugere premium
         const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount);
 
+        // Toque num imóvel que ficou bloqueado pelo limite — sintoma diferente
+        // do "+": aqui a pessoa perdeu acesso a algo que já era dela.
+        track(EVENTOS.LIMITE_ATINGIDO, {
+          origem: 'imovel_bloqueado',
+          plano_atual: currentPlan,
+          plano_necessario: requiredPlan,
+          qtd_imoveis: propertyCount,
+        });
+
         setSubscriptionInfo({
           currentPlan,
           propertyCount,
@@ -230,6 +240,15 @@ const PropertiesScreen = ({ navigation }) => {
       const currentPlan = subscription?.subscription_plan || 'free';
       // Se o plano atual é basic, sempre sugere premium
       const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount + 1);
+
+      // O toque no "+" bloqueado é o evento que o plano pede para medir antes
+      // de decidir qualquer coisa sobre o paywall.
+      track(EVENTOS.LIMITE_ATINGIDO, {
+        origem: 'lista_imoveis',
+        plano_atual: currentPlan,
+        plano_necessario: requiredPlan,
+        qtd_imoveis: propertyCount,
+      });
 
       setSubscriptionInfo({
         currentPlan,

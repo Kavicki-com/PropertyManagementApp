@@ -34,6 +34,7 @@ import {
 } from '../lib/validation';
 import { fetchAddressByCep } from '../lib/cepService';
 import { canAddProperty, getActivePropertiesCount, getUserSubscription, getRequiredPlan } from '../lib/subscriptionService';
+import { track, EVENTOS } from '../lib/analytics';
 import UpgradeModal from '../components/UpgradeModal';
 import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
@@ -41,6 +42,13 @@ import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 const AddPropertyScreen = ({ navigation }) => {
   const { theme } = useAccessibilityTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+
+  // Abrir o formulário e criar o imóvel são os dois lados do funil que
+  // interessa: quantos começam a cadastrar e quantos chegam ao fim.
+  React.useEffect(() => {
+    track(EVENTOS.IMOVEL_FORM_ABERTO);
+  }, []);
+
   // Campos de endereço
   const [cep, setCep] = useState('');
   const [street, setStreet] = useState('');
@@ -280,6 +288,15 @@ const AddPropertyScreen = ({ navigation }) => {
       // Se o plano atual é basic, sempre sugere premium
       const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount + 1);
 
+      // Pior momento possível de bater na parede: o formulário já está
+      // preenchido. Vale separar de quem bate no "+" antes de digitar.
+      track(EVENTOS.LIMITE_ATINGIDO, {
+        origem: 'form_preenchido',
+        plano_atual: currentPlan,
+        plano_necessario: requiredPlan,
+        qtd_imoveis: propertyCount,
+      });
+
       setSubscriptionInfo({
         currentPlan,
         propertyCount,
@@ -385,6 +402,13 @@ const AddPropertyScreen = ({ navigation }) => {
     if (insertError) {
       Alert.alert('Erro ao adicionar propriedade', insertError.message);
     } else {
+      // Primeiro momento de valor real do app.
+      track(EVENTOS.IMOVEL_CRIADO, {
+        tem_foto: images.length > 0,
+        qtd_fotos: images.length,
+        tem_aluguel: Boolean(parsedAluguel),
+      });
+
       // Invalidar cache de propriedades
       await removeCache(CACHE_KEYS.PROPERTIES);
 
