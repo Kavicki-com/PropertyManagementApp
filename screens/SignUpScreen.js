@@ -11,140 +11,34 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
-  Modal,
 } from "react-native";
 import { supabase } from "../lib/supabase";
 import { MaterialIcons } from "@expo/vector-icons";
 import { colors, typography, radii } from "../theme";
 import Constants from "expo-constants";
 import {
-  isValidCPF,
   isValidEmail,
-  isValidPhone,
   validatePassword,
   getPasswordStrength,
-  filterOnlyLetters,
-  filterOnlyNumbers,
 } from "../lib/validation";
-import { SelectList } from "react-native-dropdown-select-list";
 
 const SignUpScreen = ({ navigation }) => {
-  // Dados básicos
-  const [fullName, setFullName] = useState("");
+  // Cadastro enxuto: e-mail, senha e aceite dos termos. Nome, CPF, RG,
+  // nacionalidade, estado civil, profissão, telefone e tipo de conta saíram
+  // daqui — eram doze campos antes do primeiro segundo de valor, e cinco dos
+  // nove usuários reais abandonaram sem criar um imóvel. Tudo isso é
+  // preenchível depois em "Editar perfil".
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
-  // Novos campos
-  const [cpf, setCpf] = useState("");
-  const [rg, setRg] = useState("");
-  const [nationality, setNationality] = useState("");
-  const [maritalStatus, setMaritalStatus] = useState("");
-  const [profession, setProfession] = useState("");
-  const [phone, setPhone] = useState("");
-
-  // Tipo de conta
-  const [accountType, setAccountType] = useState(null);
-
-  // Termos
   const [termsAccepted, setTermsAccepted] = useState(false);
-
-  // Modal de informação do tipo de conta
-  const [accountTypeInfoVisible, setAccountTypeInfoVisible] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Formatação de CPF
-  const formatCPF = (text) => {
-    const numbers = text.replace(/\D/g, "");
-    if (numbers.length <= 11) {
-      if (numbers.length <= 3) return numbers;
-      if (numbers.length <= 6)
-        return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
-      if (numbers.length <= 9)
-        return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
-      return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`;
-    }
-    return text;
-  };
-
-  // Formatação de telefone
-  const formatPhone = (text) => {
-    const numbers = text.replace(/\D/g, "");
-    if (numbers.length <= 10) {
-      if (numbers.length <= 2) return numbers;
-      if (numbers.length <= 6)
-        return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
-      return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
-    } else if (numbers.length <= 11) {
-      if (numbers.length <= 2) return numbers;
-      if (numbers.length <= 7)
-        return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
-      return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
-    }
-    return text;
-  };
-
-  // Mapeia valores do frontend para valores aceitos pelo banco de dados
-  // Tenta múltiplas variações possíveis
-  const mapAccountTypeToDB = (frontendValue) => {
-    // Primeira tentativa: valores em inglês (mais comum em constraints)
-    const mappingEnglish = {
-      "Pessoa Física": "individual",
-      Empresa: "company",
-      Assessoria: "advisory",
-    };
-
-    // Segunda tentativa: valores em português sem espaços
-    const mappingPortuguese = {
-      "Pessoa Física": "pessoa_fisica",
-      Empresa: "empresa",
-      Assessoria: "assessoria",
-    };
-
-    // Terceira tentativa: valores em português sem underscore
-    const mappingPortugueseNoUnderscore = {
-      "Pessoa Física": "pessoafisica",
-      Empresa: "empresa",
-      Assessoria: "assessoria",
-    };
-
-    // Por padrão, tenta inglês primeiro (mais comum)
-    if (!frontendValue) {
-      return null;
-    }
-
-    const mapped =
-      mappingEnglish[frontendValue] ||
-      mappingPortuguese[frontendValue] ||
-      mappingPortugueseNoUnderscore[frontendValue] ||
-      frontendValue;
-
-    return mapped;
-  };
-
-  // Mapeia valores do banco de dados para valores do frontend
-  const mapAccountTypeFromDB = (dbValue) => {
-    const mapping = {
-      individual: "Pessoa Física",
-      pessoa_fisica: "Pessoa Física",
-      pessoa_física: "Pessoa Física",
-      Pessoa: "Pessoa Física",
-      company: "Empresa",
-      empresa: "Empresa",
-      advisory: "Assessoria",
-      assessoria: "Assessoria",
-    };
-    return mapping[dbValue] || dbValue;
-  };
-
   const validate = () => {
     const newErrors = {};
 
-    if (!fullName.trim()) {
-      newErrors.fullName = "Nome completo é obrigatório";
-    }
     if (!email.trim()) {
       newErrors.email = "Email é obrigatório";
     } else if (!isValidEmail(email)) {
@@ -165,19 +59,10 @@ const SignUpScreen = ({ navigation }) => {
     if (password !== confirmPassword) {
       newErrors.confirmPassword = "As senhas não coincidem";
     }
-    // CPF é opcional, mas se preenchido deve ser válido
-    if (cpf.trim() && !isValidCPF(cpf)) {
-      newErrors.cpf = "CPF inválido. Verifique os dígitos.";
-    }
-    // RG, Nacionalidade, Estado Civil e Profissão são opcionais (sem validação)
-
-    // Telefone é opcional, mas se preenchido deve ser válido
-    if (phone.trim() && !isValidPhone(phone)) {
-      newErrors.phone = "Telefone inválido. Use formato (00) 00000-0000";
-    }
-    if (!accountType) {
-      newErrors.accountType = "Tipo de conta é obrigatório";
-    }
+    // Nome, CPF, RG, nacionalidade, estado civil, profissão, telefone e tipo de
+    // conta saíram do cadastro: nada disso é necessário para o primeiro imóvel,
+    // e as colunas aceitam NULL. O usuário preenche em "Editar perfil" quando
+    // fizer diferença.
     if (!termsAccepted) {
       newErrors.termsAccepted = "Você deve aceitar os termos de uso";
     }
@@ -230,9 +115,6 @@ const SignUpScreen = ({ navigation }) => {
         email: email,
         password: password,
         options: {
-          data: {
-            full_name: fullName,
-          },
           emailRedirectTo: redirectUrl,
         },
       });
@@ -310,22 +192,13 @@ const SignUpScreen = ({ navigation }) => {
       // 2. Criar perfil usando função do Supabase que bypassa RLS
       // Esta função usa SECURITY DEFINER para contornar problemas de RLS durante o cadastro
 
-      // Mapeia account_type se existir
-      const mappedAccountType = accountType
-        ? mapAccountTypeToDB(accountType)
-        : null;
-
-      // Prepara os parâmetros da função
+      // O cadastro grava só o que ele coleta. Os demais campos têm DEFAULT na
+      // função e são preenchidos depois, em "Editar perfil" — o upsert usa
+      // COALESCE, então uma edição posterior não apaga o que já existe.
       const profileParams = {
         p_user_id: authData.user.id,
-        p_full_name: fullName.trim(),
-        p_phone: phone.trim() || null,
-        p_cpf: cpf.trim() || null,
-        p_rg: rg.trim() || null,
-        p_nationality: nationality.trim() || null,
-        p_marital_status: maritalStatus.trim() || null,
-        p_profession: profession.trim() || null,
-        p_account_type: mappedAccountType,
+        p_full_name: null,
+        p_phone: null,
         p_terms_accepted: true,
         p_terms_accepted_at: new Date().toISOString(),
       };
@@ -435,22 +308,8 @@ const SignUpScreen = ({ navigation }) => {
           return;
         }
 
-        // Se for erro de constraint de account_type, mostra mensagem específica
-        if (
-          functionError.code === "23514" &&
-          functionError.message &&
-          functionError.message.includes("account_type_check")
-        ) {
-          Alert.alert(
-            "Erro no Tipo de Conta",
-            "O valor do tipo de conta não é válido. Por favor, verifique a configuração do banco de dados.\n\nValor tentado: " +
-            (accountType ? mapAccountTypeToDB(accountType) : "null") +
-            "\n\nErro: " +
-            functionError.message,
-          );
-          setLoading(false);
-          return;
-        }
+        // O cadastro não manda mais account_type, então a constraint
+        // account_type_check deixou de ser alcançável por aqui.
 
         // Se a função não existir, tenta método alternativo
         if (
@@ -461,8 +320,6 @@ const SignUpScreen = ({ navigation }) => {
           // Método alternativo: tenta inserir apenas campos básicos
           const basicProfileData = {
             id: authData.user.id,
-            full_name: fullName,
-            phone: phone.replace(/\D/g, ""),
           };
 
           const { error: basicError } = await supabase
@@ -517,17 +374,10 @@ const SignUpScreen = ({ navigation }) => {
               return;
             }
           } else {
-            // Tenta atualizar campos adicionais depois
+            // Registra o aceite dos termos, que é o único dado além do login
+            // que o cadastro coleta.
             try {
               const extendedData = {
-                cpf: cpf.replace(/\D/g, ""),
-                rg: rg,
-                nationality: nationality,
-                marital_status: maritalStatus,
-                profession: profession,
-                account_type: accountType
-                  ? mapAccountTypeToDB(accountType)
-                  : null,
                 terms_accepted: true,
                 terms_accepted_at: new Date().toISOString(),
               };
@@ -673,22 +523,6 @@ const SignUpScreen = ({ navigation }) => {
           <Text style={styles.sectionTitle}>Dados de Acesso</Text>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Nome Completo *</Text>
-            <TextInput
-              style={[styles.input, errors.fullName && styles.inputError]}
-              placeholder="Digite seu nome completo"
-              value={fullName}
-              onChangeText={(text) => {
-                setFullName(filterOnlyLetters(text));
-                if (errors.fullName) setErrors({ ...errors, fullName: null });
-              }}
-            />
-            {errors.fullName && (
-              <Text style={styles.errorText}>{errors.fullName}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputContainer}>
             <Text style={styles.label}>Email *</Text>
             <TextInput
               style={[styles.input, errors.email && styles.inputError]}
@@ -783,196 +617,6 @@ const SignUpScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dados Pessoais</Text>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>CPF</Text>
-            <TextInput
-              style={[styles.input, errors.cpf && styles.inputError]}
-              placeholder="000.000.000-00"
-              value={cpf}
-              onChangeText={(text) => {
-                setCpf(formatCPF(filterOnlyNumbers(text)));
-                if (errors.cpf) setErrors({ ...errors, cpf: null });
-              }}
-              keyboardType="numeric"
-              maxLength={14}
-            />
-            {errors.cpf && <Text style={styles.errorText}>{errors.cpf}</Text>}
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>RG</Text>
-            <TextInput
-              style={[styles.input, errors.rg && styles.inputError]}
-              placeholder="Digite seu RG"
-              value={rg}
-              onChangeText={(text) => {
-                setRg(filterOnlyNumbers(text));
-                if (errors.rg) setErrors({ ...errors, rg: null });
-              }}
-              keyboardType="numeric"
-            />
-            {errors.rg && <Text style={styles.errorText}>{errors.rg}</Text>}
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Nacionalidade</Text>
-            <TextInput
-              style={[styles.input, errors.nationality && styles.inputError]}
-              placeholder="Ex: Brasileiro"
-              value={nationality}
-              onChangeText={(text) => {
-                setNationality(filterOnlyLetters(text));
-                if (errors.nationality)
-                  setErrors({ ...errors, nationality: null });
-              }}
-            />
-            {errors.nationality && (
-              <Text style={styles.errorText}>{errors.nationality}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Estado Civil</Text>
-            <SelectList
-              setSelected={(val) => {
-                setMaritalStatus(val);
-                if (errors.maritalStatus)
-                  setErrors({ ...errors, maritalStatus: null });
-              }}
-              data={[
-                { key: "Solteiro", value: "Solteiro" },
-                { key: "Casado", value: "Casado" },
-                { key: "União Estável", value: "União Estável" },
-                { key: "Divorciado", value: "Divorciado" },
-              ]}
-              save="value"
-              placeholder="Selecione o estado civil"
-              defaultOption={
-                maritalStatus
-                  ? { key: maritalStatus, value: maritalStatus }
-                  : undefined
-              }
-              boxStyles={[
-                styles.dropdown,
-                errors.maritalStatus && styles.inputError,
-              ]}
-              inputStyles={styles.dropdownText}
-              dropdownStyles={styles.dropdownContainer}
-              search={false}
-            />
-            {errors.maritalStatus && (
-              <Text style={styles.errorText}>{errors.maritalStatus}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Profissão</Text>
-            <TextInput
-              style={[styles.input, errors.profession && styles.inputError]}
-              placeholder="Ex: Engenheiro, Professora"
-              value={profession}
-              onChangeText={(text) => {
-                setProfession(filterOnlyLetters(text));
-                if (errors.profession)
-                  setErrors({ ...errors, profession: null });
-              }}
-            />
-            {errors.profession && (
-              <Text style={styles.errorText}>{errors.profession}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Telefone</Text>
-            <TextInput
-              style={[styles.input, errors.phone && styles.inputError]}
-              placeholder="(00) 00000-0000"
-              value={phone}
-              onChangeText={(text) => {
-                setPhone(formatPhone(filterOnlyNumbers(text)));
-                if (errors.phone) setErrors({ ...errors, phone: null });
-              }}
-              keyboardType="phone-pad"
-              maxLength={15}
-            />
-            {errors.phone && (
-              <Text style={styles.errorText}>{errors.phone}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputContainer}>
-            <View style={styles.labelWithIcon}>
-              <Text style={styles.label}>Tipo de Conta *</Text>
-              <TouchableOpacity
-                onPress={() => setAccountTypeInfoVisible(true)}
-                style={styles.infoIcon}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <MaterialIcons
-                  name="info-outline"
-                  size={16}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.radioContainer}>
-              <TouchableOpacity
-                style={styles.radioOption}
-                onPress={() => {
-                  setAccountType("Pessoa Física");
-                  if (errors.accountType)
-                    setErrors({ ...errors, accountType: null });
-                }}
-              >
-                <View style={styles.radioButton}>
-                  {accountType === "Pessoa Física" && (
-                    <View style={styles.radioButtonInner} />
-                  )}
-                </View>
-                <Text style={styles.radioLabel}>Pessoa Física</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.radioOption}
-                onPress={() => {
-                  setAccountType("Empresa");
-                  if (errors.accountType)
-                    setErrors({ ...errors, accountType: null });
-                }}
-              >
-                <View style={styles.radioButton}>
-                  {accountType === "Empresa" && (
-                    <View style={styles.radioButtonInner} />
-                  )}
-                </View>
-                <Text style={styles.radioLabel}>Empresa</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.radioOption}
-                onPress={() => {
-                  setAccountType("Assessoria");
-                  if (errors.accountType)
-                    setErrors({ ...errors, accountType: null });
-                }}
-              >
-                <View style={styles.radioButton}>
-                  {accountType === "Assessoria" && (
-                    <View style={styles.radioButtonInner} />
-                  )}
-                </View>
-                <Text style={styles.radioLabel}>Assessoria</Text>
-              </TouchableOpacity>
-            </View>
-            {errors.accountType && (
-              <Text style={styles.errorText}>{errors.accountType}</Text>
-            )}
-          </View>
-        </View>
-
-        <View style={styles.section}>
           <View style={styles.termsContainer}>
             <TouchableOpacity
               style={styles.checkboxContainer}
@@ -1028,82 +672,6 @@ const SignUpScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      {/* Modal de Informação do Tipo de Conta */}
-      <Modal
-        visible={accountTypeInfoVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setAccountTypeInfoVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <MaterialIcons
-                name="info-outline"
-                size={32}
-                color={colors.primary}
-              />
-              <Text style={styles.modalTitle}>Tipo de Conta</Text>
-            </View>
-
-            <View style={styles.modalContent}>
-              <Text style={styles.modalText}>
-                O tipo de conta é apenas uma informação para entender melhor as suas preferências.
-              </Text>
-
-              <View style={styles.accountTypeList}>
-                <View style={styles.accountTypeItem}>
-                  <MaterialIcons
-                    name="person"
-                    size={20}
-                    color={colors.primary}
-                  />
-                  <Text style={styles.accountTypeItemText}>
-                    <Text style={styles.accountTypeItemTitle}>
-                      Pessoa Física:{" "}
-                    </Text>
-                    Ideal para proprietários individuais
-                  </Text>
-                </View>
-
-                <View style={styles.accountTypeItem}>
-                  <MaterialIcons
-                    name="business"
-                    size={20}
-                    color={colors.primary}
-                  />
-                  <Text style={styles.accountTypeItemText}>
-                    <Text style={styles.accountTypeItemTitle}>Empresa: </Text>
-                    Para imobiliárias e empresas
-                  </Text>
-                </View>
-
-                <View style={styles.accountTypeItem}>
-                  <MaterialIcons
-                    name="apartment"
-                    size={20}
-                    color={colors.primary}
-                  />
-                  <Text style={styles.accountTypeItemText}>
-                    <Text style={styles.accountTypeItemTitle}>
-                      Assessoria:{" "}
-                    </Text>
-                    Para prestadores de serviços
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => setAccountTypeInfoVisible(false)}
-            >
-              <Text style={styles.modalButtonText}>Entendi</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -1256,142 +824,6 @@ const styles = StyleSheet.create({
   signInLink: {
     color: colors.primary,
     fontWeight: "bold",
-  },
-  radioContainer: {
-    marginTop: 8,
-  },
-  radioOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    paddingVertical: 8,
-  },
-  radioButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: colors.borderSubtle,
-    marginRight: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioButtonInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.primary,
-  },
-  radioLabel: {
-    ...typography.body,
-    fontSize: 16,
-  },
-  dropdown: {
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.sm,
-    minHeight: 50,
-    overflow: "hidden",
-    width: "100%",
-    backgroundColor: colors.surface,
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: colors.textPrimary,
-  },
-  dropdownContainer: {
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.sm,
-    backgroundColor: colors.surface,
-  },
-  labelWithIcon: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  infoIcon: {
-    marginLeft: 6,
-    marginBottom: 4,
-  },
-  infoIconInline: {
-    paddingHorizontal: 2,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalContainer: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: 24,
-    width: "100%",
-    maxWidth: 400,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    gap: 12,
-  },
-  modalTitle: {
-    ...typography.screenTitle,
-    fontSize: 22,
-    flex: 1,
-  },
-  modalContent: {
-    marginBottom: 20,
-  },
-  modalText: {
-    ...typography.body,
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 16,
-    color: colors.textSecondary,
-  },
-  accountTypeList: {
-    gap: 12,
-  },
-  accountTypeItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: colors.primarySoft,
-    borderRadius: radii.sm,
-  },
-  accountTypeItemText: {
-    ...typography.body,
-    fontSize: 14,
-    lineHeight: 20,
-    flex: 1,
-    color: colors.textSecondary,
-  },
-  accountTypeItemTitle: {
-    ...typography.bodyStrong,
-    fontSize: 14,
-    color: colors.textPrimary,
-  },
-  modalButton: {
-    backgroundColor: colors.primary,
-    padding: 14,
-    borderRadius: radii.pill,
-    alignItems: "center",
-  },
-  modalButtonText: {
-    ...typography.button,
-    color: colors.surface,
-    fontSize: 16,
-    fontWeight: "600",
   },
 });
 
