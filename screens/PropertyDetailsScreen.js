@@ -29,6 +29,7 @@ import UpgradeModal from '../components/UpgradeModal';
 import { getCache, setCache, removeCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
 import { PropertyDetailsSkeleton } from '../components/SkeletonLoader';
 
+import { formatCurrency } from '../lib/formatters';
 const PropertyDetailsScreen = ({ route, navigation }) => {
   const { theme } = useAccessibilityTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -452,9 +453,6 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  const formatCurrency = (value) => {
-    return `R$${Number(value || 0).toFixed(2)}`;
-  };
 
   const formatDate = (raw) => {
     if (!raw) return 'Sem data';

@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SelectList } from 'react-native-dropdown-select-list';
 import { supabase } from '../lib/supabase';
@@ -281,11 +282,15 @@ const AddTransactionScreen = ({ route, navigation }) => {
         <Text style={styles.header}>Adicionar Transação</Text>
         <View style={{ width: 24 }} />
       </View>
-      <ScrollView
-        style={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-        nestedScrollEnabled={true}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <ScrollView
+          style={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled={true}
+        >
 
         {/* Property - Fixo apenas no modo aluguel (quando veio da tela de detalhes do inquilino) */}
         <View style={styles.inputGroup}>
@@ -428,7 +433,8 @@ const AddTransactionScreen = ({ route, navigation }) => {
             <Text style={styles.addButtonText}>Adicionar Transação</Text>
           )}
         </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <UpgradeModal
         visible={showUpgradeModal}

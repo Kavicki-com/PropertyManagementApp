@@ -26,6 +26,7 @@ import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { getCache, setCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
 import { PropertiesListSkeleton } from '../components/SkeletonLoader';
 
+import { formatCurrency } from '../lib/formatters';
 // Função para formatar endereço na listagem
 const formatPropertyAddress = (item) => {
   if (item.street) {
@@ -38,10 +39,6 @@ const formatPropertyAddress = (item) => {
 };
 
 // Função para formatar valor monetário
-const formatCurrency = (value) => {
-  if (!value && value !== 0) return 'R$ 0,00';
-  return `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
-};
 
 const PropertyItem = React.memo(({ item, onPress, isBlocked, styles, theme }) => {
   const hasTenant = item.tenants && item.tenants.length > 0;

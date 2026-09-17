@@ -25,6 +25,7 @@ import { checkAndSyncSubscriptionStatus } from '../lib/iapService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SkeletonLoader, { PropertyCardSkeleton, TenantCardSkeleton } from '../components/SkeletonLoader';
 
+import { formatCurrency } from '../lib/formatters';
 // Componente de gráfico de donut com cores por tipo de imóvel
 const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30, theme, styles }) => {
   const { colors } = theme;
@@ -178,9 +179,6 @@ const DashboardScreen = ({ navigation }) => {
   const [blockedPropertiesCount, setBlockedPropertiesCount] = useState(0);
   const isFocused = useIsFocused();
 
-  const formatCurrency = (value) => {
-    return `R$${Number(value || 0).toFixed(2)}`;
-  };
 
   const formatDate = (raw) => {
     if (!raw) return 'Sem data';
@@ -231,6 +229,10 @@ const DashboardScreen = ({ navigation }) => {
       .slice(0, 5);
 
     setUpcomingRents(sorted);
+
+    // Devolve o valor calculado: quem grava o cache não pode ler o state,
+    // que nesta renderização ainda é o valor antigo.
+    return sorted;
   };
 
   const computeNextMonthRents = (tenants, contractsMap) => {
@@ -265,6 +267,8 @@ const DashboardScreen = ({ navigation }) => {
     // Ordenar por data
     const sorted = items.sort((a, b) => a.days - b.days);
     setNextMonthRents(sorted);
+
+    return sorted;
   };
 
   const fetchDashboardData = async (useCache = true) => {
@@ -415,9 +419,12 @@ const DashboardScreen = ({ navigation }) => {
         occupancyRate: occupancyRate,
       });
 
+      let computedUpcomingRents = [];
+      let computedNextMonthRents = [];
+
       if (tenantsData) {
-        computeUpcomingRents(tenantsData, contractsMap || {});
-        computeNextMonthRents(tenantsData, contractsMap || {});
+        computedUpcomingRents = computeUpcomingRents(tenantsData, contractsMap || {});
+        computedNextMonthRents = computeNextMonthRents(tenantsData, contractsMap || {});
       } else {
         setUpcomingRents([]);
         setNextMonthRents([]);
@@ -493,8 +500,8 @@ const DashboardScreen = ({ navigation }) => {
           occupancyRate: occupancyRate,
         },
         occupancyByType: occupancyByTypeData,
-        upcomingRents,
-        nextMonthRents,
+        upcomingRents: computedUpcomingRents,
+        nextMonthRents: computedNextMonthRents,
         recentTransactions: recentTransactionsData || [],
         subscription: subscriptionData,
         subscriptionStatus: status,

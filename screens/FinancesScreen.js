@@ -13,6 +13,7 @@ import UpgradeModal from '../components/UpgradeModal';
 import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 import SkeletonLoader, { OverviewSkeleton, FinancesListSkeleton } from '../components/SkeletonLoader';
 
+import { formatCurrency } from '../lib/formatters';
 const FinancesScreen = ({ navigation }) => {
   const { theme } = useAccessibilityTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -88,9 +89,6 @@ const FinancesScreen = ({ navigation }) => {
     });
   }, [transactions, searchQuery]);
 
-  const formatCurrency = (value) => {
-    return `R$${Number(value || 0).toFixed(2)}`;
-  };
 
   const formatDate = (raw) => {
     if (!raw) return 'Sem data';

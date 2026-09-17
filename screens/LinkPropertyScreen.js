@@ -13,11 +13,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { PropertiesListSkeleton } from '../components/SkeletonLoader';
 
+import { formatCurrency } from '../lib/formatters';
 // Função para formatar valor monetário
-const formatCurrency = (value) => {
-  if (!value && value !== 0) return 'R$ 0,00';
-  return `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
-};
 
 const PropertyItem = ({ item, onPress }) => {
   const isOccupied = item.tenants && item.tenants.length > 0;

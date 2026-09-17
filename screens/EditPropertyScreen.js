@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SelectList } from 'react-native-dropdown-select-list';
@@ -390,7 +392,11 @@ const EditPropertyScreen = ({ route, navigation }) => {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         <Text style={styles.sectionTitle}>Endereço</Text>
 
         <View style={styles.inputGroup}>
@@ -622,7 +628,8 @@ const EditPropertyScreen = ({ route, navigation }) => {
         <TouchableOpacity style={styles.updateButton} onPress={handleUpdateProperty} disabled={loading}>
           {loading ? <ActivityIndicator color={theme.colors.surface} /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
         </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };

@@ -5,7 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from './lib/supabase';
-import { View, ActivityIndicator, Linking as RNLinking, AppState } from 'react-native';
+import { View, ActivityIndicator, Linking as RNLinking, AppState, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { colors, typography } from './theme';
@@ -176,8 +176,13 @@ export default function App() {
       // Configura listeners
       cleanup = setupNotificationListeners(navigationRef.current);
 
-      // Verifica e cria notificações ao abrir o app
+      // Verifica e cria notificações ao abrir o app, no máximo 1x por dia.
+      // Sem essa guarda a RPC rodava a cada montagem e a cada renovação de
+      // token, que é o que enchia a tabela de notificações duplicadas.
       setTimeout(async () => {
+        if (!(await shouldCheckNotifications())) {
+          return;
+        }
         await checkAndCreateNotifications();
         // Salva data da última verificação
         await AsyncStorage.setItem(LAST_NOTIFICATION_CHECK_KEY, new Date().toISOString().split('T')[0]);
