@@ -26,3 +26,13 @@ plans/tenants-view.md
 .aider*
 
 .agents
+
+# macOS
+.DS_Store
+
+# Saida de build (expo export).
+# As duas paginas de auth sao escritas a mao e ficam versionadas: o Supabase
+# redireciona para elas na confirmacao de e-mail e na redefinicao de senha.
+dist/*
+!dist/confirm-email.html
+!dist/reset-password.html
