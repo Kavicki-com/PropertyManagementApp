@@ -1,6 +1,7 @@
 // screens/FinancesScreen.js
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { fetchAllFinances, calculateOverview } from '../lib/financesService';
@@ -13,7 +14,12 @@ import UpgradeModal from '../components/UpgradeModal';
 import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 import SkeletonLoader, { OverviewSkeleton, FinancesListSkeleton } from '../components/SkeletonLoader';
 
+import { formatCurrency } from '../lib/formatters';
 const FinancesScreen = ({ navigation }) => {
+  // Topo seguro real do aparelho, em vez do `paddingTop: 50` que estava no
+  // StyleSheet: 20pt num iPhone SE, 59pt num com Dynamic Island.
+  const insets = useSafeAreaInsets();
+
   const { theme } = useAccessibilityTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [transactions, setTransactions] = useState([]);
@@ -88,9 +94,6 @@ const FinancesScreen = ({ navigation }) => {
     });
   }, [transactions, searchQuery]);
 
-  const formatCurrency = (value) => {
-    return `R$${Number(value || 0).toFixed(2)}`;
-  };
 
   const formatDate = (raw) => {
     if (!raw) return 'Sem data';
@@ -174,7 +177,7 @@ const FinancesScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
         <Text style={styles.header}>Finanças</Text>
       </View>
       <ScrollView style={styles.scrollContainer}>
@@ -441,7 +444,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   headerContainer: {
     padding: 15,
-    paddingTop: 50,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSubtle,

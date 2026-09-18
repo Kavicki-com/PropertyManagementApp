@@ -1,5 +1,6 @@
 // screens/EditPropertyScreen.js
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   Text,
@@ -9,6 +10,8 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SelectList } from 'react-native-dropdown-select-list';
@@ -36,6 +39,10 @@ import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 
 
 const EditPropertyScreen = ({ route, navigation }) => {
+  // Topo seguro real do aparelho, em vez do `paddingTop: 50` que estava no
+  // StyleSheet: 20pt num iPhone SE, 59pt num com Dynamic Island.
+  const insets = useSafeAreaInsets();
+
   const { theme } = useAccessibilityTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const { property } = route.params;
@@ -371,10 +378,10 @@ const EditPropertyScreen = ({ route, navigation }) => {
       .single();
 
     if (fetchError || !updatedProperty) {
-      Alert.alert('Sucesso', 'Propriedade atualizada!');
+      Alert.alert('Sucesso', 'Imóvel atualizado!');
       navigation.goBack();
     } else {
-      Alert.alert('Sucesso', 'Propriedade atualizada!');
+      Alert.alert('Sucesso', 'Imóvel atualizado!');
       navigation.replace('PropertyDetails', { property: updatedProperty });
     }
     setLoading(false);
@@ -382,15 +389,19 @@ const EditPropertyScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <MaterialIcons name="arrow-back-ios" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.header}>Editar Propriedade</Text>
+        <Text style={styles.header}>Editar Imóvel</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView style={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         <Text style={styles.sectionTitle}>Endereço</Text>
 
         <View style={styles.inputGroup}>
@@ -499,7 +510,7 @@ const EditPropertyScreen = ({ route, navigation }) => {
         <Text style={styles.sectionTitle}>Detalhes do Imóvel</Text>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Tipo de Propriedade *</Text>
+          <Text style={styles.label}>Tipo de Imóvel *</Text>
           <SelectList
             setSelected={(val) => setTypeValue(val)}
             data={typeItems}
@@ -622,7 +633,8 @@ const EditPropertyScreen = ({ route, navigation }) => {
         <TouchableOpacity style={styles.updateButton} onPress={handleUpdateProperty} disabled={loading}>
           {loading ? <ActivityIndicator color={theme.colors.surface} /> : <Text style={styles.buttonText}>Salvar Alterações</Text>}
         </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -641,7 +653,6 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 15,
-    paddingTop: 50,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSubtle,

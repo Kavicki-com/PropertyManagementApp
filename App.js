@@ -1,11 +1,12 @@
 import 'react-native-url-polyfill/auto';
 import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from './lib/supabase';
-import { View, ActivityIndicator, Linking as RNLinking, AppState } from 'react-native';
+import { View, ActivityIndicator, Linking as RNLinking, AppState, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { colors, typography } from './theme';
@@ -16,6 +17,7 @@ import {
   checkAndCreateNotifications,
 } from './lib/notificationsService';
 import { initializeIAP, disconnectIAP } from './lib/iapService';
+import { track, EVENTOS } from './lib/analytics';
 import { Platform } from 'react-native';
 
 // Telas
@@ -106,9 +108,21 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const navigationRef = useRef(null);
 
+  // Uma sessão por abertura do app. O onAuthStateChange dispara também em
+  // renovação de token, e contar renovação como sessão inflaria justamente a
+  // métrica que precisa ser confiável.
+  const sessaoRegistrada = useRef(false);
+
+  const registrarSessao = (sessaoAtual) => {
+    if (!sessaoAtual?.user || sessaoRegistrada.current) return;
+    sessaoRegistrada.current = true;
+    track(EVENTOS.SESSAO_INICIADA);
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      registrarSessao(session);
       setLoading(false);
     });
 
@@ -116,6 +130,13 @@ export default function App() {
       async (event, session) => {
         console.log('Auth state changed:', event, session ? 'has session' : 'no session');
         setSession(session);
+
+        if (event === 'SIGNED_IN') {
+          registrarSessao(session);
+        } else if (event === 'SIGNED_OUT') {
+          // Sair e entrar de novo é uma sessão nova.
+          sessaoRegistrada.current = false;
+        }
 
         if (event === 'PASSWORD_RECOVERY' && session) {
           // Usa um timeout para dar tempo à UI para re-renderizar com a nova sessão
@@ -176,8 +197,13 @@ export default function App() {
       // Configura listeners
       cleanup = setupNotificationListeners(navigationRef.current);
 
-      // Verifica e cria notificações ao abrir o app
+      // Verifica e cria notificações ao abrir o app, no máximo 1x por dia.
+      // Sem essa guarda a RPC rodava a cada montagem e a cada renovação de
+      // token, que é o que enchia a tabela de notificações duplicadas.
       setTimeout(async () => {
+        if (!(await shouldCheckNotifications())) {
+          return;
+        }
         await checkAndCreateNotifications();
         // Salva data da última verificação
         await AsyncStorage.setItem(LAST_NOTIFICATION_CHECK_KEY, new Date().toISOString().split('T')[0]);
@@ -424,13 +450,16 @@ export default function App() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+      <SafeAreaProvider>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </SafeAreaProvider>
     );
   }
 
   return (
+    <SafeAreaProvider>
     <NavigationContainer
       ref={navigationRef}
       linking={{
@@ -488,5 +517,6 @@ export default function App() {
         )}
       </Stack.Navigator>
     </NavigationContainer>
+    </SafeAreaProvider>
   );
 }

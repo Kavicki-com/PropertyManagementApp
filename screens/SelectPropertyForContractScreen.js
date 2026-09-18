@@ -16,11 +16,8 @@ import { PropertiesListSkeleton } from '../components/SkeletonLoader';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { fetchActiveContractByProperty } from '../lib/contractsService';
 
+import { formatCurrency } from '../lib/formatters';
 // Função para formatar valor monetário
-const formatCurrency = (value) => {
-  if (!value && value !== 0) return 'R$ 0,00';
-  return `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
-};
 
 const PropertyItem = ({ item, onPress, styles, theme }) => {
   const hasTenant = item.tenants && item.tenants.length > 0;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   Text,
@@ -20,12 +21,14 @@ import { supabase } from '../lib/supabase';
 import { useIsFocused } from '@react-navigation/native';
 import SearchBar from '../components/SearchBar';
 import { getBlockedProperties, getUserSubscription, getActivePropertiesCount, getRequiredPlan, canAddProperty } from '../lib/subscriptionService';
+import { track, EVENTOS } from '../lib/analytics';
 import UpgradeModal from '../components/UpgradeModal';
 import { colors, radii, typography } from '../theme'; // Keep for fallbacks in hooks if needed, or remove if unused. Let's remove if unused.
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { getCache, setCache, CACHE_KEYS, CACHE_TTL } from '../lib/cacheService';
 import { PropertiesListSkeleton } from '../components/SkeletonLoader';
 
+import { formatCurrency } from '../lib/formatters';
 // Função para formatar endereço na listagem
 const formatPropertyAddress = (item) => {
   if (item.street) {
@@ -38,10 +41,6 @@ const formatPropertyAddress = (item) => {
 };
 
 // Função para formatar valor monetário
-const formatCurrency = (value) => {
-  if (!value && value !== 0) return 'R$ 0,00';
-  return `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
-};
 
 const PropertyItem = React.memo(({ item, onPress, isBlocked, styles, theme }) => {
   const hasTenant = item.tenants && item.tenants.length > 0;
@@ -102,6 +101,10 @@ const PropertyItem = React.memo(({ item, onPress, isBlocked, styles, theme }) =>
 });
 
 const PropertiesScreen = ({ navigation }) => {
+  // Topo seguro real do aparelho, em vez do `paddingTop: 50` que estava no
+  // StyleSheet: 20pt num iPhone SE, 59pt num com Dynamic Island.
+  const insets = useSafeAreaInsets();
+
   const { theme } = useAccessibilityTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -205,6 +208,15 @@ const PropertiesScreen = ({ navigation }) => {
         // Se o plano atual é basic, sempre sugere premium
         const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount);
 
+        // Toque num imóvel que ficou bloqueado pelo limite — sintoma diferente
+        // do "+": aqui a pessoa perdeu acesso a algo que já era dela.
+        track(EVENTOS.LIMITE_ATINGIDO, {
+          origem: 'imovel_bloqueado',
+          plano_atual: currentPlan,
+          plano_necessario: requiredPlan,
+          qtd_imoveis: propertyCount,
+        });
+
         setSubscriptionInfo({
           currentPlan,
           propertyCount,
@@ -233,6 +245,15 @@ const PropertiesScreen = ({ navigation }) => {
       const currentPlan = subscription?.subscription_plan || 'free';
       // Se o plano atual é basic, sempre sugere premium
       const requiredPlan = currentPlan === 'basic' ? 'premium' : getRequiredPlan(propertyCount + 1);
+
+      // O toque no "+" bloqueado é o evento que o plano pede para medir antes
+      // de decidir qualquer coisa sobre o paywall.
+      track(EVENTOS.LIMITE_ATINGIDO, {
+        origem: 'lista_imoveis',
+        plano_atual: currentPlan,
+        plano_necessario: requiredPlan,
+        qtd_imoveis: propertyCount,
+      });
 
       setSubscriptionInfo({
         currentPlan,
@@ -320,8 +341,8 @@ const PropertiesScreen = ({ navigation }) => {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
-        <View style={styles.headerContainer}>
-          <Text style={styles.header}>Propriedades</Text>
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
+          <Text style={styles.header}>Imóveis</Text>
         </View>
 
         {loading && properties.length === 0 ? (
@@ -636,7 +657,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   headerContainer: {
     padding: 15,
-    paddingTop: 50,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSubtle || '#ddd',

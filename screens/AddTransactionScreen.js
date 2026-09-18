@@ -1,5 +1,6 @@
 // screens/AddTransactionScreen.js
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   Text,
@@ -10,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SelectList } from 'react-native-dropdown-select-list';
 import { supabase } from '../lib/supabase';
@@ -21,6 +23,10 @@ import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 
 const AddTransactionScreen = ({ route, navigation }) => {
+  // Topo seguro real do aparelho, em vez do `paddingTop: 50` que estava no
+  // StyleSheet: 20pt num iPhone SE, 59pt num com Dynamic Island.
+  const insets = useSafeAreaInsets();
+
   const { theme } = useAccessibilityTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -274,22 +280,26 @@ const AddTransactionScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <MaterialIcons name="arrow-back-ios" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.header}>Adicionar Transação</Text>
         <View style={{ width: 24 }} />
       </View>
-      <ScrollView
-        style={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-        nestedScrollEnabled={true}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <ScrollView
+          style={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled={true}
+        >
 
         {/* Property - Fixo apenas no modo aluguel (quando veio da tela de detalhes do inquilino) */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Propriedade</Text>
+          <Text style={styles.label}>Imóvel</Text>
           {isRentMode ? (
             <View style={[styles.input, styles.disabledInput]}>
               <Text style={styles.disabledText}>{propertyAddress || 'Carregando...'}</Text>
@@ -428,7 +438,8 @@ const AddTransactionScreen = ({ route, navigation }) => {
             <Text style={styles.addButtonText}>Adicionar Transação</Text>
           )}
         </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <UpgradeModal
         visible={showUpgradeModal}
@@ -461,7 +472,6 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 15,
-    paddingTop: 50,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSubtle,

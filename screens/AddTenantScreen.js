@@ -1,5 +1,6 @@
 // screens/AddTenantScreen.js
 import React, { useState } from 'react';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   Text,
@@ -22,6 +23,10 @@ import { SelectList } from 'react-native-dropdown-select-list';
 import { removeCache, CACHE_KEYS } from '../lib/cacheService';
 
 const AddTenantScreen = ({ route, navigation }) => {
+  // Topo seguro real do aparelho, em vez do `paddingTop: 50` que estava no
+  // StyleSheet: 20pt num iPhone SE, 59pt num com Dynamic Island.
+  const insets = useSafeAreaInsets();
+
   const { theme } = useAccessibilityTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const { preselectedPropertyId } = route.params || {};
@@ -184,7 +189,7 @@ const AddTenantScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <MaterialIcons name="arrow-back-ios" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
@@ -358,7 +363,6 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 15,
-    paddingTop: 50,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSubtle,

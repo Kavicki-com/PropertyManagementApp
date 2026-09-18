@@ -1,5 +1,6 @@
 // screens/TenantDetailsScreen.js
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   Text,
@@ -48,11 +49,8 @@ import {
 import UpgradeModal from "../components/UpgradeModal";
 import { TenantDetailsSkeleton } from "../components/SkeletonLoader";
 
+import { formatCurrency } from '../lib/formatters';
 // Função para formatar valor monetário
-const formatCurrency = (value) => {
-  if (!value && value !== 0) return "R$ 0,00";
-  return `R$ ${Number(value).toFixed(2).replace(".", ",")}`;
-};
 
 const createStyles = (theme) =>
   StyleSheet.create({
@@ -640,7 +638,6 @@ const createStyles = (theme) =>
       alignItems: "center",
       paddingHorizontal: 16,
       paddingVertical: 12,
-      paddingTop: 50,
       backgroundColor: "rgba(0, 0, 0, 0.8)",
       borderBottomWidth: 1,
       borderBottomColor: "rgba(255, 255, 255, 0.1)",
@@ -718,6 +715,10 @@ const createStyles = (theme) =>
   });
 
 const TenantDetailsScreen = ({ route, navigation }) => {
+  // O visualizador de documentos abre em tela cheia, por cima da barra de
+  // status: sem o topo seguro, o botão de fechar fica debaixo da ilha.
+  const insets = useSafeAreaInsets();
+
   const { tenant: initialTenant } = route.params;
   const { theme: accessibilityTheme, isLoading: themeLoading } =
     useAccessibilityTheme();
@@ -1863,7 +1864,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Contrato</Text>
 
-          {/* Propriedade vinculada */}
+          {/* Imóvel vinculado */}
 
           {tenant.properties ? (
             <TouchableOpacity activeOpacity={0.8} onPress={handleOpenProperty}>
@@ -2397,7 +2398,7 @@ const TenantDetailsScreen = ({ route, navigation }) => {
         <View style={styles.documentViewerOverlay}>
           <View style={styles.documentViewerContainer}>
             {/* Header */}
-            <View style={styles.documentViewerHeader}>
+            <View style={[styles.documentViewerHeader, { paddingTop: insets.top + 12 }]}>
               <Text style={styles.documentViewerTitle} numberOfLines={1}>
                 {selectedDocument
                   ? getDocumentTypeLabel(
