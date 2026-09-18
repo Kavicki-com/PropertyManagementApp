@@ -1,5 +1,6 @@
 // screens/SignUpScreen.js
 import React, { useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   Text,
@@ -13,6 +14,7 @@ import {
   ScrollView,
 } from "react-native";
 import { supabase } from "../lib/supabase";
+import { formatPhone } from "../lib/formatters";
 import { MaterialIcons } from "@expo/vector-icons";
 import { colors, typography, radii } from "../theme";
 import Constants from "expo-constants";
@@ -23,11 +25,17 @@ import {
 } from "../lib/validation";
 
 const SignUpScreen = ({ navigation }) => {
+  // Topo seguro real do aparelho, em vez do `paddingTop: 50` que estava no
+  // StyleSheet: 20pt num iPhone SE, 59pt num com Dynamic Island.
+  const insets = useSafeAreaInsets();
+
   // Cadastro enxuto: e-mail, senha e aceite dos termos. Nome, CPF, RG,
   // nacionalidade, estado civil, profissão, telefone e tipo de conta saíram
   // daqui — eram doze campos antes do primeiro segundo de valor, e cinco dos
   // nove usuários reais abandonaram sem criar um imóvel. Tudo isso é
   // preenchível depois em "Editar perfil".
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -38,6 +46,19 @@ const SignUpScreen = ({ navigation }) => {
 
   const validate = () => {
     const newErrors = {};
+
+    if (!fullName.trim()) {
+      newErrors.fullName = "Nome é obrigatório";
+    } else if (fullName.trim().length < 2) {
+      newErrors.fullName = "Digite seu nome";
+    }
+
+    // Telefone é opcional. Só validamos se a pessoa começou a digitar — um
+    // número pela metade é erro de digitação, campo vazio é uma escolha.
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length > 0 && phoneDigits.length < 10) {
+      newErrors.phone = "Telefone incompleto. Use DDD + número";
+    }
 
     if (!email.trim()) {
       newErrors.email = "Email é obrigatório";
@@ -59,10 +80,11 @@ const SignUpScreen = ({ navigation }) => {
     if (password !== confirmPassword) {
       newErrors.confirmPassword = "As senhas não coincidem";
     }
-    // Nome, CPF, RG, nacionalidade, estado civil, profissão, telefone e tipo de
-    // conta saíram do cadastro: nada disso é necessário para o primeiro imóvel,
-    // e as colunas aceitam NULL. O usuário preenche em "Editar perfil" quando
-    // fizer diferença.
+    // CPF, RG, nacionalidade, estado civil, profissão, telefone e tipo de conta
+    // saíram do cadastro: nada disso é necessário para o primeiro imóvel, e as
+    // colunas aceitam NULL. O usuário preenche em "Editar perfil" quando fizer
+    // diferença. O nome ficou: sem ele o app não tem como se dirigir à pessoa,
+    // e a conta parece vazia já na primeira tela.
     if (!termsAccepted) {
       newErrors.termsAccepted = "Você deve aceitar os termos de uso";
     }
@@ -192,13 +214,14 @@ const SignUpScreen = ({ navigation }) => {
       // 2. Criar perfil usando função do Supabase que bypassa RLS
       // Esta função usa SECURITY DEFINER para contornar problemas de RLS durante o cadastro
 
-      // O cadastro grava só o que ele coleta. Os demais campos têm DEFAULT na
-      // função e são preenchidos depois, em "Editar perfil" — o upsert usa
-      // COALESCE, então uma edição posterior não apaga o que já existe.
+      // O cadastro grava só o que ele coleta: nome e e-mail. Os demais campos
+      // têm DEFAULT na função e são preenchidos depois, em "Editar perfil" — o
+      // upsert usa COALESCE, então uma edição posterior não apaga o que já
+      // existe.
       const profileParams = {
         p_user_id: authData.user.id,
-        p_full_name: null,
-        p_phone: null,
+        p_full_name: fullName.trim(),
+        p_phone: phone.replace(/\D/g, "") || null,
         p_terms_accepted: true,
         p_terms_accepted_at: new Date().toISOString(),
       };
@@ -503,7 +526,7 @@ const SignUpScreen = ({ navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
@@ -520,7 +543,26 @@ const SignUpScreen = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dados de Acesso</Text>
+          <Text style={styles.sectionTitle}>Seus dados</Text>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Nome *</Text>
+            <TextInput
+              style={[styles.input, errors.fullName && styles.inputError]}
+              placeholder="Como podemos te chamar"
+              value={fullName}
+              onChangeText={(text) => {
+                setFullName(text);
+                if (errors.fullName) setErrors({ ...errors, fullName: null });
+              }}
+              autoCapitalize="words"
+              autoComplete="name"
+              returnKeyType="next"
+            />
+            {errors.fullName && (
+              <Text style={styles.errorText}>{errors.fullName}</Text>
+            )}
+          </View>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email *</Text>
@@ -537,6 +579,25 @@ const SignUpScreen = ({ navigation }) => {
             />
             {errors.email && (
               <Text style={styles.errorText}>{errors.email}</Text>
+            )}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Telefone</Text>
+            <TextInput
+              style={[styles.input, errors.phone && styles.inputError]}
+              placeholder="(00) 00000-0000 — opcional"
+              value={phone}
+              onChangeText={(text) => {
+                setPhone(formatPhone(text));
+                if (errors.phone) setErrors({ ...errors, phone: null });
+              }}
+              keyboardType="phone-pad"
+              autoComplete="tel"
+              maxLength={15}
+            />
+            {errors.phone && (
+              <Text style={styles.errorText}>{errors.phone}</Text>
             )}
           </View>
 
@@ -686,7 +747,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     padding: 15,
-    paddingTop: 50,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSubtle,
