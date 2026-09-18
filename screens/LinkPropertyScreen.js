@@ -81,7 +81,7 @@ const LinkPropertyScreen = ({ route, navigation }) => {
 
     if (isOccupied) {
       Alert.alert(
-        'Propriedade ocupada',
+        'Imóvel ocupado',
         'Este imóvel já possui um inquilino e não pode ser alugado por outro ao mesmo tempo. O inquilino atual será desvinculado e este inquilino será movido para este imóvel. Deseja continuar?',
         [
           { text: 'Cancelar', style: 'cancel' },
@@ -132,7 +132,7 @@ const LinkPropertyScreen = ({ route, navigation }) => {
           'Sucesso',
           forceMove
             ? 'Inquilino movido para o imóvel selecionado.'
-            : 'Propriedade vinculada ao inquilino.'
+            : 'Imóvel vinculado ao inquilino.'
         );
         navigation.goBack();
       }
@@ -145,7 +145,7 @@ const LinkPropertyScreen = ({ route, navigation }) => {
     return (
       <View style={styles.container}>
         <ScreenHeader
-          title="Vincular Propriedade"
+          title="Vincular Imóvel"
           onBack={() => navigation.goBack()}
         />
         <View style={styles.listContent}>
@@ -158,7 +158,7 @@ const LinkPropertyScreen = ({ route, navigation }) => {
   return (
     <View style={styles.container}>
       <ScreenHeader
-        title="Vincular Propriedade"
+        title="Vincular Imóvel"
         onBack={() => navigation.goBack()}
       />
       <FlatList

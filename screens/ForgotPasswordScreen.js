@@ -1,5 +1,6 @@
 // screens/ForgotPasswordScreen.js
 import React, { useState } from 'react';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   Text,
@@ -18,6 +19,10 @@ import Constants from 'expo-constants';
 import { radii, colors } from '../theme';
 
 const ForgotPasswordScreen = ({ navigation }) => {
+  // Topo seguro real do aparelho, em vez do `paddingTop: 50` que estava no
+  // StyleSheet: 20pt num iPhone SE, 59pt num com Dynamic Island.
+  const insets = useSafeAreaInsets();
+
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -61,7 +66,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-        <View style={styles.headerContainer}>
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                 <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
             </TouchableOpacity>
@@ -108,7 +113,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 15,
-    paddingTop: 50,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',

@@ -40,7 +40,7 @@ const TermsOfServiceScreen = ({ navigation }) => {
             O Llord é uma plataforma SaaS (Software as a Service) de gestão imobiliária projetada para facilitar a administração de propriedades. As funcionalidades incluem, mas não se limitam a:
           </Text>
           <Text style={styles.bulletPoint}>
-            • Gestão de Propriedades: Cadastro, edição e organização de imóveis residenciais ou comerciais.
+            • Gestão de Imóveis: Cadastro, edição e organização de imóveis residenciais ou comerciais.
           </Text>
           <Text style={styles.bulletPoint}>
             • Gestão de Inquilinos: Cadastro de dados pessoais, profissionais e financeiros de locatários.

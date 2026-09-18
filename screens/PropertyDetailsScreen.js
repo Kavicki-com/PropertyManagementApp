@@ -1,5 +1,6 @@
 // screens/PropertyDetailsScreen.js
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   Text,
@@ -31,6 +32,10 @@ import { PropertyDetailsSkeleton } from '../components/SkeletonLoader';
 
 import { formatCurrency } from '../lib/formatters';
 const PropertyDetailsScreen = ({ route, navigation }) => {
+  // Topo seguro real do aparelho, em vez do `paddingTop: 50` que estava no
+  // StyleSheet: 20pt num iPhone SE, 59pt num com Dynamic Island.
+  const insets = useSafeAreaInsets();
+
   const { theme } = useAccessibilityTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const { property: initialProperty } = route.params;
@@ -334,7 +339,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
                 removeCache(CACHE_KEYS.PROPERTY_DETAILS(property.id)),
               ]);
 
-              Alert.alert('Sucesso', 'Propriedade excluída com sucesso.');
+              Alert.alert('Sucesso', 'Imóvel excluído com sucesso.');
               navigation.goBack();
             }
             setIsDeleting(false);
@@ -510,7 +515,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   if (loading || !property) {
     return (
       <View style={styles.container}>
-        <View style={styles.headerContainer}>
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <MaterialIcons name="arrow-back-ios" size={24} color={theme.colors.textPrimary} />
           </TouchableOpacity>
@@ -527,7 +532,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
   if (isBlocked) {
     return (
       <View style={styles.container}>
-        <View style={styles.headerContainer}>
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <MaterialIcons name="arrow-back-ios" size={24} color={theme.colors.textPrimary} />
           </TouchableOpacity>
@@ -572,7 +577,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <MaterialIcons name="arrow-back-ios" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
@@ -680,7 +685,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Detalhes da Propriedade</Text>
+          <Text style={styles.sectionTitle}>Detalhes do Imóvel</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Tipo</Text>
             <Text style={styles.infoValue}>{property.type || 'N/A'}</Text>
@@ -708,7 +713,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             style={styles.editButton}
             onPress={() => navigation.navigate('EditProperty', { property: property })}
           >
-            <Text style={styles.editButtonText}>Editar Propriedade</Text>
+            <Text style={styles.editButtonText}>Editar Imóvel</Text>
           </TouchableOpacity>
         </View>
 
@@ -852,7 +857,7 @@ const PropertyDetailsScreen = ({ route, navigation }) => {
             {isDeleting ? (
               <ActivityIndicator color={theme.colors.primary} />
             ) : (
-              <Text style={[styles.buttonText, styles.deleteButtonText]}>Excluir Propriedade</Text>
+              <Text style={[styles.buttonText, styles.deleteButtonText]}>Excluir Imóvel</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -893,7 +898,6 @@ const createStyles = (theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
-    paddingTop: 50,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSubtle,

@@ -1,6 +1,7 @@
 // screens/FinancesScreen.js
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { fetchAllFinances, calculateOverview } from '../lib/financesService';
@@ -15,6 +16,10 @@ import SkeletonLoader, { OverviewSkeleton, FinancesListSkeleton } from '../compo
 
 import { formatCurrency } from '../lib/formatters';
 const FinancesScreen = ({ navigation }) => {
+  // Topo seguro real do aparelho, em vez do `paddingTop: 50` que estava no
+  // StyleSheet: 20pt num iPhone SE, 59pt num com Dynamic Island.
+  const insets = useSafeAreaInsets();
+
   const { theme } = useAccessibilityTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [transactions, setTransactions] = useState([]);
@@ -172,7 +177,7 @@ const FinancesScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
         <Text style={styles.header}>Finanças</Text>
       </View>
       <ScrollView style={styles.scrollContainer}>
@@ -439,7 +444,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   headerContainer: {
     padding: 15,
-    paddingTop: 50,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSubtle,
