@@ -305,9 +305,9 @@ const SubscriptionScreen = ({ navigation }) => {
 
     setPurchasing(true);
     try {
-      // restorePurchases lê o histórico da App Store (pode pedir a senha do
-      // Apple ID — aceitável porque o usuário pediu) e manda o recibo ao
-      // servidor, que decide o plano.
+      // restorePurchases lê as transações da conta da App Store (pode pedir a
+      // senha do Apple ID — aceitável porque o usuário pediu) e manda o
+      // transactionId ao servidor, que pergunta à Apple e decide o plano.
       console.log('SubscriptionScreen: Restaurando compras...');
       const result = await restorePurchases();
 
