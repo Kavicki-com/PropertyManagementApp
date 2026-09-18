@@ -1,5 +1,7 @@
 // screens/DashboardScreen.js
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, G } from 'react-native-svg';
 import {
   View,
   Text,
@@ -16,7 +18,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { fetchActiveContractsByTenants } from '../lib/contractsService';
 import { useIsFocused } from '@react-navigation/native';
-import { startOfMonth, endOfMonth, format, differenceInDays, setDate, addMonths } from 'date-fns';
+import { startOfMonth, endOfMonth, format, differenceInDays, addMonths } from 'date-fns';
 import ptBR from 'date-fns/locale/pt-BR';
 import { useAccessibilityTheme } from '../lib/useAccessibilityTheme';
 import { getUserSubscription, getActivePropertiesCount, getSubscriptionLimits, checkSubscriptionStatus, getBlockedProperties } from '../lib/subscriptionService';
@@ -27,6 +29,21 @@ import SkeletonLoader, { PropertyCardSkeleton, TenantCardSkeleton } from '../com
 
 import { formatCurrency } from '../lib/formatters';
 // Componente de gráfico de donut com cores por tipo de imóvel
+/**
+ * Donut de ocupação.
+ *
+ * A versão anterior desenhava o gráfico com `borderWidth` e quatro
+ * `borderColor` num View redondo, alternando cada borda entre a cor e
+ * `transparent` conforme o ângulo. É um truque de CSS que só produz quartos de
+ * círculo: qualquer proporção que não caísse em 90, 180 ou 270 graus era
+ * arredondada para o quarto mais próximo, então o desenho não correspondia aos
+ * números da legenda ao lado.
+ *
+ * Agora são arcos reais, com `strokeDasharray` sobre um círculo SVG: o
+ * comprimento de cada segmento é a fração exata da circunferência, e o
+ * `strokeDashoffset` acumulado encaixa um segmento após o outro. O grupo é
+ * girado -90° para que o primeiro comece no topo, e não às 3 horas.
+ */
 const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30, theme, styles }) => {
   const { colors } = theme;
   const totalResidencial = occupancyByType.Residencial?.total || 0;
@@ -38,22 +55,6 @@ const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30, theme, styl
   const totalOccupied = occupiedResidencial + occupiedComercial;
   const occupancyRate = totalProperties > 0 ? (totalOccupied / totalProperties) * 100 : 0;
 
-  // Calcular porcentagens de ocupação por tipo
-  const residencialRate = totalResidencial > 0 ? (occupiedResidencial / totalResidencial) * 100 : 0;
-  const comercialRate = totalComercial > 0 ? (occupiedComercial / totalComercial) * 100 : 0;
-
-  // Calcular proporção de cada tipo no total de imóveis
-  const residencialProportion = totalProperties > 0 ? (totalResidencial / totalProperties) * 100 : 0;
-  const comercialProportion = totalProperties > 0 ? (totalComercial / totalProperties) * 100 : 0;
-
-  // Calcular ângulos para cada segmento
-  const residencialAngle = (residencialProportion / 100) * 360;
-  const comercialAngle = (comercialProportion / 100) * 360;
-
-  // Calcular ocupação dentro de cada segmento
-  const residencialOccupiedAngle = (residencialProportion / 100) * (residencialRate / 100) * 360;
-  const comercialOccupiedAngle = (comercialProportion / 100) * (comercialRate / 100) * 360;
-
   if (totalProperties === 0) {
     return (
       <View style={[styles.donutContainer, { width: size, height: size }]}>
@@ -64,84 +65,51 @@ const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30, theme, styl
     );
   }
 
-  const radius = size / 2;
-  const innerSize = size - (strokeWidth * 2);
+  // O raio é medido na linha do meio do traço, senão metade da espessura
+  // vazaria para fora do SVG e o anel apareceria cortado.
+  const radius = (size - strokeWidth) / 2;
+  const center = size / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  // As cores acompanham a legenda ao lado: azul é Residencial, cinza é
+  // Comercial. Ocupado é sólido, vago é a mesma cor esmaecida — assim o anel
+  // mostra as duas leituras de uma vez (quanto de cada tipo, e quanto do tipo
+  // está alugado).
+  const segmentos = [
+    { chave: 'res-ocupado', valor: occupiedResidencial, cor: colors.primary, opacidade: 1 },
+    { chave: 'res-vago', valor: totalResidencial - occupiedResidencial, cor: colors.primary, opacidade: 0.25 },
+    { chave: 'com-ocupado', valor: occupiedComercial, cor: '#9ca3af', opacidade: 1 },
+    { chave: 'com-vago', valor: totalComercial - occupiedComercial, cor: '#9ca3af', opacidade: 0.3 },
+  ].filter((s) => s.valor > 0);
+
+  let percorrido = 0;
 
   return (
     <View style={[styles.donutContainer, { width: size, height: size }]}>
-      {/* Círculo de fundo (disponível) - cinza */}
-      <View
-        style={[
-          styles.donutCircle,
-          {
-            width: size,
-            height: size,
-            borderRadius: radius,
-            borderWidth: strokeWidth,
-            borderColor: '#e5e7eb',
-            position: 'absolute',
-          },
-        ]}
-      />
-      {/* Círculo interno branco para criar o efeito donut */}
-      <View
-        style={[
-          styles.donutCircle,
-          {
-            width: innerSize,
-            height: innerSize,
-            borderRadius: innerSize / 2,
-            backgroundColor: colors.surface,
-            position: 'absolute',
-            top: strokeWidth,
-            left: strokeWidth,
-          },
-        ]}
-      />
+      <Svg width={size} height={size}>
+        <G rotation={-90} originX={center} originY={center}>
+          {segmentos.map((segmento) => {
+            const comprimento = (segmento.valor / totalProperties) * circumference;
+            const arco = (
+              <Circle
+                key={segmento.chave}
+                cx={center}
+                cy={center}
+                r={radius}
+                fill="none"
+                stroke={segmento.cor}
+                strokeOpacity={segmento.opacidade}
+                strokeWidth={strokeWidth}
+                strokeDasharray={`${comprimento} ${circumference - comprimento}`}
+                strokeDashoffset={-percorrido}
+              />
+            );
+            percorrido += comprimento;
+            return arco;
+          })}
+        </G>
+      </Svg>
 
-      {/* Segmento Residencial ocupado - azul */}
-      {residencialOccupiedAngle > 0 && (
-        <View
-          style={[
-            styles.donutCircle,
-            {
-              width: size,
-              height: size,
-              borderRadius: radius,
-              borderWidth: strokeWidth,
-              borderColor: colors.primary,
-              borderRightColor: residencialOccupiedAngle < 90 ? 'transparent' : colors.primary,
-              borderBottomColor: residencialOccupiedAngle < 180 ? 'transparent' : colors.primary,
-              borderLeftColor: residencialOccupiedAngle < 270 ? 'transparent' : colors.primary,
-              position: 'absolute',
-              transform: [{ rotate: '-90deg' }],
-            },
-          ]}
-        />
-      )}
-
-      {/* Segmento Comercial ocupado - cinza (começa após o residencial) */}
-      {comercialOccupiedAngle > 0 && (
-        <View
-          style={[
-            styles.donutCircle,
-            {
-              width: size,
-              height: size,
-              borderRadius: radius,
-              borderWidth: strokeWidth,
-              borderColor: '#9ca3af',
-              borderRightColor: (residencialAngle + comercialOccupiedAngle) < (residencialAngle + 90) ? 'transparent' : '#9ca3af',
-              borderBottomColor: (residencialAngle + comercialOccupiedAngle) < (residencialAngle + 180) ? 'transparent' : '#9ca3af',
-              borderLeftColor: (residencialAngle + comercialOccupiedAngle) < (residencialAngle + 270) ? 'transparent' : '#9ca3af',
-              position: 'absolute',
-              transform: [{ rotate: `${-90 + residencialAngle}deg` }],
-            },
-          ]}
-        />
-      )}
-
-      {/* Centro do donut */}
       <View style={styles.donutCenter}>
         <Text style={styles.donutCenterText}>
           {occupancyRate.toFixed(0)}%
@@ -153,6 +121,10 @@ const DonutChart = ({ occupancyByType, size = 160, strokeWidth = 30, theme, styl
 };
 
 const DashboardScreen = ({ navigation }) => {
+  // Topo seguro real do aparelho, em vez do `paddingTop: 50` que estava no
+  // StyleSheet: 20pt num iPhone SE, 59pt num com Dynamic Island.
+  const insets = useSafeAreaInsets();
+
   const { theme } = useAccessibilityTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const { colors, radii, typography } = theme;
@@ -190,42 +162,87 @@ const DashboardScreen = ({ navigation }) => {
     return `${day}/${month}/${year}`;
   };
 
-  const computeUpcomingRents = (tenants, contractsMap) => {
-    const today = new Date();
+  /**
+   * Vencimento de um mês específico, sem estourar para o mês seguinte.
+   *
+   * `setDate(data, 31)` em fevereiro rola para março. Aqui o dia é limitado ao
+   * último dia do mês de referência, que é o que um vencimento "todo dia 31"
+   * significa na prática.
+   */
+  const vencimentoNoMes = (referencia, diaVencimento) => {
+    const ultimoDia = new Date(
+      referencia.getFullYear(),
+      referencia.getMonth() + 1,
+      0
+    ).getDate();
+    const data = new Date(
+      referencia.getFullYear(),
+      referencia.getMonth(),
+      Math.min(diaVencimento, ultimoDia)
+    );
+    data.setHours(0, 0, 0, 0);
+    return data;
+  };
+
+  /**
+   * Monta a lista de vencimentos, INCLUINDO os que já venceram.
+   *
+   * O que havia aqui antes empurrava todo vencimento passado para o mês
+   * seguinte — `if (diferença < 0) dueDate.setMonth(+1)`. Com isso `days` nunca
+   * era negativo, o filtro `days >= 0` não descartava nada, e um aluguel
+   * vencido dia 5 aparecia como "vence em 20 dias". Ou seja, o atraso não só
+   * sumia da tela: era apresentado como se fosse futuro, que é justamente o
+   * contrário do que o locador precisa ver ao abrir o app.
+   *
+   * Agora o vencimento do mês corrente é mantido, e só vira o do mês seguinte
+   * quando existe recebimento registrado para aquele inquilino no período.
+   * Quem não registra pagamento no app vê o vencimento em aberto — o que é a
+   * leitura honesta do dado que existe.
+   */
+  const computeUpcomingRents = (tenants, contractsMap, receitasDoMes = []) => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    const quitouNoPeriodo = new Set(
+      (receitasDoMes || []).map((receita) => receita.tenant_id).filter(Boolean)
+    );
+
     const items = [];
 
     tenants.forEach(tenant => {
       const contract = contractsMap[tenant.id];
       if (!contract || !contract.due_day || !contract.rent_amount) return;
 
-      let dueDateThisMonth = setDate(today, contract.due_day);
+      let vencimento = vencimentoNoMes(hoje, contract.due_day);
+      let daysDiff = differenceInDays(vencimento, hoje);
 
-      if (differenceInDays(dueDateThisMonth, today) < 0) {
-        dueDateThisMonth.setMonth(dueDateThisMonth.getMonth() + 1);
+      if (daysDiff < 0 && quitouNoPeriodo.has(tenant.id)) {
+        vencimento = vencimentoNoMes(addMonths(hoje, 1), contract.due_day);
+        daysDiff = differenceInDays(vencimento, hoje);
       }
 
-      const daysDiff = differenceInDays(dueDateThisMonth, today);
       items.push({
         id: tenant.id || `${tenant.full_name}-${tenant.due_date}-${tenant.property_id || 'no-property'}`,
         name: tenant.full_name,
         days: daysDiff,
-        date: dueDateThisMonth,
+        overdue: daysDiff < 0,
+        date: vencimento,
         propertyAddress: tenant.properties?.address,
         amount: contract.rent_amount,
         tenant: tenant, // Armazenar o objeto tenant completo para navegação
       });
     });
 
-    // Lista completa de todos os vencimentos (ordenada por data)
-    const allSorted = items
-      .filter(item => item.days >= 0)
-      .sort((a, b) => a.days - b.days);
+    // Ordenar por `days` já coloca o mais atrasado primeiro: -12 vem antes de
+    // -3, que vem antes de 0.
+    const allSorted = [...items].sort((a, b) => a.days - b.days);
     setAllUpcomingRents(allSorted);
 
-    // Lista resumida para o dashboard (próximos 7 dias, máximo 5 itens)
-    const sorted = items
-      .filter(item => item.days >= 0 && item.days <= 7)
-      .sort((a, b) => a.days - b.days)
+    // Resumo do início: tudo que está em atraso, mais o que vence em até 7
+    // dias. O corte em 5 itens continua, e como atrasado ordena primeiro, ele
+    // nunca é o item cortado.
+    const sorted = allSorted
+      .filter(item => item.days <= 7)
       .slice(0, 5);
 
     setUpcomingRents(sorted);
@@ -238,30 +255,29 @@ const DashboardScreen = ({ navigation }) => {
   const computeNextMonthRents = (tenants, contractsMap) => {
     const today = new Date();
     const nextMonth = addMonths(today, 1);
-    const nextMonthStart = startOfMonth(nextMonth);
-    const nextMonthEnd = endOfMonth(nextMonth);
     const items = [];
 
     tenants.forEach(tenant => {
       const contract = contractsMap[tenant.id];
       if (!contract || !contract.due_day || !contract.rent_amount) return;
 
-      // Calcular data de vencimento no próximo mês
-      let dueDateNextMonth = setDate(nextMonth, contract.due_day);
+      // `setDate(nextMonth, 31)` em fevereiro rolava para março, e aí a checagem
+      // de intervalo que havia aqui descartava o item: todo contrato com
+      // vencimento em 29, 30 ou 31 sumia da previsão nos meses curtos. Com o
+      // dia limitado ao último do mês, a data sempre cai dentro do período e a
+      // checagem deixou de ser necessária.
+      const dueDateNextMonth = vencimentoNoMes(nextMonth, contract.due_day);
+      const daysDiff = differenceInDays(dueDateNextMonth, today);
 
-      // Verificar se a data está dentro do próximo mês
-      if (dueDateNextMonth >= nextMonthStart && dueDateNextMonth <= nextMonthEnd) {
-        const daysDiff = differenceInDays(dueDateNextMonth, today);
-        items.push({
-          id: tenant.id || `${tenant.full_name}-${contract.due_day}-${tenant.property_id || 'no-property'}`,
-          name: tenant.full_name,
-          days: daysDiff,
-          date: dueDateNextMonth,
-          propertyAddress: tenant.properties?.address,
-          amount: contract.rent_amount,
-          tenant: tenant,
-        });
-      }
+      items.push({
+        id: tenant.id || `${tenant.full_name}-${contract.due_day}-${tenant.property_id || 'no-property'}`,
+        name: tenant.full_name,
+        days: daysDiff,
+        date: dueDateNextMonth,
+        propertyAddress: tenant.properties?.address,
+        amount: contract.rent_amount,
+        tenant: tenant,
+      });
     });
 
     // Ordenar por data
@@ -317,7 +333,10 @@ const DashboardScreen = ({ navigation }) => {
 
     const financePromise = supabase
       .from('finances')
-      .select('amount')
+      // tenant_id entra aqui para o cálculo de atraso: um vencimento que já
+      // passou só vira "próximo mês" se houver recebimento registrado. Não
+      // custa uma requisição a mais — é a mesma query.
+      .select('amount, tenant_id')
       .eq('user_id', user.id)
       .eq('type', 'income')
       .gte('date', startDate)
@@ -423,7 +442,7 @@ const DashboardScreen = ({ navigation }) => {
       let computedNextMonthRents = [];
 
       if (tenantsData) {
-        computedUpcomingRents = computeUpcomingRents(tenantsData, contractsMap || {});
+        computedUpcomingRents = computeUpcomingRents(tenantsData, contractsMap || {}, financeData || []);
         computedNextMonthRents = computeNextMonthRents(tenantsData, contractsMap || {});
       } else {
         setUpcomingRents([]);
@@ -529,7 +548,7 @@ const DashboardScreen = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.headerContainer}>
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
           <Text style={styles.header}>Início</Text>
         </View>
         <ScrollView style={styles.scrollContainer}>
@@ -557,7 +576,7 @@ const DashboardScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 15 }]}>
         <Text style={styles.header}>Início</Text>
       </View>
       {error && (
@@ -675,7 +694,7 @@ const DashboardScreen = ({ navigation }) => {
 
           {upcomingRents.length === 0 ? (
             <Text style={styles.emptyText}>
-              Nenhum vencimento de aluguel em breve. Adicione inquilinos e contratos para ver aqui.
+              Nenhum aluguel em atraso ou vencendo nos próximos dias. Adicione inquilinos e contratos para ver aqui.
             </Text>
           ) : (
             upcomingRents.map((item) => (
@@ -692,9 +711,13 @@ const DashboardScreen = ({ navigation }) => {
                     {item.propertyAddress || 'Sem imóvel vinculado'} • {formatDate(item.date)}
                   </Text>
                 </View>
-                <View style={styles.upcomingBadge}>
-                  <Text style={styles.upcomingBadgeText}>
-                    {item.days === 0 ? 'Hoje' : `${item.days}d`}
+                <View style={[styles.upcomingBadge, item.overdue && styles.upcomingBadgeOverdue]}>
+                  <Text style={[styles.upcomingBadgeText, item.overdue && styles.upcomingBadgeTextOverdue]}>
+                    {item.overdue
+                      ? `${Math.abs(item.days)}d atrás`
+                      : item.days === 0
+                        ? 'Hoje'
+                        : `${item.days}d`}
                   </Text>
                 </View>
                 <Text style={styles.upcomingAmount}>
@@ -954,7 +977,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   headerContainer: {
     padding: 15,
-    paddingTop: 50,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSubtle,
@@ -1088,9 +1110,6 @@ const createStyles = (theme) => StyleSheet.create({
   donutChart: {
     position: 'relative',
   },
-  donutCircle: {
-    position: 'absolute',
-  },
   donutSegment: {
     position: 'absolute',
   },
@@ -1188,6 +1207,14 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#92400e',
+  },
+  // Atraso usa a cor semântica do tema, não um literal: em alto contraste o
+  // `danger` muda junto com o resto.
+  upcomingBadgeOverdue: {
+    backgroundColor: theme.colors.dangerSoft,
+  },
+  upcomingBadgeTextOverdue: {
+    color: theme.colors.danger,
   },
   upcomingAmount: {
     marginLeft: 10,
