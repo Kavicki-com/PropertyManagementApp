@@ -59,6 +59,22 @@ update public.properties
    and rent = 9;
 
 -- ---------------------------------------------------------------------
+-- 2.4 (parcial) o contrato encerrado que sofreu o mesmo acidente
+-- ---------------------------------------------------------------------
+-- Contrato encerrado do mesmo imóvel, com rent_amount = 9 e
+-- deposit = 900 na mesma linha — o depósito é a prova de qual era o
+-- aluguel. Os outros três contratos `ended` com valor suspeito
+-- (32, 40 e 40, de 19/12/2025) ficam como estão: não há no registro
+-- nada que diga qual seria o valor certo, e inventar número em
+-- contrato encerrado é pior que deixar o histórico torto.
+
+update public.contracts
+   set rent_amount = 900
+ where id = '1a667dae-19d1-44fb-b88b-8d5877cf157a'
+   and rent_amount = 9
+   and deposit = 900;
+
+-- ---------------------------------------------------------------------
 -- 2.5 tenants.cpf de jsonb para text
 -- ---------------------------------------------------------------------
 -- Os 32 registros são strings JSON ("005.646.665-05"), nenhum nulo e
@@ -92,10 +108,10 @@ commit;
 -- ---------------------------------------------------------------------
 -- Fora deste arquivo, de propósito
 -- ---------------------------------------------------------------------
--- 2.4 — os quatro contratos `ended` com valor suspeito (32, 40, 40 de
---       19/12/2025 e 9 de 16/06/2026) não são tocados aqui: são
---       histórico encerrado, não entram em nenhum cálculo do app, e o
---       de 9 é o mesmo caso do imóvel acima. Decisão pendente.
+-- 2.4 — os três contratos `ended` de 19/12/2025 (32, 40 e 40) ficam
+--       como estão, por decisão de 21/09/2026: é histórico encerrado,
+--       não entra em cálculo nenhum, e o registro não diz qual seria o
+--       valor certo. O quarto, de 16/06/2026, foi corrigido acima.
 --
 -- tenants.rent_amount, tenants.deposit — continuam integer. Estão nulas
 --       nos 32 registros e o app não escreve nelas; o Lote 3 decide se
