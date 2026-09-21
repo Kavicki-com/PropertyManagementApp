@@ -72,8 +72,8 @@ const LoginScreen = ({ navigation }) => {
       // Verifica se é erro de credenciais inválidas
       else if (error.message.includes('Invalid login credentials') || error.message.includes('invalid credentials')) {
         Alert.alert(
-          'Cadastro não encontrado',
-          'Clique em cadastre-se para continuar',
+          'E-mail ou senha incorretos',
+          'Confira os dados e tente de novo. Se você ainda não tem conta, pode se cadastrar.',
           [
             {
               text: 'Cancelar',
@@ -82,6 +82,11 @@ const LoginScreen = ({ navigation }) => {
             {
               text: 'Cadastre-se',
               onPress: () => navigation.navigate('SignUp'),
+              style: 'default',
+            },
+            {
+              text: 'Recuperar senha',
+              onPress: () => navigation.navigate('ForgotPassword'),
               style: 'default',
             },
           ]

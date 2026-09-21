@@ -98,7 +98,11 @@ const EditPropertyScreen = ({ route, navigation }) => {
       setBanheiros(property.bathrooms?.toString() || '');
       setTotalComodos(property.total_rooms?.toString() || '');
       setArea(property.sqft?.toString() || '');
-      setAluguel(property.rent ? String(property.rent).replace(/\D/g, '') : '');
+      // O campo guarda a máscara em centavos e divide por 100 ao salvar, então
+      // o valor salvo (em reais) precisa virar centavos aqui. Tirar os não-dígitos
+      // de "900" devolvia 900 centavos, ou seja, R$ 9,00 — e salvar de novo
+      // gravava 9. Mesmo idioma do AddContractScreen.
+      setAluguel(property.rent != null ? String(Math.round(property.rent * 100)) : '');
       setImages(property.image_urls || []);
     }
   }, [property]);
